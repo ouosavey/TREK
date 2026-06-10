@@ -1,0 +1,52 @@
+name: Build & Push CN Localized Image
+
+on:
+  push:
+    branches: [cn-localized]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'wiki/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: cn-localized-build
+  cancel-in-progress: true
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract short SHA
+        id: sha
+        run: echo "SHORT=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          no-cache: true
+          build-args: |
+            APP_VERSION=cn-localized-${{ steps.sha.outputs.SHORT }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/trek:cn-localized
+            ghcr.io/${{ github.repository_owner }}/trek:cn-localized-${{ steps.sha.outputs.SHORT }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
