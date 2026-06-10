@@ -63,6 +63,19 @@ export function generateGoogleMapsUrl(places: Waypoint[]): string | null {
   return `https://www.google.com/maps/dir/${stops}`
 }
 
+/** 生成高德地图导航链接 */
+export function generateAmapUrl(places: Waypoint[]): string | null {
+  const valid = places.filter((p) => p.lat && p.lng)
+  if (valid.length === 0) return null
+  if (valid.length === 1) {
+    return `https://uri.amap.com/marker?position=${valid[0].lng},${valid[0].lat}&src=TREK`
+  }
+  const origin = `${valid[0].lng},${valid[0].lat}`
+  const dest = `${valid[valid.length - 1].lng},${valid[valid.length - 1].lat}`
+  const via = valid.slice(1, -1).map((p) => `${p.lng},${p.lat}`).join(';')
+  return `https://uri.amap.com/navigation?from=${origin}&to=${dest}${via ? '&via=' + via : ''}&src=TREK`
+}
+
 /** Reorders waypoints using a nearest-neighbor heuristic to minimize total Euclidean distance. */
 export function optimizeRoute(places: Waypoint[]): Waypoint[] {
   const valid = places.filter((p) => p.lat && p.lng)

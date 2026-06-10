@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { MapPin, X } from 'lucide-react'
 import { mapsApi } from '../../api/client'
 import { useTranslation } from '../../i18n'
+import { useSettingsStore } from '../../store/settingsStore'
 
 export interface LocationPoint {
   name: string
@@ -19,6 +20,7 @@ interface Props {
 
 export default function LocationSelect({ value, onChange, placeholder, style }: Props) {
   const { t, locale } = useTranslation()
+  const mapProvider = useSettingsStore(s => s.settings.map_provider)
   const [query, setQuery] = useState(value?.name || '')
   const [open, setOpen] = useState(false)
   const [results, setResults] = useState<any[]>([])
@@ -49,7 +51,9 @@ export default function LocationSelect({ value, onChange, placeholder, style }: 
     debounceRef.current = setTimeout(async () => {
       setLoading(true)
       try {
-        const data = await mapsApi.search(trimmed, locale)
+        const data = mapProvider === 'amap'
+          ? await mapsApi.searchAmap(trimmed)
+          : await mapsApi.search(trimmed, locale)
         setResults(data.places || [])
         setHighlight(-1)
       } catch {

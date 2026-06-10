@@ -121,6 +121,7 @@ const A2_TO_A3: Record<string, string> = {"AF":"AFG","AL":"ALB","DZ":"DZA","AD":
 export default function AtlasPage(): React.ReactElement {
   const { t, language } = useTranslation()
   const { settings } = useSettingsStore()
+  const mapProvider = useSettingsStore(s => s.settings.map_provider)
   const navigate = useNavigate()
   const resolveName = useCountryNames(language)
   const dm = settings.dark_mode
@@ -710,7 +711,9 @@ export default function AtlasPage(): React.ReactElement {
     if (!bucketSearch.trim()) return
     setBucketSearching(true)
     try {
-      const result = await mapsApi.search(bucketSearch, language)
+      const result = mapProvider === 'amap'
+        ? await mapsApi.searchAmap(bucketSearch)
+        : await mapsApi.search(bucketSearch, language)
       setBucketSearchResults(result.places || [])
     } catch {} finally { setBucketSearching(false) }
   }

@@ -1,6 +1,7 @@
 import { useSettingsStore } from '../../store/settingsStore'
 import { MapView } from './MapView'
 import { MapViewGL } from './MapViewGL'
+import { MapViewAMap } from './MapViewAMap'
 
 // Auto-selects the map renderer based on user settings. Keeps the existing
 // Leaflet MapView untouched so the Mapbox GL variant can mature iteratively
@@ -9,6 +10,9 @@ import { MapViewGL } from './MapViewGL'
 export function MapViewAuto(props: any) {
   const provider = useSettingsStore(s => s.settings.map_provider)
   const token = useSettingsStore(s => s.settings.mapbox_access_token)
+  const amapKey = useSettingsStore(s => s.settings.amap_key)
+  // Priority: amap (with key) > mapbox-gl (with token) > leaflet (fallback)
+  if (provider === 'amap' && amapKey) return <MapViewAMap {...props} />
   // Fall back to Leaflet when Mapbox is selected but no token is set,
   // so trip planner never shows an empty map due to a missing token.
   if (provider === 'mapbox-gl' && token) return <MapViewGL {...props} />

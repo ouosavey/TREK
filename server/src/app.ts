@@ -136,7 +136,8 @@ export function createApp(): express.Application {
           "https://geocoding-api.open-meteo.com", "https://api.exchangerate-api.com",
           "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson",
           "https://router.project-osrm.org/route/v1/",
-          "https://api.mapbox.com", "https://*.tiles.mapbox.com", "https://events.mapbox.com"
+          "https://api.mapbox.com", "https://*.tiles.mapbox.com", "https://events.mapbox.com",
+          "https://restapi.amap.com", "https://*.amap.com"
         ],
         workerSrc: ["'self'", "blob:"],
         childSrc: ["'self'", "blob:"],

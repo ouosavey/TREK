@@ -5,6 +5,7 @@ import { mapsApi } from '../../api/client'
 import { useAuthStore } from '../../store/authStore'
 import { useCanDo } from '../../store/permissionsStore'
 import { useTripStore } from '../../store/tripStore'
+import { useSettingsStore } from '../../store/settingsStore'
 import { useToast } from '../shared/Toast'
 import { Search, Paperclip, X, AlertTriangle, Loader2 } from 'lucide-react'
 import { useTranslation } from '../../i18n'
@@ -90,6 +91,7 @@ export default function PlaceFormModal({
   const acAbortRef = useRef<AbortController | null>(null)
   const toast = useToast()
   const { t, language } = useTranslation()
+  const mapProvider = useSettingsStore(s => s.settings.map_provider)
   const { hasMapsKey } = useAuthStore()
   const can = useCanDo()
   const tripObj = useTripStore((s) => s.trip)
@@ -162,7 +164,9 @@ export default function PlaceFormModal({
     const controller = new AbortController()
     acAbortRef.current = controller
     try {
-      const result = await mapsApi.autocomplete(query, language, locationBias, controller.signal)
+      const result = mapProvider === 'amap'
+        ? await mapsApi.autocompleteAmap(query)
+        : await mapsApi.autocomplete(query, language, locationBias, controller.signal)
       setAcSuggestions(result.suggestions || [])
       setAcHighlight(-1)
     } catch (err: unknown) {
@@ -217,7 +221,9 @@ export default function PlaceFormModal({
           return
         }
       }
-      const result = await mapsApi.search(mapsSearch, language)
+      const result = mapProvider === 'amap'
+        ? await mapsApi.searchAmap(mapsSearch)
+        : await mapsApi.search(mapsSearch, language)
       setMapsResults(result.places || [])
     } catch (err: unknown) {
       toast.error(t('places.mapsSearchError'))

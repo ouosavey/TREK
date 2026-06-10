@@ -9,7 +9,7 @@ import { ChevronDown, ChevronRight, ChevronUp, ChevronsDownUp, ChevronsUpDown, N
 const RES_ICONS = { flight: Plane, hotel: Hotel, restaurant: Utensils, train: Train, car: Car, cruise: Ship, event: Ticket, tour: Users, other: FileText }
 import { assignmentsApi, reservationsApi } from '../../api/client'
 import { downloadTripPDF } from '../PDF/TripPDF'
-import { calculateRoute, generateGoogleMapsUrl, optimizeRoute } from '../Map/RouteCalculator'
+import { calculateRoute, generateGoogleMapsUrl, generateAmapUrl, optimizeRoute } from '../Map/RouteCalculator'
 import PlaceAvatar from '../shared/PlaceAvatar'
 import { useContextMenu, ContextMenu } from '../shared/ContextMenu'
 import Markdown from 'react-markdown'
@@ -792,6 +792,13 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
     })
   }
 
+  const handleAmapNav = () => {
+    if (!selectedDayId) return
+    const da = getDayAssignments(selectedDayId)
+    const url = generateAmapUrl(da.map(a => a.place).filter(p => p?.lat && p?.lng))
+    if (url) window.open(url, '_blank')
+    else toast.error(t('dayplan.toast.noGeoPlaces'))
+  }
   const handleGoogleMaps = () => {
     if (!selectedDayId) return
     const da = getDayAssignments(selectedDayId)
@@ -1383,7 +1390,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                               canEditDays && onEditPlace && { label: t('common.edit'), icon: Pencil, onClick: () => onEditPlace(place, assignment.id) },
                               canEditDays && onRemoveAssignment && { label: t('planner.removeFromDay'), icon: Trash2, onClick: () => onRemoveAssignment(day.id, assignment.id) },
                               place.website && { label: t('inspector.website'), icon: ExternalLink, onClick: () => window.open(place.website, '_blank') },
-                              (place.lat && place.lng) && { label: 'Google Maps', icon: Navigation, onClick: () => window.open(`https://www.google.com/maps/search/?api=1&query=${place.google_place_id ? encodeURIComponent(place.name) + '&query_place_id=' + place.google_place_id : place.lat + ',' + place.lng}`, '_blank') },
+                              (place.lat && place.lng) && { label: '高德地图', icon: Navigation, onClick: () => window.open(`https://uri.amap.com/marker?position=${place.lng},${place.lat}&name=${encodeURIComponent(place.name || '')}&src=TREK`, '_blank') },
                               { divider: true },
                               canEditDays && onDeletePlace && { label: t('common.delete'), icon: Trash2, danger: true, onClick: () => onDeletePlace(place.id) },
                             ])}
@@ -1936,7 +1943,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                           <RotateCcw size={12} strokeWidth={2} />
                           {t('dayplan.optimize')}
                         </button>
-                        <button onClick={handleGoogleMaps} style={{
+                        <button onClick={handleAmapNav} style={{
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           padding: '6px 10px', fontSize: 11, fontWeight: 500, borderRadius: 8,
                           border: '1px solid var(--border-faint)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit',

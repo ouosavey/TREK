@@ -60,6 +60,21 @@ interface GoogleAutocompleteSuggestion {
   };
 }
 
+interface AmapPoi {
+  id: string
+  name: string
+  type?: string
+  address?: string
+  location?: string  // "lng,lat" format (GCJ-02)
+  pname?: string     // province
+  cityname?: string  // city
+  adname?: string    // district
+  tel?: string
+  website?: string
+  photos?: { url?: string }[]
+  biz_ext?: { rating?: string; cost?: string }
+}
+
 interface GooglePlaceDetails extends GooglePlaceResult {
   userRatingCount?: number;
   regularOpeningHours?: { weekdayDescriptions?: string[]; openNow?: boolean };
@@ -108,6 +123,11 @@ export function getMapsKey(userId: number): string | null {
   if (user_key) return user_key;
   const admin = db.prepare("SELECT maps_api_key FROM users WHERE role = 'admin' AND maps_api_key IS NOT NULL AND maps_api_key != '' LIMIT 1").get() as { maps_api_key: string } | undefined;
   return decrypt_api_key(admin?.maps_api_key) || null;
+}
+
+export function getAmapKey(): string | null {
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_api_key'").get() as { value: string } | undefined
+  return row?.value || null
 }
 
 // ── Nominatim search ─────────────────────────────────────────────────────────
@@ -742,6 +762,95 @@ export async function reverseGeocode(lat: string, lng: string, lang?: string): P
   const addr = data.address || {};
   const name = data.name || addr.tourism || addr.amenity || addr.shop || addr.building || addr.road || null;
   return { name, address: data.display_name || null };
+}
+
+// ── AMap (高德地图) search ──────────────────────────────────────────────────
+
+export async function searchAmap(query: string, city?: string, lang?: string): Promise<{ places: Record<string, unknown>[]; source: string }> {
+  const amapKey = getAmapKey()
+  if (!amapKey) return { places: [], source: 'amap' }
+
+  const params = new URLSearchParams({
+    key: amapKey,
+    keywords: query,
+    output: 'JSON',
+    offset: '10',
+    extensions: 'all',
+  })
+  if (city) params.set('city', city)
+
+  const response = await fetch(`https://restapi.amap.com/v3/place/text?${params}`)
+  if (!response.ok) throw new Error('AMap search API error')
+  const data = await response.json() as { status: string; pois?: AmapPoi[]; info?: string }
+  if (data.status !== '1') return { places: [], source: 'amap' }
+
+  const places = (data.pois || []).map(poi => ({
+    google_place_id: null,
+    osm_id: null,
+    amap_id: poi.id,
+    name: poi.name || '',
+    address: poi.address || poi.pname + poi.cityname + poi.adname + poi.address,
+    lat: poi.location ? parseFloat(poi.location.split(',')[1]) : null,
+    lng: poi.location ? parseFloat(poi.location.split(',')[0]) : null,
+    rating: poi.biz_ext?.rating ? parseFloat(poi.biz_ext.rating) : null,
+    website: poi.website || null,
+    phone: poi.tel || null,
+    category: poi.type ? poi.type.split(';')[0] : null,
+    photo_url: poi.photos?.[0]?.url || null,
+    source: 'amap',
+  }))
+  return { places, source: 'amap' }
+}
+
+export async function reverseGeocodeAmap(lat: string, lng: string): Promise<{ name: string | null; address: string | null }> {
+  const amapKey = getAmapKey()
+  if (!amapKey) return { name: null, address: null }
+
+  const params = new URLSearchParams({
+    key: amapKey,
+    location: `${lng},${lat}`,  // AMap uses "lng,lat" order
+    extensions: 'base',
+    output: 'JSON',
+  })
+  try {
+    const response = await fetch(`https://restapi.amap.com/v3/geocode/regeo?${params}`)
+    if (!response.ok) return { name: null, address: null }
+    const data = await response.json() as { status: string; regeocode?: { formatted_address?: string; addressComponent?: { township?: string; neighborhood?: { name?: string } } } }
+    if (data.status !== '1') return { name: null, address: null }
+    const addr = data.regeocode
+    const name = addr?.addressComponent?.neighborhood?.name || addr?.addressComponent?.township || null
+    return { name, address: addr?.formatted_address || null }
+  } catch { return { name: null, address: null } }
+}
+
+export async function autocompleteAmap(input: string, city?: string): Promise<{ suggestions: { placeId: string; mainText: string; secondaryText: string }[]; source: string }> {
+  const amapKey = getAmapKey()
+  if (!amapKey) return { suggestions: [], source: 'amap' }
+
+  const params = new URLSearchParams({
+    key: amapKey,
+    keywords: input,
+    output: 'JSON',
+    datatype: 'poi',
+  })
+  if (city) params.set('city', city)
+
+  try {
+    const response = await fetch(`https://restapi.amap.com/v3/assistant/inputtips?${params}`)
+    if (!response.ok) return { suggestions: [], source: 'amap' }
+    const data = await response.json() as { status: string; tips?: { id?: string; name?: string; address?: string; district?: string; location?: string }[] }
+    if (data.status !== '1') return { suggestions: [], source: 'amap' }
+
+    const suggestions = (data.tips || [])
+      .filter(t => t.id && t.location !== undefined)
+      .slice(0, 5)
+      .map(t => ({
+        placeId: `amap:${t.id}`,
+        mainText: t.name || '',
+        secondaryText: t.district && t.address ? `${t.district} ${t.address}` : t.address || t.district || '',
+      }))
+    return { suggestions, source: 'amap' }
+  } catch { return { suggestions: [], source: 'amap' } }
 }
 
 // ── Resolve Google Maps URL ──────────────────────────────────────────────────

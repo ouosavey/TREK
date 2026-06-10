@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useJourneyStore } from '../store/journeyStore'
 import { useAuthStore } from '../store/authStore'
+import { useSettingsStore } from '../store/settingsStore'
 import { useTranslation } from '../i18n'
 import { journeyApi, authApi, addonsApi, mapsApi } from '../api/client'
 import { addListener, removeListener } from '../api/websocket'
@@ -92,6 +93,7 @@ export default function JourneyDetailPage() {
   const navigate = useNavigate()
   const toast = useToast()
   const { t, locale } = useTranslation()
+  const mapProvider = useSettingsStore(s => s.settings.map_provider)
   const { current, loading, notFound, loadJourney, updateEntry, deleteEntry, reorderEntries, uploadPhotos, deletePhoto } = useJourneyStore()
   const mapRef = useRef<JourneyMapHandle>(null)
   const fullMapRef = useRef<JourneyMapHandle>(null)
@@ -2548,7 +2550,9 @@ function EntryEditor({ entry, journeyId, tripDates, galleryPhotos, onClose, onSa
                       locationTimerRef.current = setTimeout(async () => {
                         setLocationSearching(true)
                         try {
-                          const res = await mapsApi.search(q)
+                          const res = mapProvider === 'amap'
+                            ? await mapsApi.searchAmap(q)
+                            : await mapsApi.search(q)
                           setLocationResults((res.places || []).slice(0, 6).map((p: any) => ({
                             name: p.name, address: p.address, lat: Number(p.lat), lng: Number(p.lng),
                           })))

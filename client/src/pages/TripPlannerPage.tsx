@@ -172,6 +172,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
   const toast = useToast()
   const { t, language } = useTranslation()
   const { settings } = useSettingsStore()
+  const mapProvider = useSettingsStore(s => s.settings.map_provider)
   const placesPhotosEnabled = useAuthStore(s => s.placesPhotosEnabled)
   const trip = useTripStore(s => s.trip)
   const days = useTripStore(s => s.days)
@@ -466,7 +467,9 @@ export default function TripPlannerPage(): React.ReactElement | null {
     setShowPlaceForm(true)
     try {
       const { mapsApi } = await import('../api/client')
-      const data = await mapsApi.reverse(lat, lng, language)
+      const data = mapProvider === 'amap'
+        ? await mapsApi.reverseAmap(lat, lng)
+        : await mapsApi.reverse(lat, lng, language)
       if (data.name || data.address) {
         setPrefillCoords(prev => prev ? { ...prev, name: data.name || '', address: data.address || '' } : prev)
       }

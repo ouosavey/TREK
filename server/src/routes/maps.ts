@@ -9,6 +9,9 @@ import {
   reverseGeocode,
   resolveGoogleMapsUrl,
   autocompletePlaces,
+  searchAmap,
+  reverseGeocodeAmap,
+  autocompleteAmap,
 } from '../services/mapsService';
 import { db } from '../db/database';
 import { serveFilePath } from '../services/placePhotoCache';
@@ -155,6 +158,56 @@ router.post('/resolve-url', authenticate, async (req: Request, res: Response) =>
     const status = (err as { status?: number }).status || 400;
     const message = err instanceof Error ? err.message : 'Failed to resolve URL';
     console.error('[Maps] URL resolve error:', message);
+    res.status(status).json({ error: message });
+  }
+});
+
+// POST /search-amap
+router.post('/search-amap', authenticate, async (req: Request, res: Response) => {
+  const { query, city, lang } = req.body;
+  if (!query) return res.status(400).json({ error: 'Search query is required' });
+
+  try {
+    const result = await searchAmap(query, city, lang);
+    res.json(result);
+  } catch (err: unknown) {
+    const status = (err as { status?: number }).status || 500;
+    const message = err instanceof Error ? err.message : 'AMap search error';
+    console.error('AMap search error:', err);
+    res.status(status).json({ error: message });
+  }
+});
+
+// GET /reverse-amap
+router.get('/reverse-amap', authenticate, async (req: Request, res: Response) => {
+  const { lat, lng } = req.query as { lat: string; lng: string };
+  if (!lat || !lng) return res.status(400).json({ error: 'lat and lng required' });
+
+  try {
+    const result = await reverseGeocodeAmap(lat, lng);
+    res.json(result);
+  } catch {
+    res.json({ name: null, address: null });
+  }
+});
+
+// POST /autocomplete-amap
+router.post('/autocomplete-amap', authenticate, async (req: Request, res: Response) => {
+  const { input, city } = req.body;
+  if (!input || typeof input !== 'string') {
+    return res.status(400).json({ error: 'Input is required' });
+  }
+  if (input.length > 200) {
+    return res.status(400).json({ error: 'Input too long (max 200 chars)' });
+  }
+
+  try {
+    const result = await autocompleteAmap(input, city);
+    res.json(result);
+  } catch (err: unknown) {
+    const status = (err as { status?: number }).status || 500;
+    const message = err instanceof Error ? err.message : 'AMap autocomplete error';
+    console.error('AMap autocomplete error:', err);
     res.status(status).json({ error: message });
   }
 });

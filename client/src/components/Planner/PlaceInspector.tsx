@@ -631,8 +631,8 @@ export default function PlaceInspector({
               label={<span className="hidden sm:inline">{t('inspector.google')}</span>} />
           )}
           {!googleDetails?.google_maps_url && place.lat && place.lng && (
-            <ActionButton onClick={() => window.open(`https://www.google.com/maps/search/?api=1&query=${place.google_place_id ? encodeURIComponent(place.name) + '&query_place_id=' + place.google_place_id : place.lat + ',' + place.lng}`, '_blank')} variant="ghost" icon={<Navigation size={13} />}
-              label={<span className="hidden sm:inline">Google Maps</span>} />
+            <ActionButton onClick={() => window.open(`https://uri.amap.com/marker?position=${place.lng},${place.lat}&name=${encodeURIComponent(place.name || '')}&src=TREK`, '_blank')} variant="ghost" icon={<Navigation size={13} />}
+              label={<span className="hidden sm:inline">高德地图</span>} />
           )}
           {(place.website || googleDetails?.website) && (
             <ActionButton onClick={() => window.open(place.website || googleDetails?.website, '_blank')} variant="ghost" icon={<ExternalLink size={13} />}

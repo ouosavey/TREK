@@ -218,11 +218,13 @@ export interface Settings {
   route_calculation?: boolean
   blur_booking_codes?: boolean
   map_booking_labels?: boolean
-  map_provider?: 'leaflet' | 'mapbox-gl'
+  map_provider?: 'leaflet' | 'mapbox-gl' | 'amap'
   mapbox_access_token?: string
   mapbox_style?: string
   mapbox_3d_enabled?: boolean
   mapbox_quality_mode?: boolean
+  amap_key?: string
+  amap_security_code?: string
 }
 
 export interface AssignmentsMap {

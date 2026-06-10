@@ -37,6 +37,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     mapbox_style: 'mapbox://styles/mapbox/standard',
     mapbox_3d_enabled: true,
     mapbox_quality_mode: false,
+    amap_key: '',
+    amap_security_code: '',
   },
   isLoaded: false,
 

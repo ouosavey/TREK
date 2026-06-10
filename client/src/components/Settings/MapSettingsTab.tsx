@@ -5,6 +5,7 @@ import { useSettingsStore } from '../../store/settingsStore'
 import { useToast } from '../shared/Toast'
 import CustomSelect from '../shared/CustomSelect'
 import { MapView } from '../Map/MapView'
+import { MapViewAMap } from '../Map/MapViewAMap'
 import MapboxPreview from './MapboxPreview'
 import Section from './Section'
 import ToggleSwitch from './ToggleSwitch'
@@ -130,7 +131,7 @@ function StyleDropdown({ value, onChange }: { value: string; onChange: (v: strin
   )
 }
 
-type Provider = 'leaflet' | 'mapbox-gl'
+type Provider = 'leaflet' | 'mapbox-gl' | 'amap'
 
 export default function MapSettingsTab(): React.ReactElement {
   const { settings, updateSettings } = useSettingsStore()
@@ -146,6 +147,8 @@ export default function MapSettingsTab(): React.ReactElement {
   const [defaultLat, setDefaultLat] = useState<number | string>(settings.default_lat || 48.8566)
   const [defaultLng, setDefaultLng] = useState<number | string>(settings.default_lng || 2.3522)
   const [defaultZoom, setDefaultZoom] = useState<number | string>(settings.default_zoom || 10)
+  const [amapKey, setAmapKey] = useState<string>(settings.amap_key || '')
+  const [amapSecurityCode, setAmapSecurityCode] = useState<string>(settings.amap_security_code || '')
 
   useEffect(() => {
     setProvider((settings.map_provider as Provider) || 'leaflet')
@@ -157,6 +160,8 @@ export default function MapSettingsTab(): React.ReactElement {
     setDefaultLat(settings.default_lat || 48.8566)
     setDefaultLng(settings.default_lng || 2.3522)
     setDefaultZoom(settings.default_zoom || 10)
+    setAmapKey(settings.amap_key || '')
+    setAmapSecurityCode(settings.amap_security_code || '')
   }, [settings])
 
   const handleMapClick = useCallback((mapInfo) => {
@@ -194,6 +199,8 @@ export default function MapSettingsTab(): React.ReactElement {
         mapbox_style: mapboxStyle,
         mapbox_3d_enabled: mapbox3d,
         mapbox_quality_mode: mapboxQuality,
+        amap_key: amapKey,
+        amap_security_code: amapSecurityCode,
         default_lat: parseFloat(String(defaultLat)),
         default_lng: parseFloat(String(defaultLng)),
         default_zoom: parseInt(String(defaultZoom)),
@@ -215,7 +222,7 @@ export default function MapSettingsTab(): React.ReactElement {
       {/* Provider picker — big cards so the choice is obvious */}
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-2">{t('settings.mapProvider')}</label>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <button
             type="button"
             onClick={() => setProvider('leaflet')}
@@ -252,6 +259,24 @@ export default function MapSettingsTab(): React.ReactElement {
             <span className="hidden sm:inline-block absolute top-2 right-2 text-[9px] font-semibold tracking-wide uppercase px-1.5 py-[3px] rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 leading-none">
               {t('settings.mapExperimental')}
             </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setProvider('amap')}
+            className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-colors ${
+              provider === 'amap'
+                ? 'border-slate-900 bg-slate-50 dark:bg-slate-800 dark:border-slate-200'
+                : 'border-slate-200 hover:border-slate-400 dark:border-slate-700'
+            }`}
+          >
+            <Map size={18} className="mt-0.5 flex-shrink-0 text-slate-700 dark:text-slate-300" />
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-slate-900 dark:text-white">
+                <span className="sm:hidden">高德地图</span>
+                <span className="hidden sm:inline">AMap 高德地图</span>
+              </div>
+              <div className="hidden sm:block text-xs text-slate-500 mt-0.5">国内地图服务，无需代理</div>
+            </div>
           </button>
         </div>
         <p className="text-xs text-slate-400 mt-2">
@@ -358,6 +383,44 @@ export default function MapSettingsTab(): React.ReactElement {
         </div>
       )}
 
+      {/* AMap 高德地图 settings */}
+      {provider === 'amap' && (
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">API Key</label>
+            <input
+              type="text"
+              value={amapKey}
+              onChange={(e) => setAmapKey(e.target.value)}
+              placeholder="在高德开放平台申请的 Key"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">安全密钥</label>
+            <input
+              type="text"
+              value={amapSecurityCode}
+              onChange={(e) => setAmapSecurityCode(e.target.value)}
+              placeholder="安全密钥 (JS API 2.0 必填)"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+            />
+            <p className="text-xs text-slate-400 mt-1">
+              在{' '}
+              <a href="https://lbs.amap.com/" target="_blank" rel="noreferrer" className="underline">
+                高德开放平台
+              </a>
+              {' '}申请 Key 和安全密钥
+            </p>
+          </div>
+
+          <div className="text-xs text-slate-400 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+            <strong className="text-slate-600 dark:text-slate-300">提示：</strong> 高德地图使用 GCJ-02 坐标系，系统会自动将 WGS-84 坐标转换为 GCJ-02，无需手动处理。
+          </div>
+        </div>
+      )}
+
       {/* Default map position — applies regardless of provider */}
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -397,6 +460,26 @@ export default function MapSettingsTab(): React.ReactElement {
               quality={mapboxQuality}
               onClick={(ll) => { setDefaultLat(ll.lat); setDefaultLng(ll.lng) }}
             />
+          ) : provider === 'amap' ? (
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            React.createElement(MapViewAMap as any, {
+              places: mapPlaces,
+              dayPlaces: [],
+              route: null,
+              routeSegments: null,
+              selectedPlaceId: null,
+              onMarkerClick: null,
+              onMapClick: handleMapClick,
+              onMapContextMenu: null,
+              center: [settings.default_lat, settings.default_lng],
+              zoom: defaultZoom,
+              tileUrl: mapTileUrl,
+              fitKey: null,
+              dayOrderMap: [],
+              leftWidth: 0,
+              rightWidth: 0,
+              hasInspector: false,
+            })
           ) : (
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             React.createElement(MapView as any, {
