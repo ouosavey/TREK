@@ -225,7 +225,22 @@ export default function AtlasPage(): React.ReactElement {
       apiClient.get('/addons/atlas/stats'),
       apiClient.get('/addons/atlas/bucket-list'),
     ]).then(([statsRes, bucketRes]) => {
-      setData(statsRes.data)
+      // 把遗留的 TW 归并到 CN（与地图渲染保持一致）
+      const merged = (statsRes.data?.countries || []).reduce((acc: any[], c: any) => {
+        if (c.code === 'TW') {
+          const cn = acc.find(x => x.code === 'CN')
+          if (cn) return acc
+          return [...acc, { ...c, code: 'CN' }]
+        }
+        acc.push(c)
+        return acc
+      }, [])
+      const totalCountries = new Set(merged.map((c: any) => c.code)).size
+      setData({
+        ...statsRes.data,
+        countries: merged,
+        stats: { ...statsRes.data.stats, totalCountries },
+      })
       setBucketList(bucketRes.data.items || [])
       setLoading(false)
     }).catch(() => setLoading(false))
@@ -450,8 +465,12 @@ export default function AtlasPage(): React.ReactElement {
             sticky: false, permanent: false, className: 'atlas-tooltip', direction: 'top', offset: [0, -10], opacity: 1
           })
           layer.on('click', () => {
+            // 已访问国家：手动标记的(无trip/place) -> 弹出unmark确认
             if (c.placeCount === 0 && c.tripCount === 0) {
               handleUnmarkCountry(c.code)
+            } else {
+              // 有trip或place -> 加载国家详情（含unmark按钮）
+              loadCountryDetail(c.code)
             }
           })
           layer.on('mouseover', (e) => {
