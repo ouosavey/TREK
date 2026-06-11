@@ -219,6 +219,7 @@ export interface Settings {
   blur_booking_codes?: boolean
   map_booking_labels?: boolean
   map_provider?: 'leaflet' | 'mapbox-gl' | 'amap'
+  search_provider?: 'auto' | 'amap' | 'google'
   mapbox_access_token?: string
   mapbox_style?: string
   mapbox_3d_enabled?: boolean

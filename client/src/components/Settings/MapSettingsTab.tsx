@@ -150,6 +150,7 @@ export default function MapSettingsTab(): React.ReactElement {
   const [amapKey, setAmapKey] = useState<string>(settings.amap_key || '')
   const [amapSecurityCode, setAmapSecurityCode] = useState<string>(settings.amap_security_code || '')
   const [amapWebServiceKey, setAmapWebServiceKey] = useState<string>(settings.amap_web_service_key || '')
+  const [searchProvider, setSearchProvider] = useState<'auto' | 'amap' | 'google'>((settings.search_provider as 'auto' | 'amap' | 'google') || 'auto')
 
   useEffect(() => {
     setProvider((settings.map_provider as Provider) || 'leaflet')
@@ -164,6 +165,7 @@ export default function MapSettingsTab(): React.ReactElement {
     setAmapKey(settings.amap_key || '')
     setAmapSecurityCode(settings.amap_security_code || '')
     setAmapWebServiceKey(settings.amap_web_service_key || '')
+    setSearchProvider((settings.search_provider as 'auto' | 'amap' | 'google') || 'auto')
   }, [settings])
 
   const handleMapClick = useCallback((mapInfo) => {
@@ -196,6 +198,7 @@ export default function MapSettingsTab(): React.ReactElement {
     try {
       await updateSettings({
         map_provider: provider,
+        search_provider: searchProvider,
         map_tile_url: mapTileUrl,
         mapbox_access_token: mapboxToken,
         mapbox_style: mapboxStyle,
@@ -437,6 +440,58 @@ export default function MapSettingsTab(): React.ReactElement {
           </div>
         </div>
       )}
+
+      {/* 搜索服务提供商 — applies regardless of map provider */}
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-2">搜索服务</label>
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => setSearchProvider('auto')}
+            className={`flex items-start gap-2 p-2.5 rounded-lg border text-left transition-colors ${
+              searchProvider === 'auto'
+                ? 'border-slate-900 bg-slate-50 dark:bg-slate-800 dark:border-slate-200'
+                : 'border-slate-200 hover:border-slate-400 dark:border-slate-700'
+            }`}
+          >
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-slate-900 dark:text-white">自动</div>
+              <div className="text-xs text-slate-500 mt-0.5">中文用高德，其他用 Google</div>
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSearchProvider('amap')}
+            className={`flex items-start gap-2 p-2.5 rounded-lg border text-left transition-colors ${
+              searchProvider === 'amap'
+                ? 'border-slate-900 bg-slate-50 dark:bg-slate-800 dark:border-slate-200'
+                : 'border-slate-200 hover:border-slate-400 dark:border-slate-700'
+            }`}
+          >
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-slate-900 dark:text-white">高德搜索</div>
+              <div className="text-xs text-slate-500 mt-0.5">始终使用高德 POI 搜索</div>
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSearchProvider('google')}
+            className={`flex items-start gap-2 p-2.5 rounded-lg border text-left transition-colors ${
+              searchProvider === 'google'
+                ? 'border-slate-900 bg-slate-50 dark:bg-slate-800 dark:border-slate-200'
+                : 'border-slate-200 hover:border-slate-400 dark:border-slate-700'
+            }`}
+          >
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-slate-900 dark:text-white">Google / OSM</div>
+              <div className="text-xs text-slate-500 mt-0.5">始终使用 Google 或 OSM</div>
+            </div>
+          </button>
+        </div>
+        <p className="text-xs text-slate-400 mt-2">
+          选择地点搜索使用的服务。「自动」模式下输入中文自动使用高德，输入其他语言使用 Google/OSM。国内环境建议选择「高德搜索」。
+        </p>
+      </div>
 
       {/* Default map position — applies regardless of provider */}
       <div className="grid grid-cols-2 gap-3">
