@@ -21,6 +21,9 @@ interface Props {
 export default function LocationSelect({ value, onChange, placeholder, style }: Props) {
   const { t, locale } = useTranslation()
   const mapProvider = useSettingsStore(s => s.settings.map_provider)
+  const amapKey = useSettingsStore(s => s.settings.amap_key)
+  const amapWebServiceKey = useSettingsStore(s => s.settings.amap_web_service_key)
+  const hasAmapKey = !!(amapKey || amapWebServiceKey)
   const [query, setQuery] = useState(value?.name || '')
   const [open, setOpen] = useState(false)
   const [results, setResults] = useState<any[]>([])
@@ -51,7 +54,9 @@ export default function LocationSelect({ value, onChange, placeholder, style }: 
     debounceRef.current = setTimeout(async () => {
       setLoading(true)
       try {
-        const data = mapProvider === 'amap'
+        const hasChinese = /[\u4e00-\u9fff]/.test(trimmed)
+        const useAmap = mapProvider === 'amap' || (hasAmapKey && hasChinese)
+        const data = useAmap
           ? await mapsApi.searchAmap(trimmed)
           : await mapsApi.search(trimmed, locale)
         setResults(data.places || [])

@@ -173,6 +173,9 @@ export default function TripPlannerPage(): React.ReactElement | null {
   const { t, language } = useTranslation()
   const { settings } = useSettingsStore()
   const mapProvider = useSettingsStore(s => s.settings.map_provider)
+  const amapKey = useSettingsStore(s => s.settings.amap_key)
+  const amapWebServiceKey = useSettingsStore(s => s.settings.amap_web_service_key)
+  const hasAmapKey = !!(amapKey || amapWebServiceKey)
   const placesPhotosEnabled = useAuthStore(s => s.placesPhotosEnabled)
   const trip = useTripStore(s => s.trip)
   const days = useTripStore(s => s.days)
@@ -467,7 +470,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
     setShowPlaceForm(true)
     try {
       const { mapsApi } = await import('../api/client')
-      const data = mapProvider === 'amap'
+      const data = (mapProvider === 'amap' || hasAmapKey)
         ? await mapsApi.reverseAmap(lat, lng)
         : await mapsApi.reverse(lat, lng, language)
       if (data.name || data.address) {

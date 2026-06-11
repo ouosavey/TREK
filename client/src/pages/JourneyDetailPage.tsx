@@ -94,6 +94,9 @@ export default function JourneyDetailPage() {
   const toast = useToast()
   const { t, locale } = useTranslation()
   const mapProvider = useSettingsStore(s => s.settings.map_provider)
+  const amapKey = useSettingsStore(s => s.settings.amap_key)
+  const amapWebServiceKey = useSettingsStore(s => s.settings.amap_web_service_key)
+  const hasAmapKey = !!(amapKey || amapWebServiceKey)
   const { current, loading, notFound, loadJourney, updateEntry, deleteEntry, reorderEntries, uploadPhotos, deletePhoto } = useJourneyStore()
   const mapRef = useRef<JourneyMapHandle>(null)
   const fullMapRef = useRef<JourneyMapHandle>(null)
@@ -2550,7 +2553,9 @@ function EntryEditor({ entry, journeyId, tripDates, galleryPhotos, onClose, onSa
                       locationTimerRef.current = setTimeout(async () => {
                         setLocationSearching(true)
                         try {
-                          const res = mapProvider === 'amap'
+                          const hasChinese = /[\u4e00-\u9fff]/.test(q)
+                          const useAmap = mapProvider === 'amap' || (hasAmapKey && hasChinese)
+                          const res = useAmap
                             ? await mapsApi.searchAmap(q)
                             : await mapsApi.search(q)
                           setLocationResults((res.places || []).slice(0, 6).map((p: any) => ({

@@ -92,6 +92,9 @@ export default function PlaceFormModal({
   const toast = useToast()
   const { t, language } = useTranslation()
   const mapProvider = useSettingsStore(s => s.settings.map_provider)
+  const amapKey = useSettingsStore(s => s.settings.amap_key)
+  const amapWebServiceKey = useSettingsStore(s => s.settings.amap_web_service_key)
+  const hasAmapKey = !!(amapKey || amapWebServiceKey)
   const { hasMapsKey } = useAuthStore()
   const can = useCanDo()
   const tripObj = useTripStore((s) => s.trip)
@@ -164,7 +167,10 @@ export default function PlaceFormModal({
     const controller = new AbortController()
     acAbortRef.current = controller
     try {
-      const result = mapProvider === 'amap'
+      // Use AMap autocomplete when: map_provider=amap OR has amap key + Chinese input
+      const hasChinese = /[\u4e00-\u9fff]/.test(query)
+      const useAmap = mapProvider === 'amap' || (hasAmapKey && hasChinese)
+      const result = useAmap
         ? await mapsApi.autocompleteAmap(query)
         : await mapsApi.autocomplete(query, language, locationBias, controller.signal)
       setAcSuggestions(result.suggestions || [])
@@ -221,11 +227,12 @@ export default function PlaceFormModal({
           return
         }
       }
-      // Detect Chinese characters in query and use zh language for better results
+      // Use AMap search when: map_provider=amap OR has amap key + Chinese input
       const hasChinese = /[\u4e00-\u9fff]/.test(trimmed)
+      const useAmap = mapProvider === 'amap' || (hasAmapKey && hasChinese)
       const searchLang = hasChinese ? 'zh' : language
-      const result = mapProvider === 'amap'
-        ? await mapsApi.searchAmap(mapsSearch)
+      const result = useAmap
+        ? await mapsApi.searchAmap(mapsSearch, undefined, searchLang)
         : await mapsApi.search(mapsSearch, searchLang)
       setMapsResults(result.places || [])
     } catch (err: unknown) {

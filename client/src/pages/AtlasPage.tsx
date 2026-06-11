@@ -123,6 +123,9 @@ export default function AtlasPage(): React.ReactElement {
   const { t, language } = useTranslation()
   const { settings } = useSettingsStore()
   const mapProvider = useSettingsStore(s => s.settings.map_provider)
+  const amapKey = useSettingsStore(s => s.settings.amap_key)
+  const amapWebServiceKey = useSettingsStore(s => s.settings.amap_web_service_key)
+  const hasAmapKey = !!(amapKey || amapWebServiceKey)
   const navigate = useNavigate()
   const resolveName = useCountryNames(language)
   const dm = settings.dark_mode
@@ -724,7 +727,9 @@ export default function AtlasPage(): React.ReactElement {
     if (!bucketSearch.trim()) return
     setBucketSearching(true)
     try {
-      const result = mapProvider === 'amap'
+      const hasChinese = /[\u4e00-\u9fff]/.test(bucketSearch)
+      const useAmap = mapProvider === 'amap' || (hasAmapKey && hasChinese)
+      const result = useAmap
         ? await mapsApi.searchAmap(bucketSearch)
         : await mapsApi.search(bucketSearch, language)
       setBucketSearchResults(result.places || [])
