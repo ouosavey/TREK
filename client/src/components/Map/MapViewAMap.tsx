@@ -12,6 +12,25 @@ import { useGeolocation } from '../../hooks/useGeolocation'
 import type { Place, Reservation, ReservationEndpoint, RouteSegment } from '../../types'
 import type { GeoPosition, TrackingMode } from '../../hooks/useGeolocation'
 
+// ── Safe coordinate helpers ───────────────────────────────────────────
+// Prevents NaN from reaching AMap SDK which causes white-screen crashes
+
+/** Safely convert WGS-84 → GCJ-02, returns null if coords are invalid */
+function safeGcj(lng: unknown, lat: unknown): [number, number] | null {
+  const nLng = typeof lng === 'number' ? lng : parseFloat(String(lng ?? ''))
+  const nLat = typeof lat === 'number' ? lat : parseFloat(String(lat ?? ''))
+  if (!Number.isFinite(nLng) || !Number.isFinite(nLat)) return null
+  return wgs84ToGcj02(nLng, nLat)
+}
+
+/** Safely parse numeric coordinates from a place-like object */
+function safeCoords(lat: unknown, lng: unknown): { lat: number; lng: number } | null {
+  const nLat = typeof lat === 'number' ? lat : parseFloat(String(lat ?? ''))
+  const nLng = typeof lng === 'number' ? lng : parseFloat(String(lng ?? ''))
+  if (!Number.isFinite(nLat) || !Number.isFinite(nLng)) return null
+  return { lat: nLat, lng: nLng }
+}
+
 // ── AMap type shorthands ─────────────────────────────────────────────────
 // We reference the global AMap namespace that @amap/amap-jsapi-loader injects.
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -429,9 +448,9 @@ export const MapViewAMap = memo(function MapViewAMap({
       if (destroyed) return
       AMapRef.current = AMap
 
-      const [gcjLng, gcjLat] = wgs84ToGcj02(center[1], center[0])
+      const gcj = safeGcj(center[1], center[0]) || [116.397428, 39.90923] // fallback: Beijing
       const map = new AMap.Map(containerRef.current, {
-        center: [gcjLng, gcjLat],
+        center: gcj,
         zoom,
         resizeEnable: true,
         mapStyle: 'amap://styles/normal',
@@ -494,142 +513,138 @@ export const MapViewAMap = memo(function MapViewAMap({
     const map = mapRef.current
     if (!AMap || !map) return
 
-    const ids = new Set(places.map(p => p.id))
+    try {
+      const ids = new Set(places.map(p => p.id))
 
-    // Remove markers for places no longer present
-    markersRef.current.forEach((marker, id) => {
-      if (!ids.has(id)) {
-        try { marker.setMap(null) } catch {}
-        markersRef.current.delete(id)
-      }
-    })
-
-    // Create or update markers
-    const markerList: AMapMarkerType[] = []
-
-    for (const place of places) {
-      const pLat = typeof place.lat === 'number' ? place.lat : parseFloat(String(place.lat ?? ''))
-      const pLng = typeof place.lng === 'number' ? place.lng : parseFloat(String(place.lng ?? ''))
-      if (!Number.isFinite(pLat) || !Number.isFinite(pLng)) continue
-      const orderNumbers = dayOrderMap[place.id] ?? null
-      const pck = place.google_place_id || place.osm_id || `${place.lat},${place.lng}`
-      const photoUrl = (pck && photoUrls[pck]) || place.image_url || null
-      const selected = place.id === selectedPlaceId
-      const el = createMarkerElement(place as Place & { category_color?: string; category_icon?: string }, photoUrl, orderNumbers, selected)
-
-      // Click handler
-      el.addEventListener('click', (ev: Event) => {
-        ev.stopPropagation()
-        onClickRefs.current.marker?.(place.id)
-      })
-
-      // Hover handlers
-      el.addEventListener('mouseenter', () => {
-        if (isTouchDevice) return
-        setHoveredPlace(place)
-        // Get screen position from map pixel
-        const [gcjLng, gcjLat] = wgs84ToGcj02(pLng, pLat)
-        const pixel = map.lngLatToContainer(new AMap.LngLat(gcjLng, gcjLat))
-        if (pixel) {
-          const containerRect = containerRef.current?.getBoundingClientRect()
-          if (containerRect) {
-            setTooltipPos({ x: containerRect.left + pixel.getX() + 14, y: containerRect.top + pixel.getY() - 10 })
-          }
+      // Remove markers for places no longer present
+      markersRef.current.forEach((marker, id) => {
+        if (!ids.has(id)) {
+          try { marker.setMap(null) } catch {}
+          markersRef.current.delete(id)
         }
       })
-      el.addEventListener('mouseleave', () => {
-        setHoveredPlace(null)
-      })
 
-      // Convert WGS-84 → GCJ-02 for AMap
-      const [gcjLng, gcjLat] = wgs84ToGcj02(pLng, pLat)
+      // Create or update markers
+      const markerList: AMapMarkerType[] = []
 
-      // Remove existing marker for this place and recreate
-      const existing = markersRef.current.get(place.id)
-      if (existing) {
-        try { existing.setMap(null) } catch {}
+      for (const place of places) {
+        const gcj = safeGcj(place.lng, place.lat)
+        if (!gcj) continue  // skip places with invalid coordinates
+        const [gcjLng, gcjLat] = gcj
+        const orderNumbers = dayOrderMap[place.id] ?? null
+        const pck = place.google_place_id || place.osm_id || `${place.lat},${place.lng}`
+        const photoUrl = (pck && photoUrls[pck]) || place.image_url || null
+        const selected = place.id === selectedPlaceId
+        const el = createMarkerElement(place as Place & { category_color?: string; category_icon?: string }, photoUrl, orderNumbers, selected)
+
+        // Click handler
+        el.addEventListener('click', (ev: Event) => {
+          ev.stopPropagation()
+          onClickRefs.current.marker?.(place.id)
+        })
+
+        // Hover handlers
+        el.addEventListener('mouseenter', () => {
+          if (isTouchDevice) return
+          setHoveredPlace(place)
+          try {
+            const pixel = map.lngLatToContainer(new AMap.LngLat(gcjLng, gcjLat))
+            if (pixel) {
+              const containerRect = containerRef.current?.getBoundingClientRect()
+              if (containerRect) {
+                setTooltipPos({ x: containerRect.left + pixel.getX() + 14, y: containerRect.top + pixel.getY() - 10 })
+              }
+            }
+          } catch { /* ignore */ }
+        })
+        el.addEventListener('mouseleave', () => {
+          setHoveredPlace(null)
+        })
+
+        // Remove existing marker for this place and recreate
+        const existing = markersRef.current.get(place.id)
+        if (existing) {
+          try { existing.setMap(null) } catch {}
+        }
+
+        const marker = new AMap.Marker({
+          position: new AMap.LngLat(gcjLng, gcjLat),
+          content: el,
+          offset: new AMap.Pixel(0, 0),
+          anchor: 'center',
+          zIndex: selected ? 200 : 100,
+        })
+        marker.setMap(map)
+        markersRef.current.set(place.id, marker)
+        markerList.push(marker)
       }
 
-      const marker = new AMap.Marker({
-        position: new AMap.LngLat(gcjLng, gcjLat),
-        content: el,
-        offset: new AMap.Pixel(0, 0),
-        anchor: 'center',
-        zIndex: selected ? 200 : 100,
-      })
-      marker.setMap(map)
-      markersRef.current.set(place.id, marker)
-      markerList.push(marker)
-    }
+      // ── Clustering ───────────────────────────────────────────────────
+      if (clusterRef.current) {
+        try { clusterRef.current.setMap(null) } catch {}
+        clusterRef.current = null
+      }
 
-    // ── Clustering ───────────────────────────────────────────────────
-    // Remove old cluster
-    if (clusterRef.current) {
-      try { clusterRef.current.setMap(null) } catch {}
-      clusterRef.current = null
-    }
+      if (markerList.length > 0 && AMap.MarkerCluster) {
+        const clusterStyles = [
+          {
+            size: new AMap.Pixel(36, 36),
+            backgroundColor: 'rgba(59,130,246,0.85)',
+            borderColor: '#fff',
+            borderWidth: 2,
+            textColor: '#fff',
+            fontSize: 12,
+            fontWeight: 700,
+            fontFamily: '-apple-system,system-ui,sans-serif',
+          },
+          {
+            size: new AMap.Pixel(42, 42),
+            backgroundColor: 'rgba(59,130,246,0.85)',
+            borderColor: '#fff',
+            borderWidth: 2,
+            textColor: '#fff',
+            fontSize: 13,
+            fontWeight: 700,
+            fontFamily: '-apple-system,system-ui,sans-serif',
+          },
+          {
+            size: new AMap.Pixel(48, 48),
+            backgroundColor: 'rgba(59,130,246,0.85)',
+            borderColor: '#fff',
+            borderWidth: 2,
+            textColor: '#fff',
+            fontSize: 14,
+            fontWeight: 700,
+            fontFamily: '-apple-system,system-ui,sans-serif',
+          },
+        ]
 
-    // Cluster only the non-selected markers at lower zoom levels
-    if (markerList.length > 0 && AMap.MarkerCluster) {
-      const clusterStyles = [
-        {
-          size: new AMap.Pixel(36, 36),
-          backgroundColor: 'rgba(59,130,246,0.85)',
-          borderColor: '#fff',
-          borderWidth: 2,
-          textColor: '#fff',
-          fontSize: 12,
-          fontWeight: 700,
-          fontFamily: '-apple-system,system-ui,sans-serif',
-        },
-        {
-          size: new AMap.Pixel(42, 42),
-          backgroundColor: 'rgba(59,130,246,0.85)',
-          borderColor: '#fff',
-          borderWidth: 2,
-          textColor: '#fff',
-          fontSize: 13,
-          fontWeight: 700,
-          fontFamily: '-apple-system,system-ui,sans-serif',
-        },
-        {
-          size: new AMap.Pixel(48, 48),
-          backgroundColor: 'rgba(59,130,246,0.85)',
-          borderColor: '#fff',
-          borderWidth: 2,
-          textColor: '#fff',
-          fontSize: 14,
-          fontWeight: 700,
-          fontFamily: '-apple-system,system-ui,sans-serif',
-        },
-      ]
-
-      const cluster = new AMap.MarkerCluster(map, markerList, {
-        gridSize: 60,
-        maxZoom: 11,
-        styles: clusterStyles,
-        renderMarker: (context: any) => {
-          // Use the original marker content
-          // MarkerCluster re-renders markers; keep custom content
-        },
-        renderClusterMarker: (context: any) => {
-          const count = context.count
-          const size = count < 10 ? 36 : count < 50 ? 42 : 48
-          const div = document.createElement('div')
-          div.style.cssText = `
-            width:${size}px;height:${size}px;border-radius:50%;
-            background:rgba(59,130,246,0.85);border:2px solid #fff;
-            display:flex;align-items:center;justify-content:center;
-            color:#fff;font-size:${count < 10 ? 12 : count < 50 ? 13 : 14}px;
-            font-weight:700;font-family:-apple-system,system-ui,sans-serif;
-            box-shadow:0 2px 8px rgba(0,0,0,0.25);
-          `
-          div.textContent = String(count)
-          context.marker.setContent(div)
-          context.marker.setOffset(new AMap.Pixel(-size / 2, -size / 2))
-        },
-      })
-      clusterRef.current = cluster
+        const cluster = new AMap.MarkerCluster(map, markerList, {
+          gridSize: 60,
+          maxZoom: 11,
+          styles: clusterStyles,
+          renderMarker: (_context: any) => {},
+          renderClusterMarker: (context: any) => {
+            const count = context.count
+            const size = count < 10 ? 36 : count < 50 ? 42 : 48
+            const div = document.createElement('div')
+            div.style.cssText = `
+              width:${size}px;height:${size}px;border-radius:50%;
+              background:rgba(59,130,246,0.85);border:2px solid #fff;
+              display:flex;align-items:center;justify-content:center;
+              color:#fff;font-size:${count < 10 ? 12 : count < 50 ? 13 : 14}px;
+              font-weight:700;font-family:-apple-system,system-ui,sans-serif;
+              box-shadow:0 2px 8px rgba(0,0,0,0.25);
+            `
+            div.textContent = String(count)
+            context.marker.setContent(div)
+            context.marker.setOffset(new AMap.Pixel(-size / 2, -size / 2))
+          },
+        })
+        clusterRef.current = cluster
+      }
+    } catch (err) {
+      console.error('MapViewAMap marker reconciliation error:', err)
     }
   }, [places, selectedPlaceId, dayOrderMap, photoUrls])
 
@@ -672,31 +687,36 @@ export const MapViewAMap = memo(function MapViewAMap({
     const map = mapRef.current
     if (!AMap || !map) return
 
-    // Clear existing
-    routeLabelMarkersRef.current.forEach(m => { try { m.setMap(null) } catch {} })
-    routeLabelMarkersRef.current = []
+    try {
+      // Clear existing
+      routeLabelMarkersRef.current.forEach(m => { try { m.setMap(null) } catch {} })
+      routeLabelMarkersRef.current = []
 
-    for (const seg of routeSegments) {
-      if (!seg.mid || (!seg.walkingText && !seg.drivingText)) continue
-      const el = document.createElement('div')
-      el.style.pointerEvents = 'none'
-      el.innerHTML = `<div style="display:flex;align-items:center;gap:5px;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);color:#fff;border-radius:99px;padding:3px 9px;font-size:9px;font-weight:600;white-space:nowrap;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,0.3);">
-        <span style="display:flex;align-items:center;gap:2px"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="2"/><path d="M7 21l3-7"/><path d="M10 14l5-5"/><path d="M15 9l-4 7"/><path d="M18 18l-3-7"/></svg>${seg.walkingText ?? ''}</span>
-        <span style="opacity:0.3">|</span>
-        <span style="display:flex;align-items:center;gap:2px"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9L18 10l-2-4H7L5 10l-2.5 1.1C1.7 11.3 1 12.1 1 13v3c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>${seg.drivingText ?? ''}</span>
-      </div>`
+      for (const seg of routeSegments) {
+        if (!seg.mid || (!seg.walkingText && !seg.drivingText)) continue
+        const el = document.createElement('div')
+        el.style.pointerEvents = 'none'
+        el.innerHTML = `<div style="display:flex;align-items:center;gap:5px;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);color:#fff;border-radius:99px;padding:3px 9px;font-size:9px;font-weight:600;white-space:nowrap;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,0.3);">
+          <span style="display:flex;align-items:center;gap:2px"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="2"/><path d="M7 21l3-7"/><path d="M10 14l5-5"/><path d="M15 9l-4 7"/><path d="M18 18l-3-7"/></svg>${seg.walkingText ?? ''}</span>
+          <span style="opacity:0.3">|</span>
+          <span style="display:flex;align-items:center;gap:2px"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9L18 10l-2-4H7L5 10l-2.5 1.1C1.7 11.3 1 12.1 1 13v3c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>${seg.drivingText ?? ''}</span>
+        </div>`
 
-      // Convert midpoint WGS-84 → GCJ-02
-      const [gcjLng, gcjLat] = wgs84ToGcj02(seg.mid[1], seg.mid[0])
-      const marker = new AMap.Marker({
-        position: new AMap.LngLat(gcjLng, gcjLat),
-        content: el,
-        offset: new AMap.Pixel(0, 0),
-        anchor: 'center',
-        zIndex: 250,
-      })
-      marker.setMap(map)
-      routeLabelMarkersRef.current.push(marker)
+        // Convert midpoint WGS-84 → GCJ-02
+        const gcjMid = safeGcj(seg.mid[1], seg.mid[0])
+        if (!gcjMid) continue
+        const marker = new AMap.Marker({
+          position: new AMap.LngLat(gcjMid[0], gcjMid[1]),
+          content: el,
+          offset: new AMap.Pixel(0, 0),
+          anchor: 'center',
+          zIndex: 250,
+        })
+        marker.setMap(map)
+        routeLabelMarkersRef.current.push(marker)
+      }
+    } catch (err) {
+      console.error('MapViewAMap route labels error:', err)
     }
 
     return () => {
@@ -759,26 +779,20 @@ export const MapViewAMap = memo(function MapViewAMap({
     const AMap = AMapRef.current
     const map = mapRef.current
     if (!AMap || !map) return
-    const target = dayPlaces.length > 0 ? dayPlaces : places
-    const valid = target.filter(p => {
-      const lat = typeof p.lat === 'number' ? p.lat : parseFloat(String(p.lat ?? ''))
-      const lng = typeof p.lng === 'number' ? p.lng : parseFloat(String(p.lng ?? ''))
-      return Number.isFinite(lat) && Number.isFinite(lng)
-    })
-    if (valid.length === 0) return
-
-    // Convert all coords to GCJ-02 and build bounds
-    const gcjCoords = valid.map(p => {
-      const lat = typeof p.lat === 'number' ? p.lat : parseFloat(String(p.lat ?? ''))
-      const lng = typeof p.lng === 'number' ? p.lng : parseFloat(String(p.lng ?? ''))
-      return wgs84ToGcj02(lng, lat)
-    })
-    const bounds = new AMap.Bounds()
-    for (const [lng, lat] of gcjCoords) {
-      bounds.extend(new AMap.LngLat(lng, lat))
-    }
-
     try {
+      const target = dayPlaces.length > 0 ? dayPlaces : places
+      const gcjCoords: [number, number][] = []
+      for (const p of target) {
+        const gcj = safeGcj(p.lng, p.lat)
+        if (gcj) gcjCoords.push(gcj)
+      }
+      if (gcjCoords.length === 0) return
+
+      const bounds = new AMap.Bounds()
+      for (const [lng, lat] of gcjCoords) {
+        bounds.extend(new AMap.LngLat(lng, lat))
+      }
+
       map.setBounds(bounds, false, paddingOpts)
       if (hasDayDetail) {
         setTimeout(() => map.panBy(0, 150), 300)
@@ -795,10 +809,10 @@ export const MapViewAMap = memo(function MapViewAMap({
     if (selectedPlaceId === prevSelectedId.current) return
     prevSelectedId.current = selectedPlaceId
     const target = places.find(p => p.id === selectedPlaceId) || dayPlaces.find(p => p.id === selectedPlaceId)
-    if (!target?.lat || !target?.lng) return
-    const [gcjLng, gcjLat] = wgs84ToGcj02(target.lng, target.lat)
+    const gcj = safeGcj(target?.lng, target?.lat)
+    if (!gcj) return
     try {
-      map.setZoomAndCenter(Math.max(map.getZoom(), 14), [gcjLng, gcjLat], false, 400)
+      map.setZoomAndCenter(Math.max(map.getZoom(), 14), gcj, false, 400)
     } catch { /* noop */ }
   }, [selectedPlaceId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -810,8 +824,9 @@ export const MapViewAMap = memo(function MapViewAMap({
     if (!AMap || !map) return
     if (prevCenter.current[0] === center[0] && prevCenter.current[1] === center[1]) return
     prevCenter.current = center
-    const [gcjLng, gcjLat] = wgs84ToGcj02(center[1], center[0])
-    try { map.setCenter([gcjLng, gcjLat]) } catch { /* noop */ }
+    const gcj = safeGcj(center[1], center[0])
+    if (!gcj) return
+    try { map.setCenter(gcj) } catch { /* noop */ }
   }, [center[0], center[1]]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Location blue dot ────────────────────────────────────────────────
@@ -836,7 +851,9 @@ export const MapViewAMap = memo(function MapViewAMap({
       return
     }
 
-    const [gcjLng, gcjLat] = wgs84ToGcj02(userPosition.lng, userPosition.lat)
+    const gcj = safeGcj(userPosition.lng, userPosition.lat)
+    if (!gcj) { clearLocationMarkers(); return }
+    const [gcjLng, gcjLat] = gcj
 
     // Accuracy circle
     if (userPosition.accuracy < 500) {
@@ -952,10 +969,11 @@ export const MapViewAMap = memo(function MapViewAMap({
       const b = arc[Math.min(arc.length - 1, midIdx + 2)]
       if (!a || !b) continue
       try {
-        const [gcjLngA, gcjLatA] = wgs84ToGcj02(a[1], a[0])
-        const [gcjLngB, gcjLatB] = wgs84ToGcj02(b[1], b[0])
-        const pixelA = map.lngLatToContainer(new AMap.LngLat(gcjLngA, gcjLatA))
-        const pixelB = map.lngLatToContainer(new AMap.LngLat(gcjLngB, gcjLatB))
+        const gcjA = safeGcj(a[1], a[0])
+        const gcjB = safeGcj(b[1], b[0])
+        if (!gcjA || !gcjB) continue
+        const pixelA = map.lngLatToContainer(new AMap.LngLat(gcjA[0], gcjA[1]))
+        const pixelB = map.lngLatToContainer(new AMap.LngLat(gcjB[0], gcjB[1]))
         if (!pixelA || !pixelB) continue
         let angle = Math.atan2(pixelB.getY() - pixelA.getY(), pixelB.getX() - pixelA.getX()) * 180 / Math.PI
         if (angle > 90) angle -= 180
@@ -972,121 +990,129 @@ export const MapViewAMap = memo(function MapViewAMap({
     const map = mapRef.current
     if (!AMap || !map) return
 
-    // Clear previous
-    clearReservationOverlays()
+    try {
+      // Clear previous
+      clearReservationOverlays()
 
-    const items = buildReservationItems(visibleReservations)
-    if (items.length === 0) return
+      const items = buildReservationItems(visibleReservations)
+      if (items.length === 0) return
 
-    // Visible filter: pixel distance between endpoints
-    const visibleItems = items.filter(item => {
-      try {
-        const [gcjLngFrom, gcjLatFrom] = wgs84ToGcj02(item.from.lng, item.from.lat)
-        const [gcjLngTo, gcjLatTo] = wgs84ToGcj02(item.to.lng, item.to.lat)
-        const fromPx = map.lngLatToContainer(new AMap.LngLat(gcjLngFrom, gcjLatFrom))
-        const toPx = map.lngLatToContainer(new AMap.LngLat(gcjLngTo, gcjLatTo))
-        if (!fromPx || !toPx) return true
-        const dx = fromPx.getX() - toPx.getX(), dy = fromPx.getY() - toPx.getY()
-        const dist = Math.sqrt(dx * dx + dy * dy)
-        const minPx = item.type === 'flight' ? 50 : item.type === 'cruise' ? 150 : item.type === 'car' ? 80 : 200
-        return dist >= minPx
-      } catch { return true }
-    })
+      // Visible filter: pixel distance between endpoints — skip items with invalid coords
+      const visibleItems = items.filter(item => {
+        const gcjFrom = safeGcj(item.from.lng, item.from.lat)
+        const gcjTo = safeGcj(item.to.lng, item.to.lat)
+        if (!gcjFrom || !gcjTo) return true // show if coords invalid
+        try {
+          const fromPx = map.lngLatToContainer(new AMap.LngLat(gcjFrom[0], gcjFrom[1]))
+          const toPx = map.lngLatToContainer(new AMap.LngLat(gcjTo[0], gcjTo[1]))
+          if (!fromPx || !toPx) return true
+          const dx = fromPx.getX() - toPx.getX(), dy = fromPx.getY() - toPx.getY()
+          const dist = Math.sqrt(dx * dx + dy * dy)
+          const minPx = item.type === 'flight' ? 50 : item.type === 'cruise' ? 150 : item.type === 'car' ? 80 : 200
+          return dist >= minPx
+        } catch { return true }
+      })
 
-    // Label visibility threshold
-    const labelVisibleIds = new Set<number>()
-    for (const item of visibleItems) {
-      try {
-        const [gcjLngFrom, gcjLatFrom] = wgs84ToGcj02(item.from.lng, item.from.lat)
-        const [gcjLngTo, gcjLatTo] = wgs84ToGcj02(item.to.lng, item.to.lat)
-        const fromPx = map.lngLatToContainer(new AMap.LngLat(gcjLngFrom, gcjLatFrom))
-        const toPx = map.lngLatToContainer(new AMap.LngLat(gcjLngTo, gcjLatTo))
-        if (!fromPx || !toPx) continue
-        const dx = fromPx.getX() - toPx.getX(), dy = fromPx.getY() - toPx.getY()
-        const dist = Math.sqrt(dx * dx + dy * dy)
-        const minPx = item.type === 'flight' ? 50 : item.type === 'cruise' ? 300 : item.type === 'car' ? 150 : 400
-        if (dist >= minPx) labelVisibleIds.add(item.res.id)
-      } catch { /* ignore */ }
-    }
-
-    // ── Draw polylines ───────────────────────────────────────────────
-    for (const item of visibleItems) {
-      for (const seg of item.arcs) {
-        // Convert arc coordinates WGS-84 → GCJ-02
-        const gcjPath = wgs84ToGcj02Batch(seg.map(([lat, lng]) => [lng, lat]))
-        const path = gcjPath.map(([lng, lat]) => new AMap.LngLat(lng, lat))
-        const isConfirmed = item.res.status === 'confirmed'
-        const polyline = new AMap.Polyline({
-          path,
-          strokeColor: TRANSPORT_COLOR,
-          strokeWeight: 2.5,
-          strokeOpacity: isConfirmed ? 0.75 : 0.55,
-          strokeStyle: isConfirmed ? 'solid' : 'dashed',
-          strokeDasharray: isConfirmed ? undefined : [6, 6],
-          lineJoin: 'round',
-          lineCap: 'round',
-          zIndex: 60,
-        })
-        polyline.setMap(map)
-        reservationPolylinesRef.current.push(polyline)
-      }
-    }
-
-    // ── Endpoint markers ─────────────────────────────────────────────
-    for (const item of visibleItems) {
-      const showLabel = showEndpointLabels && labelVisibleIds.has(item.res.id)
-      for (const ep of [item.from, item.to]) {
-        const label = showLabel ? (ep.code || cleanName(ep.name)) : null
-        const el = document.createElement('div')
-        el.innerHTML = endpointMarkerHtml(item.type, label)
-        const node = el.firstElementChild as HTMLElement || el
-        node.title = ep.name || ''
-        if (onReservationClickRef.current) {
-          node.addEventListener('click', (ev: Event) => {
-            ev.stopPropagation()
-            onReservationClickRef.current?.(item.res.id)
-          })
-        }
-        const [gcjLng, gcjLat] = wgs84ToGcj02(ep.lng, ep.lat)
-        const marker = new AMap.Marker({
-          position: new AMap.LngLat(gcjLng, gcjLat),
-          content: node,
-          offset: new AMap.Pixel(0, 0),
-          anchor: 'center',
-          zIndex: 150,
-        })
-        marker.setMap(map)
-        reservationEndpointMarkersRef.current.push(marker)
-      }
-    }
-
-    // ── Stats labels (flights only) ──────────────────────────────────
-    if (showReservationStats) {
+      // Label visibility threshold
+      const labelVisibleIds = new Set<number>()
       for (const item of visibleItems) {
-        if (item.type !== 'flight') continue
-        if (!labelVisibleIds.has(item.res.id)) continue
-        if (!item.mainLabel && !item.subLabel) continue
-        const arc = item.primaryArc
-        if (arc.length < 2) continue
-        const mid = arc[Math.floor(arc.length / 2)]
-        if (!mid) continue
-        const { html, width, height } = buildStatsHtml(item.mainLabel, item.subLabel)
-        const el = document.createElement('div')
-        el.style.cssText = `width:${width}px;height:${height}px;pointer-events:none;`
-        el.innerHTML = html
-        const [gcjLng, gcjLat] = wgs84ToGcj02(mid[1], mid[0])
-        const marker = new AMap.Marker({
-          position: new AMap.LngLat(gcjLng, gcjLat),
-          content: el,
-          offset: new AMap.Pixel(0, 0),
-          anchor: 'center',
-          zIndex: 160,
-        })
-        marker.setMap(map)
-        reservationStatsMarkersRef.current.push({ marker, arc })
+        const gcjFrom = safeGcj(item.from.lng, item.from.lat)
+        const gcjTo = safeGcj(item.to.lng, item.to.lat)
+        if (!gcjFrom || !gcjTo) continue
+        try {
+          const fromPx = map.lngLatToContainer(new AMap.LngLat(gcjFrom[0], gcjFrom[1]))
+          const toPx = map.lngLatToContainer(new AMap.LngLat(gcjTo[0], gcjTo[1]))
+          if (!fromPx || !toPx) continue
+          const dx = fromPx.getX() - toPx.getX(), dy = fromPx.getY() - toPx.getY()
+          const dist = Math.sqrt(dx * dx + dy * dy)
+          const minPx = item.type === 'flight' ? 50 : item.type === 'cruise' ? 300 : item.type === 'car' ? 150 : 400
+          if (dist >= minPx) labelVisibleIds.add(item.res.id)
+        } catch { /* ignore */ }
       }
-      // Prime rotation
-      updateReservationStatsRotation()
+
+      // ── Draw polylines ───────────────────────────────────────────────
+      for (const item of visibleItems) {
+        for (const seg of item.arcs) {
+          if (!seg || seg.length < 2) continue
+          const gcjPath = wgs84ToGcj02Batch(seg.map(([lat, lng]) => [lng, lat]))
+          const path = gcjPath.map(([lng, lat]) => new AMap.LngLat(lng, lat))
+          const isConfirmed = item.res.status === 'confirmed'
+          const polyline = new AMap.Polyline({
+            path,
+            strokeColor: TRANSPORT_COLOR,
+            strokeWeight: 2.5,
+            strokeOpacity: isConfirmed ? 0.75 : 0.55,
+            strokeStyle: isConfirmed ? 'solid' : 'dashed',
+            strokeDasharray: isConfirmed ? undefined : [6, 6],
+            lineJoin: 'round',
+            lineCap: 'round',
+            zIndex: 60,
+          })
+          polyline.setMap(map)
+          reservationPolylinesRef.current.push(polyline)
+        }
+      }
+
+      // ── Endpoint markers ─────────────────────────────────────────────
+      for (const item of visibleItems) {
+        const showLabel = showEndpointLabels && labelVisibleIds.has(item.res.id)
+        for (const ep of [item.from, item.to]) {
+          const gcjEp = safeGcj(ep.lng, ep.lat)
+          if (!gcjEp) continue // skip endpoints without valid coordinates
+          const label = showLabel ? (ep.code || cleanName(ep.name)) : null
+          const el = document.createElement('div')
+          el.innerHTML = endpointMarkerHtml(item.type, label)
+          const node = el.firstElementChild as HTMLElement || el
+          node.title = ep.name || ''
+          if (onReservationClickRef.current) {
+            node.addEventListener('click', (ev: Event) => {
+              ev.stopPropagation()
+              onReservationClickRef.current?.(item.res.id)
+            })
+          }
+          const marker = new AMap.Marker({
+            position: new AMap.LngLat(gcjEp[0], gcjEp[1]),
+            content: node,
+            offset: new AMap.Pixel(0, 0),
+            anchor: 'center',
+            zIndex: 150,
+          })
+          marker.setMap(map)
+          reservationEndpointMarkersRef.current.push(marker)
+        }
+      }
+
+      // ── Stats labels (flights only) ──────────────────────────────────
+      if (showReservationStats) {
+        for (const item of visibleItems) {
+          if (item.type !== 'flight') continue
+          if (!labelVisibleIds.has(item.res.id)) continue
+          if (!item.mainLabel && !item.subLabel) continue
+          const arc = item.primaryArc
+          if (arc.length < 2) continue
+          const mid = arc[Math.floor(arc.length / 2)]
+          if (!mid) continue
+          const { html, width, height } = buildStatsHtml(item.mainLabel, item.subLabel)
+          const el = document.createElement('div')
+          el.style.cssText = `width:${width}px;height:${height}px;pointer-events:none;`
+          el.innerHTML = html
+          const gcjMid = safeGcj(mid[1], mid[0])
+          if (!gcjMid) continue
+          const marker = new AMap.Marker({
+            position: new AMap.LngLat(gcjMid[0], gcjMid[1]),
+            content: el,
+            offset: new AMap.Pixel(0, 0),
+            anchor: 'center',
+            zIndex: 160,
+          })
+          marker.setMap(map)
+          reservationStatsMarkersRef.current.push({ marker, arc })
+        }
+        // Prime rotation
+        updateReservationStatsRotation()
+      }
+    } catch (err) {
+      console.error('MapViewAMap reservation overlay error:', err)
     }
 
     return () => {

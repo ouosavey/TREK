@@ -176,10 +176,10 @@ export default function PlaceFormModal({
     const controller = new AbortController()
     acAbortRef.current = controller
     try {
-      // Use AMap autocomplete when: temp provider is amap, or auto + (amap map or Chinese input with key)
-      const hasChinese = /[\u4e00-\u9fff]/.test(query)
+      // Use AMap autocomplete when: temp provider is amap, or auto + AMap key available
+      // In CN-localized build, prefer AMap whenever key is configured
       const useAmap = tempSearchProvider === 'amap'
-        || (tempSearchProvider === 'auto' && (mapProvider === 'amap' || (hasChinese && hasAmapKey)))
+        || (tempSearchProvider === 'auto' && hasAmapKey)
       const result = useAmap
         ? await mapsApi.autocompleteAmap(query)
         : await mapsApi.autocomplete(query, language, locationBias, controller.signal)
@@ -188,7 +188,7 @@ export default function PlaceFormModal({
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return
       if (err instanceof Error && err.name === 'CanceledError') return // axios abort
-      console.error('Autocomplete failed:', err)
+      console.error('Autocomplete failed:', err, { query: query.slice(0, 50), hasAmapKey, tempSearchProvider })
       setAcSuggestions([])
     }
   }, [language, locationBias, tempSearchProvider, mapProvider, hasAmapKey])
@@ -237,10 +237,10 @@ export default function PlaceFormModal({
           return
         }
       }
-      // Use AMap search when: temp provider is amap, or auto + (amap map or Chinese input with key)
+      // Use AMap search when: temp provider is amap, or auto + AMap key available
       const hasChinese = /[\u4e00-\u9fff]/.test(trimmed)
       const useAmap = tempSearchProvider === 'amap'
-        || (tempSearchProvider === 'auto' && (mapProvider === 'amap' || (hasChinese && hasAmapKey)))
+        || (tempSearchProvider === 'auto' && hasAmapKey)
       const searchLang = hasChinese ? 'zh' : language
       const result = useAmap
         ? await mapsApi.searchAmap(mapsSearch, undefined, searchLang)
