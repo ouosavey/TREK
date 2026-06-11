@@ -314,6 +314,7 @@ export function getAppConfig(authenticatedUser: { id: number } | null) {
     places_photos_enabled: placesPhotosEnabled,
     places_autocomplete_enabled: placesAutocompleteEnabled,
     places_details_enabled: placesDetailsEnabled,
+    has_amap_key: !!(db.prepare("SELECT value FROM app_settings WHERE key = 'amap_web_service_key'").get() as { value: string } | undefined)?.value,
     permissions: authenticatedUser ? getAllPermissions() : undefined,
     dev_mode: process.env.NODE_ENV === 'development',
   };

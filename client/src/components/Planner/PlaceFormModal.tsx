@@ -258,8 +258,8 @@ export default function PlaceFormModal({
       ...prev,
       name: result.name || prev.name,
       address: result.address || prev.address,
-      lat: result.lat || prev.lat,
-      lng: result.lng || prev.lng,
+      lat: result.lat != null ? String(result.lat) : prev.lat,
+      lng: result.lng != null ? String(result.lng) : prev.lng,
       google_place_id: result.google_place_id || prev.google_place_id,
       osm_id: result.osm_id || prev.osm_id,
       website: result.website || prev.website,
@@ -282,6 +282,7 @@ export default function PlaceFormModal({
         address: suggestion.address || prev.address,
         lat: suggestion.lat != null ? String(suggestion.lat) : prev.lat,
         lng: suggestion.lng != null ? String(suggestion.lng) : prev.lng,
+        osm_id: suggestion.placeId,
       }))
       return
     }

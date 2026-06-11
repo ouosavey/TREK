@@ -258,6 +258,26 @@ router.put('/places-details', (req: Request, res: Response) => {
   res.json(result);
 });
 
+// ── AMap Web Service Key ────────────────────────────────────────────────────
+
+router.get('/amap-web-service-key', (_req: Request, res: Response) => {
+  res.json(svc.getAmapWebServiceKey());
+});
+
+router.put('/amap-web-service-key', (req: Request, res: Response) => {
+  const key = req.body.key;
+  if (typeof key !== 'string') return res.status(400).json({ error: 'key must be a string' });
+  const result = svc.updateAmapWebServiceKey(key);
+  const authReq = req as AuthRequest;
+  writeAudit({
+    userId: authReq.user.id,
+    action: 'admin.amap_web_service_key',
+    ip: getClientIp(req),
+    details: { configured: result.configured },
+  });
+  res.json(result);
+});
+
 // ── Collab Features ───────────────────────────────────────────────────────
 
 router.get('/collab-features', (_req: Request, res: Response) => {

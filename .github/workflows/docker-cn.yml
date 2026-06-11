@@ -1,4 +1,4 @@
-name: Build & Push CN Localized Image
+name: Build & Push CN Localized Docker Image
 
 on:
   push:
@@ -10,31 +10,42 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 concurrency:
   group: cn-localized-build
-  cancel-in-progress: true
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build-and-push:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: cn-localized
 
       - uses: docker/setup-buildx-action@v3
 
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract short SHA
-        id: sha
-        run: echo "SHORT=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=cn-localized
+            type=sha,prefix=cn-
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -42,10 +53,29 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
+          no-cache: true
           build-args: |
-            APP_VERSION=cn-localized-${{ steps.sha.outputs.SHORT }}
+            APP_VERSION=cn-latest
           tags: |
-            ghcr.io/${{ github.repository_owner }}/trek:cn-localized
-            ghcr.io/${{ github.repository_owner }}/trek:cn-localized-${{ steps.sha.outputs.SHORT }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Build summary
+        run: |
+          echo "## CN Localized Build Result" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Image** | \`ghcr.io/${{ github.repository }}:cn-localized\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Platform** | linux/amd64 |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Branch** | \`cn-localized\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
+          echo "- 修复 getPlaceDetails 中 amap:xxx placeId 被误判为 OSM 的 bug" >> $GITHUB_STEP_SUMMARY
+          echo "- 修复 getPlaceDetailsExpanded/getPlacePhoto 支持 amap: 前缀" >> $GITHUB_STEP_SUMMARY
+          echo "- searchPlaces/autocompletePlaces 优先路由到高德 API" >> $GITHUB_STEP_SUMMARY
+          echo "- 修复高德 API 返回坐标 GCJ-02→WGS-84 转换" >> $GITHUB_STEP_SUMMARY
+          echo "- 修复前端 PlaceFormModal lat/lng 为 0 时被跳过 + osm_id 设置" >> $GITHUB_STEP_SUMMARY
+          echo "- 添加管理面板 AMap Web Service Key 配置" >> $GITHUB_STEP_SUMMARY
+          echo "- 添加 authService has_amap_key 配置状态" >> $GITHUB_STEP_SUMMARY

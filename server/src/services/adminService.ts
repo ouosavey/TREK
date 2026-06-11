@@ -498,6 +498,19 @@ export function updatePlacesDetails(enabled: boolean) {
   return { enabled: !!enabled };
 }
 
+// ── AMap Web Service Key ────────────────────────────────────────────────────
+
+export function getAmapWebServiceKey() {
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_web_service_key'").get() as { value: string } | undefined;
+  const val = row?.value || '';
+  return { key: val ? val.slice(0, 4) + '****' + val.slice(-4) : '', configured: !!val };
+}
+
+export function updateAmapWebServiceKey(key: string) {
+  db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('amap_web_service_key', ?)").run(key || '');
+  return { configured: !!key };
+}
+
 // ── Collab Features ───────────────────────────────────────────────────────
 
 const COLLAB_FEATURE_KEYS = ['collab_chat_enabled', 'collab_notes_enabled', 'collab_polls_enabled', 'collab_whatsnext_enabled'] as const;

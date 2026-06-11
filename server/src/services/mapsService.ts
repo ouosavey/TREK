@@ -356,6 +356,12 @@ export async function fetchWikimediaPhoto(lat: number, lng: number, name?: strin
 
 export async function searchPlaces(userId: number, query: string, lang?: string): Promise<{ places: Record<string, unknown>[]; source: string }> {
   const apiKey = getMapsKey(userId);
+  const amapKey = getAmapKey(userId);
+
+  // Prefer AMap when key is available (better for China)
+  if (amapKey) {
+    return searchAmap(query, undefined, lang, userId);
+  }
 
   if (!apiKey) {
     const places = await searchNominatim(query, lang);
@@ -402,8 +408,14 @@ export async function autocompletePlaces(
   input: string,
   lang?: string,
   locationBias?: { low: { lat: number; lng: number }; high: { lat: number; lng: number } },
-): Promise<{ suggestions: { placeId: string; mainText: string; secondaryText: string }[]; source: string }> {
+): Promise<{ suggestions: { placeId: string; mainText: string; secondaryText: string; lat?: number; lng?: number; address?: string }[]; source: string }> {
   const apiKey = getMapsKey(userId);
+  const amapKey = getAmapKey(userId);
+
+  // Prefer AMap when key is available (better for China)
+  if (amapKey) {
+    return autocompleteAmap(input, undefined, userId);
+  }
 
   if (!apiKey) {
     return autocompleteNominatim(input, lang);
@@ -478,6 +490,44 @@ async function autocompleteNominatim(
 // ── Place details (Google or OSM) ────────────────────────────────────────────
 
 export async function getPlaceDetails(userId: number, placeId: string, lang?: string): Promise<{ place: Record<string, unknown> }> {
+  // AMap POI details: placeId is "amap:BVXXX..."
+  if (placeId.startsWith('amap:')) {
+    const amapId = placeId.slice(5);
+    const amapKey = getAmapKey(userId);
+    if (!amapKey) throw Object.assign(new Error('AMap API key not configured'), { status: 400 });
+    const params = new URLSearchParams({ key: amapKey, id: amapId, output: 'JSON', extensions: 'all' });
+    const response = await fetch(`https://restapi.amap.com/v3/place/detail?${params}`);
+    if (!response.ok) throw new Error('AMap POI detail API error');
+    const data = await response.json() as { status: string; pois?: AmapPoi[]; info?: string };
+    if (data.status !== '1' || !data.pois?.[0]) throw new Error(data.info || 'AMap POI not found');
+    const poi = data.pois[0];
+    const [lngStr, latStr] = (poi.location || ',').split(',');
+    const rawLng = parseFloat(lngStr) || null;
+    const rawLat = parseFloat(latStr) || null;
+    const [wgsLng, wgsLat] = rawLng && rawLat ? routeGcj02ToWgs84(rawLng, rawLat) : [rawLng, rawLat];
+    return {
+      place: {
+        google_place_id: null,
+        osm_id: placeId,
+        name: poi.name || '',
+        address: poi.address || poi.pname + poi.cityname + poi.adname + poi.address,
+        lat: wgsLat,
+        lng: wgsLng,
+        rating: poi.biz_ext?.rating ? parseFloat(poi.biz_ext.rating) : null,
+        rating_count: null,
+        website: poi.website || null,
+        phone: poi.tel || null,
+        opening_hours: poi.biz_ext?.open_time ? [poi.biz_ext.open_time] : null,
+        open_now: null,
+        google_maps_url: null,
+        summary: poi.type || null,
+        reviews: [],
+        source: 'amap',
+        cached_at: Date.now(),
+      },
+    };
+  }
+
   // OSM details: placeId is "node:123456" or "way:123456" etc.
   if (placeId.includes(':')) {
     const [osmType, osmId] = placeId.split(':');
@@ -562,6 +612,11 @@ export async function getPlaceDetails(userId: number, placeId: string, lang?: st
 }
 
 export async function getPlaceDetailsExpanded(userId: number, placeId: string, lang?: string, refresh = false): Promise<{ place: Record<string, unknown> }> {
+  // AMap: expanded details use the same POI detail API (already returns rich info)
+  if (placeId.startsWith('amap:')) {
+    return getPlaceDetails(userId, placeId, lang);
+  }
+
   const langKey = lang || 'de';
   const apiKey = getMapsKey(userId);
   if (!apiKey) throw Object.assign(new Error('Google Maps API key not configured'), { status: 400 });
@@ -657,9 +712,10 @@ export async function getPlacePhoto(
     try {
     const apiKey = getMapsKey(userId);
     const isCoordLookup = placeId.startsWith('coords:');
+    const isAmapLookup = placeId.startsWith('amap:');
 
-    // No Google key or coordinate-only lookup → try Wikimedia (URL-based, not byte-cached)
-    if (!apiKey || isCoordLookup) {
+    // No Google key, coordinate-only, or AMap lookup → try Wikimedia (URL-based, not byte-cached)
+    if (!apiKey || isCoordLookup || isAmapLookup) {
       if (!isNaN(lat) && !isNaN(lng)) {
         try {
           const wiki = await fetchWikimediaPhoto(lat, lng, name);
@@ -791,21 +847,26 @@ export async function searchAmap(query: string, city?: string, lang?: string, us
   const data = await response.json() as { status: string; pois?: AmapPoi[]; info?: string }
   if (data.status !== '1') return { places: [], source: 'amap' }
 
-  const places = (data.pois || []).map(poi => ({
-    google_place_id: null,
-    osm_id: null,
-    amap_id: poi.id,
-    name: poi.name || '',
-    address: poi.address || poi.pname + poi.cityname + poi.adname + poi.address,
-    lat: poi.location ? parseFloat(poi.location.split(',')[1]) : null,
-    lng: poi.location ? parseFloat(poi.location.split(',')[0]) : null,
-    rating: poi.biz_ext?.rating ? parseFloat(poi.biz_ext.rating) : null,
-    website: poi.website || null,
-    phone: poi.tel || null,
-    category: poi.type ? poi.type.split(';')[0] : null,
-    photo_url: poi.photos?.[0]?.url || null,
-    source: 'amap',
-  }))
+  const places = (data.pois || []).map(poi => {
+    const [lngStr, latStr] = (poi.location || ',').split(',')
+    const rawLng = parseFloat(lngStr) || null
+    const rawLat = parseFloat(latStr) || null
+    const [wgsLng, wgsLat] = rawLng && rawLat ? routeGcj02ToWgs84(rawLng, rawLat) : [rawLng, rawLat]
+    return {
+      google_place_id: null,
+      osm_id: `amap:${poi.id}`,
+      name: poi.name || '',
+      address: poi.address || poi.pname + poi.cityname + poi.adname + poi.address,
+      lat: wgsLat,
+      lng: wgsLng,
+      rating: poi.biz_ext?.rating ? parseFloat(poi.biz_ext.rating) : null,
+      website: poi.website || null,
+      phone: poi.tel || null,
+      category: poi.type ? poi.type.split(';')[0] : null,
+      photo_url: poi.photos?.[0]?.url || null,
+      source: 'amap',
+    }
+  })
   return { places, source: 'amap' }
 }
 
@@ -853,12 +914,15 @@ export async function autocompleteAmap(input: string, city?: string, userId?: nu
       .slice(0, 5)
       .map(t => {
         const [lngStr, latStr] = (t.location || '').split(',')
+        const rawLng = parseFloat(lngStr) || null
+        const rawLat = parseFloat(latStr) || null
+        const [wgsLng, wgsLat] = rawLng && rawLat ? routeGcj02ToWgs84(rawLng, rawLat) : [rawLng, rawLat]
         return {
           placeId: `amap:${t.id}`,
           mainText: t.name || '',
           secondaryText: t.district && t.address ? `${t.district} ${t.address}` : t.address || t.district || '',
-          lat: latStr ? parseFloat(latStr) : null,
-          lng: lngStr ? parseFloat(lngStr) : null,
+          lat: wgsLat,
+          lng: wgsLng,
           address: t.district && t.address ? `${t.district}${t.address}` : t.address || '',
         }
       })

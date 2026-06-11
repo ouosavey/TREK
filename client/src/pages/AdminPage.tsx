@@ -223,6 +223,13 @@ export default function AdminPage(): React.ReactElement {
   const [placesDetailsEnabled, setPlacesDetailsEnabledState] = useState<boolean>(true)
   useEffect(() => { adminApi.getPlacesDetails().then(d => setPlacesDetailsEnabledState(d.enabled)).catch(() => {}) }, [])
 
+  // AMap Web Service Key
+  const [amapKeyMasked, setAmapKeyMasked] = useState<string>('')
+  const [amapKeyConfigured, setAmapKeyConfigured] = useState<boolean>(false)
+  const [amapKeyInput, setAmapKeyInput] = useState<string>('')
+  const [savingAmapKey, setSavingAmapKey] = useState<boolean>(false)
+  useEffect(() => { adminApi.getAmapWebServiceKey().then(d => { setAmapKeyMasked(d.key); setAmapKeyConfigured(d.configured) }).catch(() => {}) }, [])
+
   // Collab features
   const [collabFeatures, setCollabFeatures] = useState<{ chat: boolean; notes: boolean; polls: boolean; whatsnext: boolean }>({ chat: true, notes: true, polls: true, whatsnext: true })
   useEffect(() => { adminApi.getCollabFeatures().then(d => setCollabFeatures(d)).catch(() => {}) }, [])
@@ -1093,6 +1100,44 @@ export default function AdminPage(): React.ReactElement {
                     >
                       <span className="absolute left-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-200" style={{ transform: placesDetailsEnabled ? 'translateX(20px)' : 'translateX(0)' }} />
                     </button>
+                  </div>
+
+                  {/* AMap Web Service Key */}
+                  <div className="py-3 border-t border-slate-100 dark:border-slate-800">
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">高德地图 Web 服务 Key</p>
+                    <p className="text-xs text-slate-400 mb-2">用于地点搜索、自动补全和 POI 详情（中国大陆无需代理）</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        value={amapKeyInput}
+                        onChange={e => setAmapKeyInput(e.target.value)}
+                        placeholder={amapKeyConfigured ? amapKeyMasked : '输入高德 Web 服务 Key'}
+                        className="flex-1 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!amapKeyInput.trim()) return
+                          setSavingAmapKey(true)
+                          try {
+                            const result = await adminApi.updateAmapWebServiceKey(amapKeyInput.trim())
+                            setAmapKeyConfigured(result.configured)
+                            setAmapKeyInput('')
+                            adminApi.getAmapWebServiceKey().then(d => { setAmapKeyMasked(d.key); setAmapKeyConfigured(d.configured) })
+                          } catch { /* ignore */ }
+                          setSavingAmapKey(false)
+                        }}
+                        disabled={savingAmapKey || !amapKeyInput.trim()}
+                        className="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-slate-700 disabled:opacity-60"
+                      >
+                        {savingAmapKey ? '...' : '保存'}
+                      </button>
+                    </div>
+                    {amapKeyConfigured && (
+                      <p className="text-[11px] text-emerald-600 mt-1">已配置: {amapKeyMasked}</p>
+                    )}
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      在 lbs.amap.com 申请 Web 服务 API Key
+                    </p>
                   </div>
 
                   {/* Open-Meteo Weather Info */}
