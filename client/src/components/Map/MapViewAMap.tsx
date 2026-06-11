@@ -434,9 +434,12 @@ export const MapViewAMap = memo(function MapViewAMap({
         center: [gcjLng, gcjLat],
         zoom,
         resizeEnable: true,
-        viewMode: '2D',
+        mapStyle: 'amap://styles/normal',
       })
       mapRef.current = map
+
+      // Force resize after DOM layout to ensure correct dimensions
+      setTimeout(() => { try { map.resize() } catch {} }, 200)
 
       // Click handler — convert GCJ-02 back to WGS-84
       map.on('click', (e: any) => {

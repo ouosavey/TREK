@@ -380,9 +380,12 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
         center: initialCenter,
         zoom: initialZoom,
         resizeEnable: true,
-        viewMode: '2D',
+        mapStyle: dark ? 'amap://styles/dark' : 'amap://styles/normal',
       })
       mapRef.current = map
+
+      // Force resize after DOM layout to ensure correct dimensions
+      setTimeout(() => { try { map.resize() } catch {} }, 200)
 
       // ── Dashed trail line connecting entries in time order ──────────
       if (items.length > 1) {
