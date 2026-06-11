@@ -22,6 +22,8 @@ RUN apk add --no-cache tzdata dumb-init su-exec python3 make g++ && \
 COPY server/ ./
 COPY --from=client-builder /app/client/dist ./public
 COPY --from=client-builder /app/client/public/fonts ./public/fonts
+# Copy geo data after client dist (to avoid being overwritten)
+COPY server/public/geo ./public/geo
 
 RUN rm -f package-lock.json && \
     mkdir -p /app/data/logs /app/uploads/files /app/uploads/covers /app/uploads/avatars /app/uploads/photos && \

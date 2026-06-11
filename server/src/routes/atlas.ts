@@ -66,10 +66,14 @@ router.get('/geojson/world', async (req: Request, res: Response) => {
         for (const f of json.features) {
           const name = (f.properties?.NAME || f.properties?.ADMIN || '').toLowerCase()
           const isoA2 = f.properties?.ISO_A2
-          if (isoA2 === 'TW' || name.includes('taiwan')) {
+          const isoA2EH = f.properties?.ISO_A2_EH
+          const adm0A3 = f.properties?.ADM0_A3
+          // Match Taiwan: ISO_A2 can be "TW", "CN-TW", or "-99"; ISO_A2_EH is "TW"; ADM0_A3 is "TWN"
+          if (adm0A3 === 'TWN' || isoA2EH === 'TW' || isoA2 === 'TW' || isoA2 === 'CN-TW' || name.includes('taiwan')) {
             f.properties.ADM0_A3 = 'CHN';
             f.properties.ISO_A3 = 'CHN';
             f.properties.ISO_A2 = 'CN';
+            f.properties.ISO_A2_EH = 'CN';
             if (f.properties['ISO3166-1-Alpha-3']) f.properties['ISO3166-1-Alpha-3'] = 'CHN';
             if (f.properties.NAME) f.properties.NAME = 'China';
             if (f.properties.ADMIN) f.properties.ADMIN = 'China';
@@ -95,10 +99,14 @@ router.get('/geojson/world', async (req: Request, res: Response) => {
       for (const f of json.features) {
         const name = (f.properties?.NAME || f.properties?.ADMIN || '').toLowerCase()
         const isoA2 = f.properties?.ISO_A2
-        if (isoA2 === 'TW' || name.includes('taiwan')) {
+        const isoA2EH = f.properties?.ISO_A2_EH
+        const adm0A3 = f.properties?.ADM0_A3
+        // Match Taiwan: ISO_A2 can be "TW", "CN-TW", or "-99"; ISO_A2_EH is "TW"; ADM0_A3 is "TWN"
+        if (adm0A3 === 'TWN' || isoA2EH === 'TW' || isoA2 === 'TW' || isoA2 === 'CN-TW' || name.includes('taiwan')) {
           f.properties.ADM0_A3 = 'CHN';
           f.properties.ISO_A3 = 'CHN';
           f.properties.ISO_A2 = 'CN';
+          f.properties.ISO_A2_EH = 'CN';
           if (f.properties['ISO3166-1-Alpha-3']) f.properties['ISO3166-1-Alpha-3'] = 'CHN';
           if (f.properties.NAME) f.properties.NAME = 'China';
           if (f.properties.ADMIN) f.properties.ADMIN = 'China';
