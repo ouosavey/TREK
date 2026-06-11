@@ -123,7 +123,7 @@ export function createApp(): express.Application {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'wasm-unsafe-eval'", "'unsafe-eval'", "https://webapi.amap.com", "https://*.amap.com"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'wasm-unsafe-eval'", "'unsafe-eval'", "https://webapi.amap.com", "https://*.amap.com"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com", "https://webapi.amap.com", "https://*.amap.com"],
         imgSrc: ["'self'", "data:", "blob:", "https:"],
         connectSrc: [
