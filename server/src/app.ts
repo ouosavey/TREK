@@ -137,7 +137,7 @@ export function createApp(): express.Application {
           "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson",
           "https://router.project-osrm.org/route/v1/",
           "https://api.mapbox.com", "https://*.tiles.mapbox.com", "https://events.mapbox.com",
-          "https://restapi.amap.com", "https://*.amap.com"
+          "https://restapi.amap.com", "https://*.amap.com", "https://*.is.autonavi.com", "https://*.autonavi.com"
         ],
         workerSrc: ["'self'", "blob:"],
         childSrc: ["'self'", "blob:"],

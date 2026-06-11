@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── AMap (高德地图) CSS 修复 ─────────────────── */
+/* Tailwind Preflight 设置了 img { max-width: 100%; height: auto; }
+   会导致高德地图瓦片图片高度塌陷为 0，必须覆盖 */
+.amap-container img { max-width: none !important; height: auto !important; }
+.amap-container { overflow: visible !important; }
+.amap-logo, .amap-copyright { display: block !important; }
+.amap-maps { width: 100% !important; height: 100% !important; }
+
 html { height: 100%; overflow: hidden; background-color: var(--bg-primary); }
 body { height: 100%; overflow: auto; overscroll-behavior: none; -webkit-overflow-scrolling: touch; }
 
