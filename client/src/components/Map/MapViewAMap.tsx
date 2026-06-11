@@ -525,6 +525,10 @@ export const MapViewAMap = memo(function MapViewAMap({
         }
       })
 
+      // Guard: skip if map container has no valid size yet (causes NaN from lngLatToContainer)
+      const mapSize = map.getSize()
+      if (!mapSize || mapSize.getWidth() <= 0 || mapSize.getHeight() <= 0) return
+
       // Create or update markers
       const markerList: AMapMarkerType[] = []
 
@@ -568,16 +572,22 @@ export const MapViewAMap = memo(function MapViewAMap({
           try { existing.setMap(null) } catch {}
         }
 
-        const marker = new AMap.Marker({
-          position: new AMap.LngLat(gcjLng, gcjLat),
-          content: el,
-          offset: new AMap.Pixel(0, 0),
-          anchor: 'center',
-          zIndex: selected ? 200 : 100,
-        })
-        marker.setMap(map)
-        markersRef.current.set(place.id, marker)
-        markerList.push(marker)
+        // Per-marker try-catch: MarkerCluster internal processing may throw
+        // Invalid Object: Pixel(NaN) even with valid position coords
+        try {
+          const marker = new AMap.Marker({
+            position: new AMap.LngLat(gcjLng, gcjLat),
+            content: el,
+            offset: new AMap.Pixel(0, 0),
+            anchor: 'center',
+            zIndex: selected ? 200 : 100,
+          })
+          marker.setMap(map)
+          markersRef.current.set(place.id, marker)
+          markerList.push(marker)
+        } catch {
+          // Silently skip markers that fail (e.g. cluster internal error)
+        }
       }
 
       // ── Clustering ───────────────────────────────────────────────────
@@ -644,9 +654,7 @@ export const MapViewAMap = memo(function MapViewAMap({
         })
         clusterRef.current = cluster
       }
-    } catch (err) {
-      console.error('MapViewAMap marker reconciliation error:', err)
-    }
+    } catch { /* noop — AMap SDK internal errors suppressed */ }
   }, [places, selectedPlaceId, dayOrderMap, photoUrls])
 
   // ── Route polyline rendering ─────────────────────────────────────────
@@ -689,12 +697,18 @@ export const MapViewAMap = memo(function MapViewAMap({
     if (!AMap || !map) return
 
     try {
+      // Guard: skip if map not ready
+      const mapSize = map.getSize()
+      if (!mapSize || mapSize.getWidth() <= 0 || mapSize.getHeight() <= 0) return
+
       // Clear existing
       routeLabelMarkersRef.current.forEach(m => { try { m.setMap(null) } catch {} })
       routeLabelMarkersRef.current = []
 
       for (const seg of routeSegments) {
         if (!seg.mid || (!seg.walkingText && !seg.drivingText)) continue
+        const gcjMid = safeGcj(seg.mid[1], seg.mid[0])
+        if (!gcjMid) continue
         const el = document.createElement('div')
         el.style.pointerEvents = 'none'
         el.innerHTML = `<div style="display:flex;align-items:center;gap:5px;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);color:#fff;border-radius:99px;padding:3px 9px;font-size:9px;font-weight:600;white-space:nowrap;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,0.3);">
@@ -703,22 +717,19 @@ export const MapViewAMap = memo(function MapViewAMap({
           <span style="display:flex;align-items:center;gap:2px"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9L18 10l-2-4H7L5 10l-2.5 1.1C1.7 11.3 1 12.1 1 13v3c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>${seg.drivingText ?? ''}</span>
         </div>`
 
-        // Convert midpoint WGS-84 → GCJ-02
-        const gcjMid = safeGcj(seg.mid[1], seg.mid[0])
-        if (!gcjMid) continue
-        const marker = new AMap.Marker({
-          position: new AMap.LngLat(gcjMid[0], gcjMid[1]),
-          content: el,
-          offset: new AMap.Pixel(0, 0),
-          anchor: 'center',
-          zIndex: 250,
-        })
-        marker.setMap(map)
-        routeLabelMarkersRef.current.push(marker)
+        try {
+          const marker = new AMap.Marker({
+            position: new AMap.LngLat(gcjMid[0], gcjMid[1]),
+            content: el,
+            offset: new AMap.Pixel(0, 0),
+            anchor: 'center',
+            zIndex: 250,
+          })
+          marker.setMap(map)
+          routeLabelMarkersRef.current.push(marker)
+        } catch { /* skip */ }
       }
-    } catch (err) {
-      console.error('MapViewAMap route labels error:', err)
-    }
+    } catch { /* noop */ }
 
     return () => {
       routeLabelMarkersRef.current.forEach(m => { try { m.setMap(null) } catch {} })
@@ -992,6 +1003,10 @@ export const MapViewAMap = memo(function MapViewAMap({
     if (!AMap || !map) return
 
     try {
+      // Guard: skip if map not ready
+      const mapSize = map.getSize()
+      if (!mapSize || mapSize.getWidth() <= 0 || mapSize.getHeight() <= 0) return
+
       // Clear previous
       clearReservationOverlays()
 
@@ -1071,15 +1086,17 @@ export const MapViewAMap = memo(function MapViewAMap({
               onReservationClickRef.current?.(item.res.id)
             })
           }
-          const marker = new AMap.Marker({
-            position: new AMap.LngLat(gcjEp[0], gcjEp[1]),
-            content: node,
-            offset: new AMap.Pixel(0, 0),
-            anchor: 'center',
-            zIndex: 150,
-          })
-          marker.setMap(map)
-          reservationEndpointMarkersRef.current.push(marker)
+          try {
+            const marker = new AMap.Marker({
+              position: new AMap.LngLat(gcjEp[0], gcjEp[1]),
+              content: node,
+              offset: new AMap.Pixel(0, 0),
+              anchor: 'center',
+              zIndex: 150,
+            })
+            marker.setMap(map)
+            reservationEndpointMarkersRef.current.push(marker)
+          } catch { /* skip */ }
         }
       }
 
@@ -1099,22 +1116,22 @@ export const MapViewAMap = memo(function MapViewAMap({
           el.innerHTML = html
           const gcjMid = safeGcj(mid[1], mid[0])
           if (!gcjMid) continue
-          const marker = new AMap.Marker({
-            position: new AMap.LngLat(gcjMid[0], gcjMid[1]),
-            content: el,
-            offset: new AMap.Pixel(0, 0),
-            anchor: 'center',
-            zIndex: 160,
-          })
-          marker.setMap(map)
-          reservationStatsMarkersRef.current.push({ marker, arc })
+          try {
+            const marker = new AMap.Marker({
+              position: new AMap.LngLat(gcjMid[0], gcjMid[1]),
+              content: el,
+              offset: new AMap.Pixel(0, 0),
+              anchor: 'center',
+              zIndex: 160,
+            })
+            marker.setMap(map)
+            reservationStatsMarkersRef.current.push({ marker, arc })
+          } catch { /* skip */ }
         }
         // Prime rotation
         updateReservationStatsRotation()
       }
-    } catch (err) {
-      console.error('MapViewAMap reservation overlay error:', err)
-    }
+    } catch { /* noop — AMap SDK internal errors suppressed */ }
 
     return () => {
       clearReservationOverlays()

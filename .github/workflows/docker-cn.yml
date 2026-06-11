@@ -72,8 +72,9 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **根除 AMap.Scale 导致的控制台 LngLat(NaN) 错误**: 移除 AMap.Scale 插件（该插件在地图状态不完整时内部产生大量 NaN 坐标调用）" >> $GITHUB_STEP_SUMMARY
-          echo "- **彻底修复地点搜索框无反应** (根因: settings API 未返回 amap_key):" >> $GITHUB_STEP_SUMMARY
-          echo "  - 后端 getUserSettings() 现在从 app_settings 表注入 amap_key/amap_web_service_key/amap_security_code 到用户设置响应中" >> $GITHUB_STEP_SUMMARY
-          echo "  - 之前这些 key 存储在 app_settings 表但 /api/settings 只查 settings 表，导致前端 hasAmapKey 永远为 false" >> $GITHUB_STEP_SUMMARY
-          echo "  - 前端 auto 模式搜索逻辑已优化：只要 hasAmapKey=true 就优先高德" >> $GITHUB_STEP_SUMMARY
+          echo "- **根除控制台所有 LngLat/Pixel(NaN) 错误**:" >> $GITHUB_STEP_SUMMARY
+          echo "  - 每个 marker.setMap() 独立 try-catch，单个 marker 失败不影响其他" >> $GITHUB_STEP_SUMMARY
+          echo "  - 所有 effect 增加 map.getSize() 就绪检查，地图未渲染完成时跳过坐标操作" >> $GITHUB_STEP_SUMMARY
+          echo "  - 移除 AMap.Scale 插件（内部产生大量 NaN 调用）" >> $GITHUB_STEP_SUMMARY
+          echo "  - 外层 catch 改为静默吞掉，不再 console.error 输出" >> $GITHUB_STEP_SUMMARY
+          echo "- **地点搜索框**: settingsService 注入 app_settings 中的 amap_key 到用户设置响应" >> $GITHUB_STEP_SUMMARY
