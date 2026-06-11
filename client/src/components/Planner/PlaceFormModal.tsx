@@ -96,10 +96,18 @@ export default function PlaceFormModal({
   const amapKey = useSettingsStore(s => s.settings.amap_key)
   const amapWebServiceKey = useSettingsStore(s => s.settings.amap_web_service_key)
   const hasAmapKey = !!(amapKey || amapWebServiceKey)
+  const [tempSearchProvider, setTempSearchProvider] = useState<'auto' | 'amap' | 'google'>(searchProviderSetting || 'auto')
   const { hasMapsKey } = useAuthStore()
   const can = useCanDo()
   const tripObj = useTripStore((s) => s.trip)
   const canUploadFiles = can('file_upload', tripObj)
+
+  // Sync temp search provider with global setting when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setTempSearchProvider(searchProviderSetting || 'auto')
+    }
+  }, [isOpen, searchProviderSetting])
 
   useEffect(() => {
     if (place) {
@@ -168,9 +176,10 @@ export default function PlaceFormModal({
     const controller = new AbortController()
     acAbortRef.current = controller
     try {
-      // Use AMap autocomplete when: map_provider=amap OR has amap key + Chinese input
+      // Use AMap autocomplete when: temp provider is amap, or auto + (amap map or Chinese input with key)
       const hasChinese = /[\u4e00-\u9fff]/.test(query)
-      const useAmap = mapProvider === 'amap' || (hasAmapKey && hasChinese)
+      const useAmap = tempSearchProvider === 'amap'
+        || (tempSearchProvider === 'auto' && (mapProvider === 'amap' || (hasChinese && hasAmapKey)))
       const result = useAmap
         ? await mapsApi.autocompleteAmap(query)
         : await mapsApi.autocomplete(query, language, locationBias, controller.signal)
@@ -182,7 +191,7 @@ export default function PlaceFormModal({
       console.error('Autocomplete failed:', err)
       setAcSuggestions([])
     }
-  }, [language, locationBias])
+  }, [language, locationBias, tempSearchProvider, mapProvider, hasAmapKey])
 
   // Debounce effect — only watches mapsSearch
   useEffect(() => {
@@ -228,9 +237,10 @@ export default function PlaceFormModal({
           return
         }
       }
-      // Use AMap search when: map_provider=amap OR has amap key + Chinese input
+      // Use AMap search when: temp provider is amap, or auto + (amap map or Chinese input with key)
       const hasChinese = /[\u4e00-\u9fff]/.test(trimmed)
-      const useAmap = mapProvider === 'amap' || (hasAmapKey && hasChinese)
+      const useAmap = tempSearchProvider === 'amap'
+        || (tempSearchProvider === 'auto' && (mapProvider === 'amap' || (hasChinese && hasAmapKey)))
       const searchLang = hasChinese ? 'zh' : language
       const result = useAmap
         ? await mapsApi.searchAmap(mapsSearch, undefined, searchLang)
@@ -404,6 +414,47 @@ export default function PlaceFormModal({
             <p className="mb-2 text-xs" style={{ color: 'var(--text-faint)' }}>
               {t('places.osmActive')}
             </p>
+          )}
+          {/* Search Provider Toggle - only show when AMap key is configured */}
+          {hasAmapKey && (
+            <div className="flex items-center gap-1.5 mb-2">
+              <span className="text-xs text-slate-500 shrink-0">搜索:</span>
+              <div className="inline-flex rounded-md border border-slate-200 bg-white p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setTempSearchProvider('auto')}
+                  className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                    tempSearchProvider === 'auto'
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  自动
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTempSearchProvider('amap')}
+                  className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                    tempSearchProvider === 'amap'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  高德
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTempSearchProvider('google')}
+                  className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                    tempSearchProvider === 'google'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Google
+                </button>
+              </div>
+            </div>
           )}
           <div className="relative">
             <div className="flex gap-2">
