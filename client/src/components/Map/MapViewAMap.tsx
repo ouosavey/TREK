@@ -441,9 +441,10 @@ export const MapViewAMap = memo(function MapViewAMap({
       key: amapKey,
       version: '2.0',
       plugins: [
-        // Note: AMap.Scale removed — it internally calls lngLatToContainer with
-        // invalid coords when map state is incomplete, causing LngLat(NaN) spam
-        'AMap.MarkerCluster',
+        // Note: AMap.Scale and AMap.MarkerCluster both removed.
+        // Scale internally produces LngLat(NaN) when map state is incomplete.
+        // MarkerCluster calls lngLatToContainer on every map interaction,
+        // producing continuous NaN errors that lock up the map.
       ],
     }).then((AMap: any) => {
       if (destroyed) return
@@ -590,70 +591,17 @@ export const MapViewAMap = memo(function MapViewAMap({
         }
       }
 
-      // ── Clustering ───────────────────────────────────────────────────
+      // ── Clustering DISABLED ────────────────────────────────────────
+      // MarkerCluster internally calls lngLatToContainer on every map interaction
+      // (zoom, pan, mouse move). If any marker has a position that produces NaN
+      // during cluster internal processing, it throws Uncaught Error continuously,
+      // which locks up the entire map interaction.
+      // For travel planning (typically <100 places), clustering is unnecessary.
       if (clusterRef.current) {
         try { clusterRef.current.setMap(null) } catch {}
         clusterRef.current = null
       }
-
-      if (markerList.length > 0 && AMap.MarkerCluster) {
-        const clusterStyles = [
-          {
-            size: new AMap.Pixel(36, 36),
-            backgroundColor: 'rgba(59,130,246,0.85)',
-            borderColor: '#fff',
-            borderWidth: 2,
-            textColor: '#fff',
-            fontSize: 12,
-            fontWeight: 700,
-            fontFamily: '-apple-system,system-ui,sans-serif',
-          },
-          {
-            size: new AMap.Pixel(42, 42),
-            backgroundColor: 'rgba(59,130,246,0.85)',
-            borderColor: '#fff',
-            borderWidth: 2,
-            textColor: '#fff',
-            fontSize: 13,
-            fontWeight: 700,
-            fontFamily: '-apple-system,system-ui,sans-serif',
-          },
-          {
-            size: new AMap.Pixel(48, 48),
-            backgroundColor: 'rgba(59,130,246,0.85)',
-            borderColor: '#fff',
-            borderWidth: 2,
-            textColor: '#fff',
-            fontSize: 14,
-            fontWeight: 700,
-            fontFamily: '-apple-system,system-ui,sans-serif',
-          },
-        ]
-
-        const cluster = new AMap.MarkerCluster(map, markerList, {
-          gridSize: 60,
-          maxZoom: 11,
-          styles: clusterStyles,
-          renderMarker: (_context: any) => {},
-          renderClusterMarker: (context: any) => {
-            const count = context.count
-            const size = count < 10 ? 36 : count < 50 ? 42 : 48
-            const div = document.createElement('div')
-            div.style.cssText = `
-              width:${size}px;height:${size}px;border-radius:50%;
-              background:rgba(59,130,246,0.85);border:2px solid #fff;
-              display:flex;align-items:center;justify-content:center;
-              color:#fff;font-size:${count < 10 ? 12 : count < 50 ? 13 : 14}px;
-              font-weight:700;font-family:-apple-system,system-ui,sans-serif;
-              box-shadow:0 2px 8px rgba(0,0,0,0.25);
-            `
-            div.textContent = String(count)
-            context.marker.setContent(div)
-            context.marker.setOffset(new AMap.Pixel(-size / 2, -size / 2))
-          },
-        })
-        clusterRef.current = cluster
-      }
+      // cluster intentionally not created — markers render directly on map
     } catch { /* noop — AMap SDK internal errors suppressed */ }
   }, [places, selectedPlaceId, dayOrderMap, photoUrls])
 

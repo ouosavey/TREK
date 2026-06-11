@@ -72,9 +72,13 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **根除控制台所有 LngLat/Pixel(NaN) 错误**:" >> $GITHUB_STEP_SUMMARY
-          echo "  - 每个 marker.setMap() 独立 try-catch，单个 marker 失败不影响其他" >> $GITHUB_STEP_SUMMARY
-          echo "  - 所有 effect 增加 map.getSize() 就绪检查，地图未渲染完成时跳过坐标操作" >> $GITHUB_STEP_SUMMARY
-          echo "  - 移除 AMap.Scale 插件（内部产生大量 NaN 调用）" >> $GITHUB_STEP_SUMMARY
-          echo "  - 外层 catch 改为静默吞掉，不再 console.error 输出" >> $GITHUB_STEP_SUMMARY
-          echo "- **地点搜索框**: settingsService 注入 app_settings 中的 amap_key 到用户设置响应" >> $GITHUB_STEP_SUMMARY
+          echo "- **彻底根除地图交互锁死和 LngLat(NaN) 错误**:" >> $GITHUB_STEP_SUMMARY
+          echo "  - 完全禁用 AMap.MarkerCluster 插件（从 plugins 加载和代码中移除）" >> $GITHUB_STEP_SUMMARY
+          echo "  - 原因: MarkerCluster 在每次地图交互(缩放/平移/鼠标移动)时内部调用" >> $GITHUB_STEP_SUMMARY
+          echo "    lngLatToContainer，任何 marker 坐标异常都会产生连续 Uncaught Error，" >> $GITHUB_STEP_SUMMARY
+          echo "    导致地图事件循环中断、缩放/点击全部锁死" >> $GITHUB_STEP_SUMMARY
+          echo "  - 旅行规划场景地点数量<100，不需要聚合功能" >> $GITHUB_STEP_SUMMARY
+          echo "- **搜索框修复** (auto模式始终先尝试高德):" >> $GITHUB_STEP_SUMMARY
+          echo "  - auto/amap 模式下始终先调用高德 autocomplete/search API" >> $GITHUB_STEP_SUMMARY
+          echo "  - 高德失败时自动 fallback 到 Google/OSM（仅 auto 模式）" >> $GITHUB_STEP_SUMMARY
+          echo "  - 不再依赖 hasAmapKey 前置判断，解决 settings 加载时序问题" >> $GITHUB_STEP_SUMMARY

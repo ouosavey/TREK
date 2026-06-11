@@ -176,13 +176,27 @@ export default function PlaceFormModal({
     const controller = new AbortController()
     acAbortRef.current = controller
     try {
-      // Use AMap autocomplete when: temp provider is amap, or auto + AMap key available
-      // In CN-localized build, prefer AMap whenever key is configured
-      const useAmap = tempSearchProvider === 'amap'
-        || (tempSearchProvider === 'auto' && hasAmapKey)
-      const result = useAmap
-        ? await mapsApi.autocompleteAmap(query)
-        : await mapsApi.autocomplete(query, language, locationBias, controller.signal)
+      // In auto mode: always try AMap first, fallback to Google/OSM on failure.
+      // In explicit amap/google mode: use that provider directly.
+      const explicitlyGoogle = tempSearchProvider === 'google'
+      const explicitlyAmap = tempSearchProvider === 'amap'
+      let result: { suggestions: any[]; source?: string }
+
+      if (explicitlyGoogle) {
+        result = await mapsApi.autocomplete(query, language, locationBias, controller.signal)
+      } else {
+        // auto or amap → try AMap first
+        try {
+          result = await mapsApi.autocompleteAmap(query)
+        } catch (amapErr) {
+          console.warn('[Search] AMap autocomplete failed, falling back:', amapErr instanceof Error ? amapErr.message : amapErr)
+          if (!explicitlyAmap) {
+            result = await mapsApi.autocomplete(query, language, locationBias, controller.signal)
+          } else {
+            throw amapErr
+          }
+        }
+      }
       setAcSuggestions(result.suggestions || [])
       setAcHighlight(-1)
     } catch (err: unknown) {
@@ -237,14 +251,28 @@ export default function PlaceFormModal({
           return
         }
       }
-      // Use AMap search when: temp provider is amap, or auto + AMap key available
+      // In auto mode: always try AMap first, fallback to Google/OSM on failure.
       const hasChinese = /[\u4e00-\u9fff]/.test(trimmed)
-      const useAmap = tempSearchProvider === 'amap'
-        || (tempSearchProvider === 'auto' && hasAmapKey)
       const searchLang = hasChinese ? 'zh' : language
-      const result = useAmap
-        ? await mapsApi.searchAmap(mapsSearch, undefined, searchLang)
-        : await mapsApi.search(mapsSearch, searchLang)
+      const explicitlyGoogle = tempSearchProvider === 'google'
+      const explicitlyAmap = tempSearchProvider === 'amap'
+      let result: { places?: any[] }
+
+      if (explicitlyGoogle) {
+        result = await mapsApi.search(mapsSearch, searchLang)
+      } else {
+        // auto or amap → try AMap first
+        try {
+          result = await mapsApi.searchAmap(mapsSearch, undefined, searchLang)
+        } catch (amapErr) {
+          console.warn('[Search] AMap search failed, falling back:', amapErr instanceof Error ? amapErr.message : amapErr)
+          if (!explicitlyAmap) {
+            result = await mapsApi.search(mapsSearch, searchLang)
+          } else {
+            throw amapErr
+          }
+        }
+      }
       setMapsResults(result.places || [])
     } catch (err: unknown) {
       toast.error(t('places.mapsSearchError'))
