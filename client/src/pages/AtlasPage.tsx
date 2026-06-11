@@ -247,10 +247,20 @@ export default function AtlasPage(): React.ReactElement {
   }, [])
 
   // Load GeoJSON world data (direct GeoJSON, no conversion needed)
+  // 使用多个源，Docker容器内raw.githubusercontent.com可能不可达
+  const GEOJSON_URLS = [
+    'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_50m_admin_0_countries.geojson',
+    'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson',
+  ]
   useEffect(() => {
-    fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson')
-      .then(r => r.json())
-      .then(geo => {
+    let aborted = false
+    const tryFetch = async (urls: string[], idx = 0): Promise<void> => {
+      if (aborted || idx >= urls.length) return
+      try {
+        const r = await fetch(urls[idx], { signal: AbortSignal.timeout(15000) })
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        const geo = await r.json()
+        if (aborted || !geo?.features) throw new Error('Invalid GeoJSON')
         // Do NOT filter out Taiwan — keep it on the map but color it as part of China.
         // Override Taiwan's country code properties so it maps to China (CHN).
         for (const f of geo.features) {
@@ -272,8 +282,13 @@ export default function AtlasPage(): React.ReactElement {
           }
         }
         setGeoData(geo)
-      })
-      .catch(() => {})
+      } catch (err) {
+        console.warn(`Atlas GeoJSON source ${idx + 1} failed:`, err)
+        await tryFetch(urls, idx + 1)
+      }
+    }
+    tryFetch(GEOJSON_URLS)
+    return () => { aborted = true }
   }, [])
 
   // Load visited regions (geocoded from places/trips) — once on mount

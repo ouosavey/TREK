@@ -85,7 +85,7 @@ export default function PlaceFormModal({
   const [isSaving, setIsSaving] = useState(false)
   const [pendingFiles, setPendingFiles] = useState([])
   const fileRef = useRef(null)
-  const [acSuggestions, setAcSuggestions] = useState<{ placeId: string; mainText: string; secondaryText: string }[]>([])
+  const [acSuggestions, setAcSuggestions] = useState<{ placeId: string; mainText: string; secondaryText: string; lat?: number | null; lng?: number | null; address?: string }[]>([])
   const [acHighlight, setAcHighlight] = useState(-1)
   const acDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const acAbortRef = useRef<AbortController | null>(null)
@@ -269,11 +269,23 @@ export default function PlaceFormModal({
     setMapsSearch('')
   }
 
-  const handleSelectSuggestion = async (suggestion: { placeId: string; mainText: string; secondaryText: string }) => {
+  const handleSelectSuggestion = async (suggestion: { placeId: string; mainText: string; secondaryText: string; lat?: number | null; lng?: number | null; address?: string }) => {
     setAcSuggestions([])
     setAcHighlight(-1)
     const previousSearch = mapsSearch
     setMapsSearch('')
+    // 高德建议：直接从建议数据填充（已包含lat/lng/address）
+    if (suggestion.placeId.startsWith('amap:') && (suggestion.lat != null || suggestion.address)) {
+      setForm(prev => ({
+        ...prev,
+        name: suggestion.mainText || prev.name,
+        address: suggestion.address || prev.address,
+        lat: suggestion.lat != null ? String(suggestion.lat) : prev.lat,
+        lng: suggestion.lng != null ? String(suggestion.lng) : prev.lng,
+      }))
+      return
+    }
+    // Google/OSM 建议：调用详情接口
     setForm(prev => ({ ...prev, name: suggestion.mainText }))
     setIsSearchingMaps(true)
     try {

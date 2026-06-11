@@ -851,11 +851,17 @@ export async function autocompleteAmap(input: string, city?: string, userId?: nu
     const suggestions = (data.tips || [])
       .filter(t => t.id && t.location !== undefined)
       .slice(0, 5)
-      .map(t => ({
-        placeId: `amap:${t.id}`,
-        mainText: t.name || '',
-        secondaryText: t.district && t.address ? `${t.district} ${t.address}` : t.address || t.district || '',
-      }))
+      .map(t => {
+        const [lngStr, latStr] = (t.location || '').split(',')
+        return {
+          placeId: `amap:${t.id}`,
+          mainText: t.name || '',
+          secondaryText: t.district && t.address ? `${t.district} ${t.address}` : t.address || t.district || '',
+          lat: latStr ? parseFloat(latStr) : null,
+          lng: lngStr ? parseFloat(lngStr) : null,
+          address: t.district && t.address ? `${t.district}${t.address}` : t.address || '',
+        }
+      })
     return { suggestions, source: 'amap' }
   } catch { return { suggestions: [], source: 'amap' } }
 }
