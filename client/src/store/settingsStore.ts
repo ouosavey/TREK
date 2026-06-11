@@ -39,6 +39,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     mapbox_quality_mode: false,
     amap_key: '',
     amap_security_code: '',
+    amap_web_service_key: '',
   },
   isLoaded: false,
 

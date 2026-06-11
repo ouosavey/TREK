@@ -126,7 +126,7 @@ export function getMapsKey(userId: number): string | null {
 }
 
 export function getAmapKey(): string | null {
-  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_api_key'").get() as { value: string } | undefined
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_web_service_key'").get() as { value: string } | undefined
   return row?.value || null
 }
 

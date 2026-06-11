@@ -149,6 +149,7 @@ export default function MapSettingsTab(): React.ReactElement {
   const [defaultZoom, setDefaultZoom] = useState<number | string>(settings.default_zoom || 10)
   const [amapKey, setAmapKey] = useState<string>(settings.amap_key || '')
   const [amapSecurityCode, setAmapSecurityCode] = useState<string>(settings.amap_security_code || '')
+  const [amapWebServiceKey, setAmapWebServiceKey] = useState<string>(settings.amap_web_service_key || '')
 
   useEffect(() => {
     setProvider((settings.map_provider as Provider) || 'leaflet')
@@ -162,6 +163,7 @@ export default function MapSettingsTab(): React.ReactElement {
     setDefaultZoom(settings.default_zoom || 10)
     setAmapKey(settings.amap_key || '')
     setAmapSecurityCode(settings.amap_security_code || '')
+    setAmapWebServiceKey(settings.amap_web_service_key || '')
   }, [settings])
 
   const handleMapClick = useCallback((mapInfo) => {
@@ -201,6 +203,7 @@ export default function MapSettingsTab(): React.ReactElement {
         mapbox_quality_mode: mapboxQuality,
         amap_key: amapKey,
         amap_security_code: amapSecurityCode,
+        amap_web_service_key: amapWebServiceKey,
         default_lat: parseFloat(String(defaultLat)),
         default_lng: parseFloat(String(defaultLng)),
         default_zoom: parseInt(String(defaultZoom)),
@@ -411,7 +414,21 @@ export default function MapSettingsTab(): React.ReactElement {
               <a href="https://lbs.amap.com/" target="_blank" rel="noreferrer" className="underline">
                 高德开放平台
               </a>
-              {' '}申请 Key 和安全密钥
+              {' '}申请 Key 和安全密钥（服务平台选「Web端(JS API)」）
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Web服务 Key</label>
+            <input
+              type="text"
+              value={amapWebServiceKey}
+              onChange={(e) => setAmapWebServiceKey(e.target.value)}
+              placeholder="后端搜索/地理编码专用 Key（服务平台选「Web服务」）"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+            />
+            <p className="text-xs text-slate-400 mt-1">
+              用于后端 POI 搜索、逆地理编码、输入提示等 HTTP API。需在控制台单独创建一个「Web服务」类型的 Key。
             </p>
           </div>
 

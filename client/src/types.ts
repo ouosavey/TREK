@@ -225,6 +225,7 @@ export interface Settings {
   mapbox_quality_mode?: boolean
   amap_key?: string
   amap_security_code?: string
+  amap_web_service_key?: string
 }
 
 export interface AssignmentsMap {
