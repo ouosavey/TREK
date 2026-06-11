@@ -189,7 +189,10 @@ router.get('/reverse-amap', authenticate, async (req: Request, res: Response) =>
 
   try {
     const result = await reverseGeocodeAmap(lat, lng, authReq.user.id);
-    res.json({ name: null, address: null });
+    res.json(result);
+  } catch (err: unknown) {
+    const { status, message } = mapError(err);
+    res.status(status).json({ error: message });
   }
 });
 
