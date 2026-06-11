@@ -688,7 +688,7 @@ export default function AtlasPage(): React.ReactElement {
       setData(prev => {
         if (!prev) return prev
         const c = prev.countries.find(c => c.code === code)
-        if (!c || c.placeCount > 0 || c.tripCount > 0) return prev
+        if (!c) return prev
         return {
           ...prev,
           countries: prev.countries.filter(c => c.code !== code),
