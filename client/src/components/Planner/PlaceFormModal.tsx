@@ -167,6 +167,7 @@ export default function PlaceFormModal({
 
   // Autocomplete fetch — aborts any in-flight request before starting a new one
   const fetchSuggestions = useCallback(async (query: string) => {
+    console.log('[Search] fetchSuggestions called:', { query: query.slice(0, 50), hasAmapKey, tempSearchProvider })
     if (query.length < 2 || isGoogleMapsUrl(query)) {
       setAcSuggestions([])
       setAcHighlight(-1)
@@ -183,20 +184,25 @@ export default function PlaceFormModal({
       let result: { suggestions: any[]; source?: string }
 
       if (explicitlyGoogle) {
+        console.log('[Search] Using Google/OSM autocomplete')
         result = await mapsApi.autocomplete(query, language, locationBias, controller.signal)
       } else {
         // auto or amap → try AMap first
+        console.log('[Search] Trying AMap autocomplete...')
         try {
           result = await mapsApi.autocompleteAmap(query)
+          console.log('[Search] AMap response:', JSON.stringify(result).slice(0, 200))
         } catch (amapErr) {
           console.warn('[Search] AMap autocomplete failed, falling back:', amapErr instanceof Error ? amapErr.message : amapErr)
           if (!explicitlyAmap) {
+            console.log('[Search] Falling back to Google/OSM')
             result = await mapsApi.autocomplete(query, language, locationBias, controller.signal)
           } else {
             throw amapErr
           }
         }
       }
+      console.log('[Search] Setting suggestions:', (result.suggestions || []).length, 'items')
       setAcSuggestions(result.suggestions || [])
       setAcHighlight(-1)
     } catch (err: unknown) {
@@ -218,6 +224,7 @@ export default function PlaceFormModal({
       return
     }
 
+    console.log('[Search] Debounce scheduling fetchSuggestions for:', trimmed.slice(0, 30))
     acDebounceRef.current = setTimeout(() => fetchSuggestions(trimmed), 300)
 
     return () => {

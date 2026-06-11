@@ -19,7 +19,9 @@ import type { GeoPosition, TrackingMode } from '../../hooks/useGeolocation'
 function safeGcj(lng: unknown, lat: unknown): [number, number] | null {
   const nLng = typeof lng === 'number' ? lng : parseFloat(String(lng ?? ''))
   const nLat = typeof lat === 'number' ? lat : parseFloat(String(lat ?? ''))
+  // Reject NaN, Infinity, and default/placeholder (0,0) coords
   if (!Number.isFinite(nLng) || !Number.isFinite(nLat)) return null
+  if (nLng === 0 && nLat === 0) return null
   return wgs84ToGcj02(nLng, nLat)
 }
 
@@ -450,6 +452,31 @@ export const MapViewAMap = memo(function MapViewAMap({
       if (destroyed) return
       AMapRef.current = AMap
 
+      // ── Global AMap error interceptor ────────────────────────────────
+      // AMap SDK internally throws synchronous Uncaught Errors from its
+      // event loop (zoom, pan, mousemove) when any marker/overlay has
+      // invalid coordinates. These CANNOT be caught by try-catch in React
+      // effects because they fire asynchronously from SDK internals.
+      // We intercept them globally to prevent map interaction lock-up.
+      const _origOnError = window.onerror
+      window.onerror = (message, source, lineno, colno, error) => {
+        const msg = String(message ?? '')
+        const src = String(source ?? '')
+        // Suppress AMap's known-harmless coordinate validation errors
+        if (msg.includes('Invalid Object') && (msg.includes('LngLat') || msg.includes('Pixel'))) {
+          return true // prevent default (suppress)
+        }
+        if (src.includes('amap') || src.includes('plugin') || src.includes('webapi')) {
+          if (msg.includes('NaN')) return true
+        }
+        // Pass through all other errors
+        return _origOnError ? _origOnError(message, source, lineno, colno, error) : false
+      }
+      // Store cleanup ref
+      ;(window as any).__amapErrorInterceptor = () => {
+        window.onerror = _origOnError
+      }
+
       const gcj = safeGcj(center[1], center[0]) || [116.397428, 39.90923] // fallback: Beijing
       const map = new AMap.Map(containerRef.current, {
         center: gcj,
@@ -492,6 +519,11 @@ export const MapViewAMap = memo(function MapViewAMap({
 
     return () => {
       destroyed = true
+      // Restore original error handler
+      if ((window as any).__amapErrorInterceptor) {
+        (window as any).__amapErrorInterceptor()
+        delete (window as any).__amapErrorInterceptor
+      }
       // Clean up all markers and overlays
       markersRef.current.forEach(m => { try { m.setMap(null) } catch {} })
       markersRef.current.clear()

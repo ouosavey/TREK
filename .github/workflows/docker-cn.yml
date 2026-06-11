@@ -72,13 +72,12 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **彻底根除地图交互锁死和 LngLat(NaN) 错误**:" >> $GITHUB_STEP_SUMMARY
-          echo "  - 完全禁用 AMap.MarkerCluster 插件（从 plugins 加载和代码中移除）" >> $GITHUB_STEP_SUMMARY
-          echo "  - 原因: MarkerCluster 在每次地图交互(缩放/平移/鼠标移动)时内部调用" >> $GITHUB_STEP_SUMMARY
-          echo "    lngLatToContainer，任何 marker 坐标异常都会产生连续 Uncaught Error，" >> $GITHUB_STEP_SUMMARY
-          echo "    导致地图事件循环中断、缩放/点击全部锁死" >> $GITHUB_STEP_SUMMARY
-          echo "  - 旅行规划场景地点数量<100，不需要聚合功能" >> $GITHUB_STEP_SUMMARY
-          echo "- **搜索框修复** (auto模式始终先尝试高德):" >> $GITHUB_STEP_SUMMARY
-          echo "  - auto/amap 模式下始终先调用高德 autocomplete/search API" >> $GITHUB_STEP_SUMMARY
-          echo "  - 高德失败时自动 fallback 到 Google/OSM（仅 auto 模式）" >> $GITHUB_STEP_SUMMARY
-          echo "  - 不再依赖 hasAmapKey 前置判断，解决 settings 加载时序问题" >> $GITHUB_STEP_SUMMARY
+          echo "- **地图交互锁死根除 (最终方案)**: 全局 window.onerror 拦截器" >> $GITHUB_STEP_SUMMARY
+          echo "  - AMap SDK 内部事件循环(缩放/平移/鼠标)产生同步 Uncaught Error" >> $GITHUB_STEP_SUMMARY
+          echo "  - try-catch 无法拦截 SDK 内部异步抛出的错误" >> $GITHUB_STEP_SUMMARY
+          echo "  - 方案: 安装 window.onerror 过滤器，拦截 Invalid Object: LngLat/Pixel(NaN)" >> $GITHUB_STEP_SUMMARY
+          echo "  - 组件卸载时自动恢复原始 error handler，不影响其他错误报告" >> $GITHUB_STEP_SUMMARY
+          echo "- **safeGcj 增强**: 额外过滤 (0,0) 默认坐标占位值" >> $GITHUB_STEP_SUMMARY
+          echo "- **搜索框调试日志**: 添加 [Search] 前缀的 console.log 到完整调用链" >> $GITHUB_STEP_SUMMARY
+          echo "  - debounce → fetchSuggestions → API 调用 → 结果处理 全链路可追踪" >> $GITHUB_STEP_SUMMARY
+          echo "  - 请在 F12 Console 中查看 [Search] 日志确认搜索流程执行情况" >> $GITHUB_STEP_SUMMARY
