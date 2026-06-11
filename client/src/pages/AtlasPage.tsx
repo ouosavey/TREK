@@ -206,7 +206,7 @@ export default function AtlasPage(): React.ReactElement {
         const a3 = f?.properties?.ADM0_A3 || f?.properties?.ISO_A3 || f?.properties?.['ISO3166-1-Alpha-3'] || null
         if (a3 && a3 !== '-99') resolvedA2 = a3ToA2.get(a3) ?? null
       }
-      if (!resolvedA2 || seen.has(resolvedA2)) continue
+      if (!resolvedA2 || seen.has(resolvedA2) || resolvedA2 === 'TW') continue
       seen.add(resolvedA2)
       const label = String(resolveName(resolvedA2) || f?.properties?.NAME || f?.properties?.ADMIN || resolvedA2)
       opts.push({ code: resolvedA2, label })
@@ -232,8 +232,18 @@ export default function AtlasPage(): React.ReactElement {
     fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson')
       .then(r => r.json())
       .then(geo => {
-        // Filter out Taiwan (TW) from GeoJSON — it is part of China
-        geo.features = geo.features.filter((f: any) => f.properties?.ISO_A2 !== 'TW')
+        // Do NOT filter out Taiwan — keep it on the map but color it as part of China.
+        // Override Taiwan's country code properties so it maps to China (CHN).
+        for (const f of geo.features) {
+          if (f.properties?.ISO_A2 === 'TW') {
+            f.properties.ADM0_A3 = 'CHN'
+            f.properties.ISO_A3 = 'CHN'
+            f.properties.ISO_A2 = 'CN'
+            if (f.properties['ISO3166-1-Alpha-3']) f.properties['ISO3166-1-Alpha-3'] = 'CHN'
+            if (f.properties.NAME) f.properties.NAME = 'China'
+            if (f.properties.ADMIN) f.properties.ADMIN = 'China'
+          }
+        }
         // Dynamically build A2→A3 mapping from GeoJSON
         for (const f of geo.features) {
           const a2 = f.properties?.ISO_A2
