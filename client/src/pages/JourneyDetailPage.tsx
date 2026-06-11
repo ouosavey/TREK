@@ -2554,7 +2554,6 @@ function EntryEditor({ entry, journeyId, tripDates, galleryPhotos, onClose, onSa
                       locationTimerRef.current = setTimeout(async () => {
                         setLocationSearching(true)
                         try {
-                          // In auto mode: always try AMap first, fallback to Google/OSM on failure
                           const explicitlyGoogle = searchProviderSetting === 'google'
                           const explicitlyAmap = searchProviderSetting === 'amap'
                           let res: any
@@ -2565,11 +2564,23 @@ function EntryEditor({ entry, journeyId, tripDates, galleryPhotos, onClose, onSa
                             try {
                               res = await mapsApi.searchAmap(q)
                             } catch (amapErr) {
-                              console.warn('[JourneySearch] AMap failed, falling back:', amapErr instanceof Error ? amapErr.message : amapErr)
+                              console.warn('[JourneySearch] AMap threw, falling back:', amapErr instanceof Error ? amapErr.message : amapErr)
                               if (!explicitlyAmap) {
                                 res = await mapsApi.search(q)
                               } else {
                                 throw amapErr
+                              }
+                            }
+                            // If AMap returned empty results in auto mode, fall back to Google/OSM
+                            // (AMap Web Service API returns empty when key is JS API key instead of Web Service key)
+                            if (!explicitlyAmap && res && (!res.places || res.places.length === 0)) {
+                              try {
+                                const fallbackRes = await mapsApi.search(q)
+                                if (fallbackRes && fallbackRes.places && fallbackRes.places.length > 0) {
+                                  res = fallbackRes
+                                }
+                              } catch (fallbackErr) {
+                                console.warn('[JourneySearch] Fallback search also failed:', fallbackErr instanceof Error ? fallbackErr.message : fallbackErr)
                               }
                             }
                           }

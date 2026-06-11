@@ -13,21 +13,34 @@ import type { Place, Reservation, ReservationEndpoint, RouteSegment } from '../.
 import type { GeoPosition, TrackingMode } from '../../hooks/useGeolocation'
 
 // ═══════════════════════════════════════════════════════════════════
-// MODULE-LEVEL: Backup AMap error suppression via capture-phase listener
-// The primary fix is the LngLat/Pixel monkey-patch (installed after load).
-// This listener is a safety net for any errors that slip through.
+// MODULE-LEVEL: Suppress AMap LngLat/Pixel NaN errors
+// These errors originate from the AMap SDK's internal event loop when
+// the map's coordinate system becomes temporarily inconsistent.
+// The primary fix is map.resize() + recovery in the component;
+// this listener is a safety net to prevent uncaught errors from
+// breaking the SDK's event loop entirely.
 // ═══════════════════════════════════════════════════════════════════
 ;(function installAmapErrorSuppressor() {
   if ((window as any).__amapErrorSuppressed) return
   ;(window as any).__amapErrorSuppressed = true
 
+  // Capture-phase error listener — runs before any other handler
   window.addEventListener('error', function(event) {
     const msg = String(event.message ?? '')
     if (msg.includes('Invalid Object') && (msg.includes('LngLat') || msg.includes('Pixel'))) {
       event.stopImmediatePropagation()
       event.preventDefault()
+      return
     }
-  }, true) // capture phase — runs before any other handler
+  }, true)
+
+  // Also suppress unhandled promise rejections from AMap
+  window.addEventListener('unhandledrejection', function(event) {
+    const reason = String(event.reason?.message ?? event.reason ?? '')
+    if (reason.includes('Invalid Object') && (reason.includes('LngLat') || reason.includes('Pixel'))) {
+      event.preventDefault()
+    }
+  })
 })()
 
 // ── Safe coordinate helpers ───────────────────────────────────────────
@@ -561,8 +574,29 @@ export const MapViewAMap = memo(function MapViewAMap({
       })
 
       // Update reservation stats rotation on move/zoom
-      map.on('moveend', updateReservationStatsRotation)
-      map.on('zoomend', updateReservationStatsRotation)
+      map.on('moveend', () => {
+        updateReservationStatsRotation()
+        // Health check: detect NaN center and recover
+        try {
+          const center = map.getCenter()
+          if (center && (Number.isNaN(center.getLng()) || Number.isNaN(center.getLat()))) {
+            console.warn('[AMap] NaN center detected, resetting...')
+            map.setCenter([116.397428, 39.90923])
+            map.setZoom(10)
+          }
+        } catch {}
+      })
+      map.on('zoomend', () => {
+        updateReservationStatsRotation()
+        // Health check: detect NaN zoom and recover
+        try {
+          const zoom = map.getZoom()
+          if (Number.isNaN(zoom) || !Number.isFinite(zoom)) {
+            console.warn('[AMap] NaN zoom detected, resetting...')
+            map.setZoom(10)
+          }
+        } catch {}
+      })
     }).catch((err: any) => {
       console.error('AMap load failed:', err)
     })
@@ -585,6 +619,44 @@ export const MapViewAMap = memo(function MapViewAMap({
       AMapRef.current = null
     }
   }, [amapKey, amapSecurityCode]) // rebuild on key change
+
+  // ── ResizeObserver: keep map coordinate system consistent ───────────
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const observer = new ResizeObserver(() => {
+      const map = mapRef.current
+      if (map) {
+        try { map.resize() } catch {}
+      }
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
+
+  // ── Overlay visibility change: resize + re-enable interactions ──────
+  // When DayDetailPanel or PlaceInspector appears/disappears, the map's
+  // internal coordinate system may become inconsistent, causing NaN errors
+  // that lock up the map. Calling map.resize() resets the coordinate system.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    // Delay to allow the overlay animation to complete and the layout to settle
+    const timer = setTimeout(() => {
+      try {
+        map.resize()
+        // Re-enable all interactions explicitly (in case the SDK disabled them)
+        map.setStatus({
+          dragEnable: true,
+          zoomEnable: true,
+          doubleClickZoom: true,
+          keyboardEnable: true,
+          jogEnable: true,
+        })
+      } catch {}
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [hasDayDetail, hasInspector])
 
   // ── Marker reconciliation ────────────────────────────────────────────
   useEffect(() => {

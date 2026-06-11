@@ -272,11 +272,22 @@ export default function PlaceFormModal({
         try {
           result = await mapsApi.searchAmap(mapsSearch, undefined, searchLang)
         } catch (amapErr) {
-          console.warn('[Search] AMap search failed, falling back:', amapErr instanceof Error ? amapErr.message : amapErr)
+          console.warn('[Search] AMap search threw, falling back:', amapErr instanceof Error ? amapErr.message : amapErr)
           if (!explicitlyAmap) {
             result = await mapsApi.search(mapsSearch, searchLang)
           } else {
             throw amapErr
+          }
+        }
+        // If AMap returned empty results in auto mode, fall back to Google/OSM
+        if (!explicitlyAmap && result && (!result.places || result.places.length === 0)) {
+          try {
+            const fallbackResult = await mapsApi.search(mapsSearch, searchLang)
+            if (fallbackResult && fallbackResult.places && fallbackResult.places.length > 0) {
+              result = fallbackResult
+            }
+          } catch (fallbackErr) {
+            console.warn('[Search] Fallback search also failed:', fallbackErr instanceof Error ? fallbackErr.message : fallbackErr)
           }
         }
       }

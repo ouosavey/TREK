@@ -72,10 +72,13 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **地图锁死: 3层全局错误拦截器** (window.onerror + unhandledrejection + console.error)" >> $GITHUB_STEP_SUMMARY
-          echo "  - AMap SDK 通过3种不同机制抛出坐标验证错误，全部拦截" >> $GITHUB_STEP_SUMMARY
-          echo "  - isAmapNaNError() 统一匹配 Invalid Object: LngLat/Pixel(NaN)" >> $GITHUB_STEP_SUMMARY
-          echo "- **编辑条目地点搜索框修复** (JourneyDetailPage.tsx):" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: 搜索条件限制 mapProvider===amap || 中文输入，非中文时永远不走高德" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: auto/amap模式始终先尝试高德API，失败后fallback到Google/OSM" >> $GITHUB_STEP_SUMMARY
-          echo "  - 注意: 这是 JourneyDetailPage 内联的搜索逻辑（不是 PlaceFormModal）" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bug1: 旅行计划页面地图交互锁死** (点击天气弹窗后地图不能缩放/点击):" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: 天气弹窗(DayDetailPanel)出现/消失后，AMap SDK内部坐标系统变得不一致，导致LngLat(NaN,NaN)错误" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复1: 添加ResizeObserver监听地图容器尺寸变化，自动调用map.resize()" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复2: 监听hasDayDetail/hasInspector变化，弹窗出现/消失后调用map.resize()+map.setStatus()重置交互状态" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复3: moveend/zoomend事件中添加健康检查，检测NaN center/zoom并自动恢复" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复4: 增强模块级错误抑制器，同时拦截error和unhandledrejection事件" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bug2: 旅程编辑条目地点搜索不工作** (JourneyDetailPage + PlaceFormModal):" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: AMap Web Service API使用JS API Key时返回USERKEY_PLAT_NOMATCH，后端静默返回空数组，前端不fallback" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复1: 前端搜索逻辑增加空结果fallback — AMap返回空结果时自动尝试Google/OSM搜索" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复2: 后端searchAmap增加API错误日志(console.warn)，便于排查Key配置问题" >> $GITHUB_STEP_SUMMARY

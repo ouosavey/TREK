@@ -852,7 +852,10 @@ export async function searchAmap(query: string, city?: string, lang?: string, us
   const response = await fetch(`https://restapi.amap.com/v3/place/text?${params}`)
   if (!response.ok) throw new Error('AMap search API error')
   const data = await response.json() as { status: string; pois?: AmapPoi[]; info?: string }
-  if (data.status !== '1') return { places: [], source: 'amap' }
+  if (data.status !== '1') {
+    console.warn('[AMap] search API error:', data.status, data.info, 'key:', amapKey ? `${amapKey.slice(0, 4)}****` : 'null', 'query:', query)
+    return { places: [], source: 'amap' }
+  }
 
   const places = (data.pois || []).map(poi => {
     const [lngStr, latStr] = (poi.location || ',').split(',')
