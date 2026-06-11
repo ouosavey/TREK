@@ -913,11 +913,14 @@ export async function autocompleteAmap(input: string, city?: string, userId?: nu
   try {
     const response = await fetch(`https://restapi.amap.com/v3/assistant/inputtips?${params}`)
     if (!response.ok) return { suggestions: [], source: 'amap' }
-    const data = await response.json() as { status: string; tips?: { id?: string; name?: string; address?: string; district?: string; location?: string }[] }
-    if (data.status !== '1') return { suggestions: [], source: 'amap' }
+    const data = await response.json() as { status: string; info?: string; tips?: { id?: string; name?: string; address?: string; district?: string; location?: string }[] }
+    if (data.status !== '1') {
+      console.warn('[AMap] autocomplete API error:', data.status, data.info, 'key:', amapKey ? `${amapKey.slice(0, 4)}****` : 'null')
+      return { suggestions: [], source: 'amap' }
+    }
 
     const suggestions = (data.tips || [])
-      .filter(t => t.id && t.location !== undefined)
+      .filter(t => t.id && t.location && t.location.includes(','))  // must have valid "lng,lat"
       .slice(0, 5)
       .map(t => {
         const [lngStr, latStr] = (t.location || '').split(',')

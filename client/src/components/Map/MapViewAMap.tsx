@@ -13,43 +13,21 @@ import type { Place, Reservation, ReservationEndpoint, RouteSegment } from '../.
 import type { GeoPosition, TrackingMode } from '../../hooks/useGeolocation'
 
 // ═══════════════════════════════════════════════════════════════════
-// MODULE-LEVEL: Global AMap error suppression
-// Installed once when this module loads, before any map instance exists.
-// This catches ALL AMap coordinate errors regardless of which component
-// triggers them, and cannot be bypassed by timing issues.
+// MODULE-LEVEL: Backup AMap error suppression via capture-phase listener
+// The primary fix is the LngLat/Pixel monkey-patch (installed after load).
+// This listener is a safety net for any errors that slip through.
 // ═══════════════════════════════════════════════════════════════════
 ;(function installAmapErrorSuppressor() {
-  // Guard: only install once
   if ((window as any).__amapErrorSuppressed) return
   ;(window as any).__amapErrorSuppressed = true
 
-  const _origOnError = window.onerror
-  const _origOnRejection = (window as any).onunhandledrejection
-
-  // 1. Sync error handler — catches "Uncaught Error: Invalid Object: LngLat(NaN,NaN)"
-  window.onerror = function(message, source, lineno, colno, error) {
-    const msg = String(message ?? '')
-    const src = String(source ?? '')
-    if (
-      (msg.includes('Invalid Object') && (msg.includes('LngLat') || msg.includes('Pixel'))) ||
-      ((src.includes('amap') || src.includes('plugin') || src.includes('webapi') || src.includes('map_')) && msg.includes('NaN'))
-    ) {
-      return true // suppress
-    }
-    return _origOnError ? _origOnError.call(window, message, source, lineno, colno, error) : false
-  }
-
-  // 2. Unhandled rejection handler
-  ;(window as any).onunhandledrejection = function(event: any) {
-    const msg = String(event.reason?.message || event.reason || '')
+  window.addEventListener('error', function(event) {
+    const msg = String(event.message ?? '')
     if (msg.includes('Invalid Object') && (msg.includes('LngLat') || msg.includes('Pixel'))) {
+      event.stopImmediatePropagation()
       event.preventDefault()
-      return
     }
-    if (_origOnRejection) return _origOnRejection.call(window, event)
-  }
-
-  console.log('[AMap] Global error suppressor installed')
+  }, true) // capture phase — runs before any other handler
 })()
 
 // ── Safe coordinate helpers ───────────────────────────────────────────
@@ -502,50 +480,52 @@ export const MapViewAMap = memo(function MapViewAMap({
       if (destroyed) return
       AMapRef.current = AMap
 
-      // ── Global AMap error interceptor ────────────────────────────────
-      // AMap SDK internally throws synchronous Uncaught Errors from its
-      // event loop (zoom, pan, mousemove) when any marker/overlay has
-      // invalid coordinates. These CANNOT be caught by try-catch in React
-      // effects because they fire asynchronously from SDK internals.
-      // We intercept them globally via 3 mechanisms:
-      //   1. window.onerror — for synchronous throws
-      //   2. unhandledrejection — for async/rejected promises
-      //   3. console.error override — for direct console.error calls by SDK
-      const _origOnError = window.onerror
-      const _origOnRejection = (window as any).onunhandledrejection
-      const _origConsoleError = console.error.bind(console)
+      // ── Monkey-patch AMap.LngLat and AMap.Pixel ──────────────────────
+      // ROOT CAUSE: AMap SDK internally calls `new LngLat(NaN, NaN)` from
+      // its event loop (zoom/pan/mousemove). The LngLat constructor throws
+      // "Invalid Object: LngLat(NaN, NaN)" which breaks the SDK's internal
+      // event loop, permanently locking the map.
+      //
+      // window.onerror/onunhandledrejection CANNOT prevent this because:
+      // 1. The throw happens inside the SDK's own try-catch in some paths
+      // 2. The SDK caches the LngLat reference before we can intercept
+      // 3. Even if suppressed, the SDK's internal state is already broken
+      //
+      // SOLUTION: Replace the LngLat/Pixel constructors with wrappers that
+      // substitute NaN with safe defaults instead of throwing. This way the
+      // SDK never enters a broken state.
+      const _OrigLngLat = AMap.LngLat
+      const _OrigPixel = AMap.Pixel
 
-      // 1. Sync error handler
-      window.onerror = (message, source, lineno, colno, error) => {
-        const msg = String(message ?? '')
-        const src = String(source ?? '')
-        if (isAmapNaNError(msg, src)) return true
-        return _origOnError ? _origOnError(message, source, lineno, colno, error) : false
-      }
-
-      // 2. Unhandled rejection handler
-      ;(window as any).onunhandledrejection = (event: any) => {
-        const msg = String(event.reason?.message || event.reason || '')
-        if (isAmapNaNError(msg, '')) {
-          event.preventDefault()
-          return
+      AMap.LngLat = function(lng: any, lat: any) {
+        const nLng = Number(lng)
+        const nLat = Number(lat)
+        if (!Number.isFinite(nLng) || !Number.isFinite(nLat)) {
+          // Substitute with a safe default instead of throwing
+          return new _OrigLngLat(116.397428, 39.90923)
         }
-        if (_origOnRejection) return _origOnRejection(event)
-      }
+        return new _OrigLngLat(nLng, nLat)
+      } as any
+      AMap.LngLat.prototype = _OrigLngLat.prototype
+      // Preserve static methods
+      Object.keys(_OrigLngLat).forEach(k => {
+        if (!(k in AMap.LngLat)) (AMap.LngLat as any)[k] = (_OrigLngLat as any)[k]
+      })
 
-      // 3. Console.error override — suppress known-harmless AMap noise
-      console.error = (...args: any[]) => {
-        const first = String(args[0] ?? '')
-        if (isAmapNaNError(first, '')) return // silently drop
-        _origConsoleError(...args)
-      }
+      AMap.Pixel = function(x: any, y: any) {
+        const nX = Number(x)
+        const nY = Number(y)
+        if (!Number.isFinite(nX) || !Number.isFinite(nY)) {
+          return new _OrigPixel(0, 0)
+        }
+        return new _OrigPixel(nX, nY)
+      } as any
+      AMap.Pixel.prototype = _OrigPixel.prototype
+      Object.keys(_OrigPixel).forEach(k => {
+        if (!(k in AMap.Pixel)) (AMap.Pixel as any)[k] = (_OrigPixel as any)[k]
+      })
 
-      // Store cleanup ref
-      ;(window as any).__amapErrorInterceptor = () => {
-        window.onerror = _origOnError
-        ;(window as any).onunhandledrejection = _origOnRejection
-        console.error = _origConsoleError
-      }
+      console.log('[AMap] LngLat/Pixel NaN-safe patches installed')
 
       const gcj = safeGcj(center[1], center[0]) || [116.397428, 39.90923] // fallback: Beijing
       const map = new AMap.Map(containerRef.current, {
@@ -589,11 +569,6 @@ export const MapViewAMap = memo(function MapViewAMap({
 
     return () => {
       destroyed = true
-      // Restore original error handler
-      if ((window as any).__amapErrorInterceptor) {
-        (window as any).__amapErrorInterceptor()
-        delete (window as any).__amapErrorInterceptor
-      }
       // Clean up all markers and overlays
       markersRef.current.forEach(m => { try { m.setMap(null) } catch {} })
       markersRef.current.clear()
