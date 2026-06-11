@@ -72,10 +72,8 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复天气白屏**: MapViewAMap 中 place 坐标为空时 LngLat(NaN,NaN) 导致 AMap SDK 崩溃" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复地点搜索框无反应**: 服务端 getAmapKey() 增加 amap_key 回退查找，解决只配置了 JS API Key 时搜索不工作的问题" >> $GITHUB_STEP_SUMMARY
           echo "- 修复 getPlaceDetails 中 amap:xxx placeId 被误判为 OSM 的 bug" >> $GITHUB_STEP_SUMMARY
-          echo "- 修复 getPlaceDetailsExpanded/getPlacePhoto 支持 amap: 前缀" >> $GITHUB_STEP_SUMMARY
-          echo "- searchPlaces/autocompletePlaces 优先路由到高德 API" >> $GITHUB_STEP_SUMMARY
           echo "- 修复高德 API 返回坐标 GCJ-02→WGS-84 转换" >> $GITHUB_STEP_SUMMARY
           echo "- 修复前端 PlaceFormModal lat/lng 为 0 时被跳过 + osm_id 设置" >> $GITHUB_STEP_SUMMARY
-          echo "- 添加管理面板 AMap Web Service Key 配置" >> $GITHUB_STEP_SUMMARY
-          echo "- 添加 authService has_amap_key 配置状态" >> $GITHUB_STEP_SUMMARY

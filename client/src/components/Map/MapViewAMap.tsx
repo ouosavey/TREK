@@ -508,7 +508,9 @@ export const MapViewAMap = memo(function MapViewAMap({
     const markerList: AMapMarkerType[] = []
 
     for (const place of places) {
-      if (!place.lat || !place.lng) continue
+      const pLat = typeof place.lat === 'number' ? place.lat : parseFloat(String(place.lat ?? ''))
+      const pLng = typeof place.lng === 'number' ? place.lng : parseFloat(String(place.lng ?? ''))
+      if (!Number.isFinite(pLat) || !Number.isFinite(pLng)) continue
       const orderNumbers = dayOrderMap[place.id] ?? null
       const pck = place.google_place_id || place.osm_id || `${place.lat},${place.lng}`
       const photoUrl = (pck && photoUrls[pck]) || place.image_url || null
@@ -526,7 +528,7 @@ export const MapViewAMap = memo(function MapViewAMap({
         if (isTouchDevice) return
         setHoveredPlace(place)
         // Get screen position from map pixel
-        const [gcjLng, gcjLat] = wgs84ToGcj02(place.lng!, place.lat!)
+        const [gcjLng, gcjLat] = wgs84ToGcj02(pLng, pLat)
         const pixel = map.lngLatToContainer(new AMap.LngLat(gcjLng, gcjLat))
         if (pixel) {
           const containerRect = containerRef.current?.getBoundingClientRect()
@@ -540,7 +542,7 @@ export const MapViewAMap = memo(function MapViewAMap({
       })
 
       // Convert WGS-84 → GCJ-02 for AMap
-      const [gcjLng, gcjLat] = wgs84ToGcj02(place.lng!, place.lat!)
+      const [gcjLng, gcjLat] = wgs84ToGcj02(pLng, pLat)
 
       // Remove existing marker for this place and recreate
       const existing = markersRef.current.get(place.id)
@@ -758,11 +760,19 @@ export const MapViewAMap = memo(function MapViewAMap({
     const map = mapRef.current
     if (!AMap || !map) return
     const target = dayPlaces.length > 0 ? dayPlaces : places
-    const valid = target.filter(p => p.lat && p.lng)
+    const valid = target.filter(p => {
+      const lat = typeof p.lat === 'number' ? p.lat : parseFloat(String(p.lat ?? ''))
+      const lng = typeof p.lng === 'number' ? p.lng : parseFloat(String(p.lng ?? ''))
+      return Number.isFinite(lat) && Number.isFinite(lng)
+    })
     if (valid.length === 0) return
 
     // Convert all coords to GCJ-02 and build bounds
-    const gcjCoords = valid.map(p => wgs84ToGcj02(p.lng!, p.lat!))
+    const gcjCoords = valid.map(p => {
+      const lat = typeof p.lat === 'number' ? p.lat : parseFloat(String(p.lat ?? ''))
+      const lng = typeof p.lng === 'number' ? p.lng : parseFloat(String(p.lng ?? ''))
+      return wgs84ToGcj02(lng, lat)
+    })
     const bounds = new AMap.Bounds()
     for (const [lng, lat] of gcjCoords) {
       bounds.extend(new AMap.LngLat(lng, lat))
