@@ -3,9 +3,16 @@
 
 import { db } from '../db/database';
 
-function getAmapKey(): string | null {
+function getAmapKey(userId?: number): string | null {
+  // 优先从 app_settings 读取（全局配置）
   const row = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_web_service_key'").get() as { value: string } | undefined;
-  return row?.value || null;
+  if (row?.value) return row.value;
+  // 回退到用户级别设置
+  if (userId) {
+    const userRow = db.prepare("SELECT value FROM settings WHERE user_id = ? AND key = 'amap_web_service_key'").get(userId) as { value: string } | undefined;
+    if (userRow?.value) return userRow.value;
+  }
+  return null;
 }
 
 // WGS-84 → GCJ-02 坐标转换（与前端 coordTransform.ts 逻辑一致）
@@ -407,6 +414,7 @@ async function _getWeatherImpl(
   lng: string,
   date: string | undefined,
   lang: string,
+  userId?: number,
 ): Promise<WeatherResult> {
   const ck = cacheKey(lat, lng, date);
 
@@ -600,6 +608,7 @@ export async function getWeather(
   lng: string,
   date: string | undefined,
   lang: string,
+  userId?: number,
 ): Promise<WeatherResult> {
   const ck = cacheKey(lat, lng, date);
   const cached = getCached(ck);
@@ -608,7 +617,7 @@ export async function getWeather(
   const inFlightKey = `${ck}:${lang}`;
   const existing = inFlight.get(inFlightKey);
   if (existing) return existing;
-  const promise = _getWeatherImpl(lat, lng, date, lang);
+  const promise = _getWeatherImpl(lat, lng, date, lang, userId);
   inFlight.set(inFlightKey, promise);
   try { return await promise; } finally { inFlight.delete(inFlightKey); }
 }
@@ -620,6 +629,7 @@ async function _getDetailedWeatherImpl(
   lng: string,
   date: string,
   lang: string,
+  userId?: number,
 ): Promise<WeatherResult> {
   const ck = `detailed_${cacheKey(lat, lng, date)}`;
 
@@ -793,6 +803,7 @@ export async function getDetailedWeather(
   lng: string,
   date: string,
   lang: string,
+  userId?: number,
 ): Promise<WeatherResult> {
   const ck = `detailed_${cacheKey(lat, lng, date)}`;
   const cached = getCached(ck);
@@ -801,7 +812,7 @@ export async function getDetailedWeather(
   const inFlightKey = `${ck}:${lang}`;
   const existing = inFlight.get(inFlightKey);
   if (existing) return existing;
-  const promise = _getDetailedWeatherImpl(lat, lng, date, lang);
+  const promise = _getDetailedWeatherImpl(lat, lng, date, lang, userId);
   inFlight.set(inFlightKey, promise);
   try { return await promise; } finally { inFlight.delete(inFlightKey); }
 }

@@ -125,9 +125,16 @@ export function getMapsKey(userId: number): string | null {
   return decrypt_api_key(admin?.maps_api_key) || null;
 }
 
-export function getAmapKey(): string | null {
+export function getAmapKey(userId?: number): string | null {
+  // 优先从 app_settings 读取（全局配置）
   const row = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_web_service_key'").get() as { value: string } | undefined
-  return row?.value || null
+  if (row?.value) return row.value
+  // 回退到用户级别设置
+  if (userId) {
+    const userRow = db.prepare("SELECT value FROM settings WHERE user_id = ? AND key = 'amap_web_service_key'").get(userId) as { value: string } | undefined
+    if (userRow?.value) return userRow.value
+  }
+  return null
 }
 
 // ── Nominatim search ─────────────────────────────────────────────────────────
@@ -766,8 +773,8 @@ export async function reverseGeocode(lat: string, lng: string, lang?: string): P
 
 // ── AMap (高德地图) search ──────────────────────────────────────────────────
 
-export async function searchAmap(query: string, city?: string, lang?: string): Promise<{ places: Record<string, unknown>[]; source: string }> {
-  const amapKey = getAmapKey()
+export async function searchAmap(query: string, city?: string, lang?: string, userId?: number): Promise<{ places: Record<string, unknown>[]; source: string }> {
+  const amapKey = getAmapKey(userId)
   if (!amapKey) return { places: [], source: 'amap' }
 
   const params = new URLSearchParams({
@@ -802,8 +809,8 @@ export async function searchAmap(query: string, city?: string, lang?: string): P
   return { places, source: 'amap' }
 }
 
-export async function reverseGeocodeAmap(lat: string, lng: string): Promise<{ name: string | null; address: string | null }> {
-  const amapKey = getAmapKey()
+export async function reverseGeocodeAmap(lat: string, lng: string, userId?: number): Promise<{ name: string | null; address: string | null }> {
+  const amapKey = getAmapKey(userId)
   if (!amapKey) return { name: null, address: null }
 
   const params = new URLSearchParams({
@@ -823,8 +830,8 @@ export async function reverseGeocodeAmap(lat: string, lng: string): Promise<{ na
   } catch { return { name: null, address: null } }
 }
 
-export async function autocompleteAmap(input: string, city?: string): Promise<{ suggestions: { placeId: string; mainText: string; secondaryText: string }[]; source: string }> {
-  const amapKey = getAmapKey()
+export async function autocompleteAmap(input: string, city?: string, userId?: number): Promise<{ suggestions: { placeId: string; mainText: string; secondaryText: string }[]; source: string }> {
+  const amapKey = getAmapKey(userId)
   if (!amapKey) return { suggestions: [], source: 'amap' }
 
   const params = new URLSearchParams({
@@ -940,8 +947,9 @@ function formatRouteDuration(seconds: number): string {
 export async function calculateAmapRoute(
   waypoints: { lat: number; lng: number }[],
   profile: 'driving' | 'walking' | 'cycling' = 'driving',
+  userId?: number,
 ): Promise<AmapRouteResult> {
-  const amapKey = getAmapKey();
+  const amapKey = getAmapKey(userId);
   if (!amapKey) throw new Error('AMap web service key not configured');
 
   if (waypoints.length < 2) throw new Error('At least 2 waypoints required');
@@ -1040,8 +1048,9 @@ export async function calculateAmapRoute(
 
 export async function calculateAmapSegments(
   waypoints: { lat: number; lng: number }[],
+  userId?: number,
 ): Promise<AmapSegmentResult[]> {
-  const amapKey = getAmapKey();
+  const amapKey = getAmapKey(userId);
   if (!amapKey) throw new Error('AMap web service key not configured');
   if (waypoints.length < 2) return [];
 

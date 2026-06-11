@@ -168,9 +168,10 @@ router.post('/resolve-url', authenticate, async (req: Request, res: Response) =>
 router.post('/search-amap', authenticate, async (req: Request, res: Response) => {
   const { query, city, lang } = req.body;
   if (!query) return res.status(400).json({ error: 'Search query is required' });
+  const authReq = req as AuthRequest;
 
   try {
-    const result = await searchAmap(query, city, lang);
+    const result = await searchAmap(query, city, lang, authReq.user.id);
     res.json(result);
   } catch (err: unknown) {
     const status = (err as { status?: number }).status || 500;
@@ -184,11 +185,10 @@ router.post('/search-amap', authenticate, async (req: Request, res: Response) =>
 router.get('/reverse-amap', authenticate, async (req: Request, res: Response) => {
   const { lat, lng } = req.query as { lat: string; lng: string };
   if (!lat || !lng) return res.status(400).json({ error: 'lat and lng required' });
+  const authReq = req as AuthRequest;
 
   try {
-    const result = await reverseGeocodeAmap(lat, lng);
-    res.json(result);
-  } catch {
+    const result = await reverseGeocodeAmap(lat, lng, authReq.user.id);
     res.json({ name: null, address: null });
   }
 });
@@ -202,9 +202,10 @@ router.post('/autocomplete-amap', authenticate, async (req: Request, res: Respon
   if (input.length > 200) {
     return res.status(400).json({ error: 'Input too long (max 200 chars)' });
   }
+  const authReq = req as AuthRequest;
 
   try {
-    const result = await autocompleteAmap(input, city);
+    const result = await autocompleteAmap(input, city, authReq.user.id);
     res.json(result);
   } catch (err: unknown) {
     const status = (err as { status?: number }).status || 500;
@@ -220,13 +221,14 @@ router.post('/route-amap', authenticate, async (req: Request, res: Response) => 
     waypoints: { lat: number; lng: number }[];
     profile?: 'driving' | 'walking' | 'cycling';
   };
+  const authReq = req as AuthRequest;
 
   if (!waypoints || !Array.isArray(waypoints) || waypoints.length < 2) {
     return res.status(400).json({ error: 'At least 2 waypoints required' });
   }
 
   try {
-    const result = await calculateAmapRoute(waypoints, profile || 'driving');
+    const result = await calculateAmapRoute(waypoints, profile || 'driving', authReq.user.id);
     res.json(result);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'AMap route calculation error';
@@ -240,13 +242,14 @@ router.post('/segments-amap', authenticate, async (req: Request, res: Response) 
   const { waypoints } = req.body as {
     waypoints: { lat: number; lng: number }[];
   };
+  const authReq = req as AuthRequest;
 
   if (!waypoints || !Array.isArray(waypoints) || waypoints.length < 2) {
     return res.status(400).json({ error: 'At least 2 waypoints required' });
   }
 
   try {
-    const result = await calculateAmapSegments(waypoints);
+    const result = await calculateAmapSegments(waypoints, authReq.user.id);
     res.json(result);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'AMap segments calculation error';
