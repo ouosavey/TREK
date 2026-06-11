@@ -12,6 +12,46 @@ import { useGeolocation } from '../../hooks/useGeolocation'
 import type { Place, Reservation, ReservationEndpoint, RouteSegment } from '../../types'
 import type { GeoPosition, TrackingMode } from '../../hooks/useGeolocation'
 
+// ═══════════════════════════════════════════════════════════════════
+// MODULE-LEVEL: Global AMap error suppression
+// Installed once when this module loads, before any map instance exists.
+// This catches ALL AMap coordinate errors regardless of which component
+// triggers them, and cannot be bypassed by timing issues.
+// ═══════════════════════════════════════════════════════════════════
+;(function installAmapErrorSuppressor() {
+  // Guard: only install once
+  if ((window as any).__amapErrorSuppressed) return
+  ;(window as any).__amapErrorSuppressed = true
+
+  const _origOnError = window.onerror
+  const _origOnRejection = (window as any).onunhandledrejection
+
+  // 1. Sync error handler — catches "Uncaught Error: Invalid Object: LngLat(NaN,NaN)"
+  window.onerror = function(message, source, lineno, colno, error) {
+    const msg = String(message ?? '')
+    const src = String(source ?? '')
+    if (
+      (msg.includes('Invalid Object') && (msg.includes('LngLat') || msg.includes('Pixel'))) ||
+      ((src.includes('amap') || src.includes('plugin') || src.includes('webapi') || src.includes('map_')) && msg.includes('NaN'))
+    ) {
+      return true // suppress
+    }
+    return _origOnError ? _origOnError.call(window, message, source, lineno, colno, error) : false
+  }
+
+  // 2. Unhandled rejection handler
+  ;(window as any).onunhandledrejection = function(event: any) {
+    const msg = String(event.reason?.message || event.reason || '')
+    if (msg.includes('Invalid Object') && (msg.includes('LngLat') || msg.includes('Pixel'))) {
+      event.preventDefault()
+      return
+    }
+    if (_origOnRejection) return _origOnRejection.call(window, event)
+  }
+
+  console.log('[AMap] Global error suppressor installed')
+})()
+
 // ── Safe coordinate helpers ───────────────────────────────────────────
 // Prevents NaN from reaching AMap SDK which causes white-screen crashes
 
