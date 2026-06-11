@@ -94,6 +94,7 @@ export default function JourneyDetailPage() {
   const toast = useToast()
   const { t, locale } = useTranslation()
   const mapProvider = useSettingsStore(s => s.settings.map_provider)
+  const searchProviderSetting = useSettingsStore(s => s.settings.search_provider)
   const amapKey = useSettingsStore(s => s.settings.amap_key)
   const amapWebServiceKey = useSettingsStore(s => s.settings.amap_web_service_key)
   const hasAmapKey = !!(amapKey || amapWebServiceKey)
@@ -2554,7 +2555,8 @@ function EntryEditor({ entry, journeyId, tripDates, galleryPhotos, onClose, onSa
                         setLocationSearching(true)
                         try {
                           const hasChinese = /[\u4e00-\u9fff]/.test(q)
-                          const useAmap = mapProvider === 'amap' || (hasAmapKey && hasChinese)
+                          const useAmap = searchProviderSetting === 'amap'
+                            || (searchProviderSetting === 'auto' && (mapProvider === 'amap' || (hasChinese && hasAmapKey)))
                           const res = useAmap
                             ? await mapsApi.searchAmap(q)
                             : await mapsApi.search(q)
