@@ -1,4 +1,259 @@
 
+// ── AMap (高德) 天气优先 + Open-Meteo 回退 ──────────────────────────────
+
+import { db } from '../db/database';
+
+function getAmapKey(): string | null {
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_web_service_key'").get() as { value: string } | undefined;
+  return row?.value || null;
+}
+
+// WGS-84 → GCJ-02 坐标转换（与前端 coordTransform.ts 逻辑一致）
+const PI = Math.PI;
+const AMAP_A = 6378245.0;
+const AMAP_EE = 0.00669342162296594323;
+
+function outOfChina(lng: number, lat: number): boolean {
+  return !(lng > 73.66 && lng < 135.05 && lat > 3.86 && lat < 53.55);
+}
+
+function amapTransformLat(lng: number, lat: number): number {
+  let ret = -100.0 + 2.0 * lng + 3.0 * lat + 0.2 * lat * lat + 0.1 * lng * lat + 0.2 * Math.sqrt(Math.abs(lng));
+  ret += (20.0 * Math.sin(6.0 * lng * PI) + 20.0 * Math.sin(2.0 * lng * PI)) * 2.0 / 3.0;
+  ret += (20.0 * Math.sin(lat * PI) + 40.0 * Math.sin(lat / 3.0 * PI)) * 2.0 / 3.0;
+  ret += (160.0 * Math.sin(lat / 12.0 * PI) + 320 * Math.sin(lat * PI / 30.0)) * 2.0 / 3.0;
+  return ret;
+}
+
+function amapTransformLng(lng: number, lat: number): number {
+  let ret = 300.0 + lng + 2.0 * lat + 0.1 * lng * lng + 0.1 * lng * lat + 0.1 * Math.sqrt(Math.abs(lng));
+  ret += (20.0 * Math.sin(6.0 * lng * PI) + 20.0 * Math.sin(2.0 * lng * PI)) * 2.0 / 3.0;
+  ret += (20.0 * Math.sin(lng * PI) + 40.0 * Math.sin(lng / 3.0 * PI)) * 2.0 / 3.0;
+  ret += (150.0 * Math.sin(lng / 12.0 * PI) + 300.0 * Math.sin(lng / 30.0 * PI)) * 2.0 / 3.0;
+  return ret;
+}
+
+function wgs84ToGcj02(lng: number, lat: number): [number, number] {
+  if (outOfChina(lng, lat)) return [lng, lat];
+  let dLat = amapTransformLat(lng - 105.0, lat - 35.0);
+  let dLng = amapTransformLng(lng - 105.0, lat - 35.0);
+  const radLat = lat / 180.0 * PI;
+  let magic = Math.sin(radLat);
+  magic = 1 - AMAP_EE * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  dLat = (dLat * 180.0) / ((AMAP_A * (1 - AMAP_EE)) / (magic * sqrtMagic) * PI);
+  dLng = (dLng * 180.0) / (AMAP_A / sqrtMagic * Math.cos(radLat) * PI);
+  return [lng + dLng, lat + dLat];
+}
+
+// 高德天气描述 → 标准 main 类型映射
+const AMAP_WEATHER_MAP: Record<string, string> = {
+  '晴': 'Clear', '多云': 'Clouds', '阴': 'Clouds',
+  '阵雨': 'Rain', '雷阵雨': 'Thunderstorm', '雷阵雨伴有冰雹': 'Thunderstorm',
+  '小雨': 'Rain', '中雨': 'Rain', '大雨': 'Rain', '暴雨': 'Rain',
+  '大暴雨': 'Rain', '特大暴雨': 'Rain',
+  '强阵雨': 'Rain', '极端降雨': 'Rain',
+  '小雪': 'Snow', '中雪': 'Snow', '大雪': 'Snow', '暴雪': 'Snow',
+  '雨夹雪': 'Snow', '雨雪天气': 'Snow', '阵雨夹雪': 'Snow',
+  '雾': 'Fog', '浓雾': 'Fog', '强浓雾': 'Fog', '轻雾': 'Fog', '大雾': 'Fog',
+  '特强浓雾': 'Fog',
+  '霾': 'Fog', '中度霾': 'Fog', '重度霾': 'Fog', '严重霾': 'Fog',
+  '扬沙': 'Fog', '浮尘': 'Fog', '沙尘暴': 'Fog', '强沙尘暴': 'Fog',
+  '未知': 'Clouds',
+};
+
+// adcode 缓存（经纬度 → adcode），避免重复请求
+const adcodeCache = new Map<string, { adcode: string; expiresAt: number }>();
+const ADCODE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+async function getAdcode(lat: string, lng: string): Promise<string | null> {
+  const key = `${parseFloat(lat).toFixed(2)}_${parseFloat(lng).toFixed(2)}`;
+  const cached = adcodeCache.get(key);
+  if (cached && Date.now() < cached.expiresAt) return cached.adcode;
+
+  const amapKey = getAmapKey();
+  if (!amapKey) return null;
+
+  // WGS-84 → GCJ-02 后再请求高德逆地理编码
+  const [gcjLng, gcjLat] = wgs84ToGcj02(parseFloat(lng), parseFloat(lat));
+  const params = new URLSearchParams({
+    key: amapKey,
+    location: `${gcjLng},${gcjLat}`,
+    extensions: 'base',
+    output: 'JSON',
+  });
+
+  try {
+    const response = await fetch(`https://restapi.amap.com/v3/geocode/regeo?${params}`);
+    if (!response.ok) return null;
+    const data = await response.json() as {
+      status: string;
+      regeocode?: { addressComponent?: { adcode?: string } };
+    };
+    if (data.status !== '1' || !data.regeocode?.addressComponent?.adcode) return null;
+    const adcode = data.regeocode.addressComponent.adcode;
+    adcodeCache.set(key, { adcode, expiresAt: Date.now() + ADCODE_TTL });
+    return adcode;
+  } catch {
+    return null;
+  }
+}
+
+// 高德天气 API：获取实时天气（extensions=base）
+async function getAmapCurrentWeather(lat: string, lng: string): Promise<WeatherResult | null> {
+  const amapKey = getAmapKey();
+  if (!amapKey) return null;
+
+  const adcode = await getAdcode(lat, lng);
+  if (!adcode) return null;
+
+  const params = new URLSearchParams({
+    key: amapKey,
+    city: adcode,
+    extensions: 'base',
+    output: 'JSON',
+  });
+
+  try {
+    const response = await fetch(`https://restapi.amap.com/v3/weather/weatherInfo?${params}`);
+    if (!response.ok) return null;
+    const data = await response.json() as {
+      status: string;
+      lives?: { weather?: string; temperature?: string; winddirection?: string; windpower?: string; humidity?: string; reporttime?: string }[];
+    };
+    if (data.status !== '1' || !data.lives?.length) return null;
+
+    const live = data.lives[0];
+    const main = AMAP_WEATHER_MAP[live.weather || ''] || 'Clouds';
+    return {
+      temp: parseInt(live.temperature || '0', 10) || 0,
+      main,
+      description: live.weather || '',
+      type: 'current',
+    };
+  } catch {
+    return null;
+  }
+}
+
+// 高德天气 API：获取预报天气（extensions=all，未来3天）
+async function getAmapForecastWeather(lat: string, lng: string, date: string): Promise<WeatherResult | null> {
+  const amapKey = getAmapKey();
+  if (!amapKey) return null;
+
+  const adcode = await getAdcode(lat, lng);
+  if (!adcode) return null;
+
+  const params = new URLSearchParams({
+    key: amapKey,
+    city: adcode,
+    extensions: 'all',
+    output: 'JSON',
+  });
+
+  try {
+    const response = await fetch(`https://restapi.amap.com/v3/weather/weatherInfo?${params}`);
+    if (!response.ok) return null;
+    const data = await response.json() as {
+      status: string;
+      forecasts?: { casts?: { date?: string; dayweather?: string; nightweather?: string; daytemp?: string; nighttemp?: string; daywind?: string; nightwind?: string; daypower?: string; nightpower?: string }[] }[];
+    };
+    if (data.status !== '1' || !data.forecasts?.length) return null;
+
+    const casts = data.forecasts[0].casts || [];
+    const dateStr = date.slice(0, 10);
+    const cast = casts.find(c => c.date === dateStr);
+    if (!cast) return null;
+
+    const dayTemp = parseInt(cast.daytemp || '0', 10) || 0;
+    const nightTemp = parseInt(cast.nighttemp || '0', 10) || 0;
+    const weather = cast.dayweather || cast.nightweather || '';
+    const main = AMAP_WEATHER_MAP[weather] || 'Clouds';
+
+    return {
+      temp: Math.round((dayTemp + nightTemp) / 2),
+      temp_max: dayTemp,
+      temp_min: nightTemp,
+      main,
+      description: weather,
+      type: 'forecast',
+    };
+  } catch {
+    return null;
+  }
+}
+
+// 高德天气 API：获取详细预报（含逐小时估算）
+async function getAmapDetailedWeather(lat: string, lng: string, date: string): Promise<WeatherResult | null> {
+  const amapKey = getAmapKey();
+  if (!amapKey) return null;
+
+  const adcode = await getAdcode(lat, lng);
+  if (!adcode) return null;
+
+  const params = new URLSearchParams({
+    key: amapKey,
+    city: adcode,
+    extensions: 'all',
+    output: 'JSON',
+  });
+
+  try {
+    const response = await fetch(`https://restapi.amap.com/v3/weather/weatherInfo?${params}`);
+    if (!response.ok) return null;
+    const data = await response.json() as {
+      status: string;
+      forecasts?: { casts?: { date?: string; dayweather?: string; nightweather?: string; daytemp?: string; nighttemp?: string; daywind?: string; nightwind?: string; daypower?: string; nightpower?: string }[] }[];
+    };
+    if (data.status !== '1' || !data.forecasts?.length) return null;
+
+    const casts = data.forecasts[0].casts || [];
+    const dateStr = date.slice(0, 10);
+    const cast = casts.find(c => c.date === dateStr);
+    if (!cast) return null;
+
+    const dayTemp = parseInt(cast.daytemp || '0', 10) || 0;
+    const nightTemp = parseInt(cast.nighttemp || '0', 10) || 0;
+    const weather = cast.dayweather || cast.nightweather || '';
+    const main = AMAP_WEATHER_MAP[weather] || 'Clouds';
+    const windPower = parseInt(cast.daypower || '0', 10) || 0;
+    // 风力等级 → 大致风速 (m/s)：1级≈1, 2级≈2, 3级≈4, 4级≈7, 5级≈10, 6级≈13
+    const windSpeedMap = [0, 1, 2, 4, 7, 10, 13, 16, 20, 24, 28, 33, 38];
+    const windMax = windSpeedMap[Math.min(windPower, 12)] || 0;
+
+    // 高德不提供逐小时数据，用日间/夜间温度估算 8 个时段
+    const hourly: HourlyEntry[] = [];
+    for (let h = 0; h < 24; h += 3) {
+      const isDay = h >= 6 && h < 18;
+      const baseTemp = isDay ? dayTemp : nightTemp;
+      // 简单正弦插值模拟日变化
+      const hourOffset = Math.round(Math.sin(((h - 6) / 12) * PI) * ((dayTemp - nightTemp) / 2));
+      hourly.push({
+        hour: h,
+        temp: baseTemp + hourOffset,
+        precipitation: 0,
+        precipitation_probability: 0,
+        main,
+        wind: windMax,
+        humidity: 0,
+      });
+    }
+
+    return {
+      type: 'forecast',
+      temp: Math.round((dayTemp + nightTemp) / 2),
+      temp_max: dayTemp,
+      temp_min: nightTemp,
+      main,
+      description: weather,
+      wind_max: windMax,
+      hourly,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ── Interfaces ──────────────────────────────────────────────────────────
 
 export interface WeatherResult {
@@ -154,6 +409,33 @@ async function _getWeatherImpl(
   lang: string,
 ): Promise<WeatherResult> {
   const ck = cacheKey(lat, lng, date);
+
+  // ── 高德天气优先（仅中国境内 + 有 amap_web_service_key）──
+  const latNum = parseFloat(lat);
+  const lngNum = parseFloat(lng);
+  const inChina = lngNum > 73.66 && lngNum < 135.05 && latNum > 3.86 && latNum < 53.55;
+  if (inChina) {
+    try {
+      let amapResult: WeatherResult | null = null;
+      if (date) {
+        const targetDate = new Date(date);
+        const now = new Date();
+        const diffDays = (targetDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+        // 高德只提供未来3天预报，且不支持历史天气
+        if (diffDays >= -1 && diffDays <= 3) {
+          amapResult = await getAmapForecastWeather(lat, lng, date);
+        }
+      } else {
+        amapResult = await getAmapCurrentWeather(lat, lng);
+      }
+      if (amapResult) {
+        setCache(ck, amapResult, date ? TTL_FORECAST_MS : TTL_CURRENT_MS);
+        return amapResult;
+      }
+    } catch (err) {
+      console.warn('[Weather] AMap weather failed, falling back to Open-Meteo:', err);
+    }
+  }
 
   if (date) {
     const cached = getCached(ck);
@@ -343,6 +625,28 @@ async function _getDetailedWeatherImpl(
 
   const cached = getCached(ck);
   if (cached) return cached;
+
+  // ── 高德天气优先（仅中国境内 + 有 amap_web_service_key）──
+  const latNum = parseFloat(lat);
+  const lngNum = parseFloat(lng);
+  const inChina = lngNum > 73.66 && lngNum < 135.05 && latNum > 3.86 && latNum < 53.55;
+  if (inChina) {
+    const targetDate = new Date(date);
+    const now = new Date();
+    const diffDays = (targetDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+    // 高德只提供未来3天预报
+    if (diffDays >= -1 && diffDays <= 3) {
+      try {
+        const amapResult = await getAmapDetailedWeather(lat, lng, date);
+        if (amapResult) {
+          setCache(ck, amapResult, TTL_FORECAST_MS);
+          return amapResult;
+        }
+      } catch (err) {
+        console.warn('[Weather] AMap detailed weather failed, falling back to Open-Meteo:', err);
+      }
+    }
+  }
 
   const targetDate = new Date(date);
   const now = new Date();

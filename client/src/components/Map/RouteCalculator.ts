@@ -1,8 +1,23 @@
 import type { RouteResult, RouteSegment, Waypoint } from '../../types'
+import { mapsApi } from '../../api/client'
+import { useSettingsStore } from '../../store/settingsStore'
 
 const OSRM_BASE = 'https://router.project-osrm.org/route/v1'
 
-/** Fetches a full route via OSRM and returns coordinates, distance, and duration estimates for driving/walking. */
+/** 判断坐标是否在中国境内 */
+function isInChina(lat: number, lng: number): boolean {
+  return lng > 73.66 && lng < 135.05 && lat > 3.86 && lat < 53.55
+}
+
+/** 判断是否应使用高德路线规划 */
+function shouldUseAmap(waypoints: Waypoint[]): boolean {
+  const mapProvider = useSettingsStore.getState().settings.map_provider
+  if (mapProvider !== 'amap') return false
+  // 所有途经点都在中国境内才使用高德
+  return waypoints.every(p => p.lat && p.lng && isInChina(p.lat, p.lng))
+}
+
+/** Fetches a full route: 优先高德，失败回退 OSRM */
 export async function calculateRoute(
   waypoints: Waypoint[],
   profile: 'driving' | 'walking' | 'cycling' = 'driving',
@@ -12,6 +27,39 @@ export async function calculateRoute(
     throw new Error('At least 2 waypoints required')
   }
 
+  // 高德优先
+  if (shouldUseAmap(waypoints)) {
+    try {
+      const result = await mapsApi.routeAmap(
+        waypoints.map(p => ({ lat: p.lat!, lng: p.lng! })),
+        profile,
+      )
+      if (result && result.coordinates) {
+        return {
+          coordinates: result.coordinates,
+          distance: result.distance,
+          duration: result.duration,
+          distanceText: result.distanceText,
+          durationText: result.durationText,
+          walkingText: result.walkingText,
+          drivingText: result.drivingText,
+        }
+      }
+    } catch (err) {
+      console.warn('[Route] AMap route failed, falling back to OSRM:', err)
+    }
+  }
+
+  // OSRM 回退
+  return calculateOsmRoute(waypoints, profile, { signal })
+}
+
+/** OSRM 路线计算（原始逻辑） */
+async function calculateOsmRoute(
+  waypoints: Waypoint[],
+  profile: 'driving' | 'walking' | 'cycling' = 'driving',
+  { signal }: { signal?: AbortSignal } = {}
+): Promise<RouteResult> {
   const coords = waypoints.map((p) => `${p.lng},${p.lat}`).join(';')
   const url = `${OSRM_BASE}/${profile}/${coords}?overview=full&geometries=geojson&steps=false`
 
@@ -105,13 +153,36 @@ export function optimizeRoute(places: Waypoint[]): Waypoint[] {
   return result
 }
 
-/** Fetches per-leg distance/duration from OSRM and returns segment metadata (midpoints, walking/driving times). */
+/** Fetches per-leg distance/duration: 优先高德，失败回退 OSRM */
 export async function calculateSegments(
   waypoints: Waypoint[],
   { signal }: { signal?: AbortSignal } = {}
 ): Promise<RouteSegment[]> {
   if (!waypoints || waypoints.length < 2) return []
 
+  // 高德优先
+  if (shouldUseAmap(waypoints)) {
+    try {
+      const result = await mapsApi.segmentsAmap(
+        waypoints.map(p => ({ lat: p.lat!, lng: p.lng! })),
+      )
+      if (result && Array.isArray(result) && result.length > 0) {
+        return result as RouteSegment[]
+      }
+    } catch (err) {
+      console.warn('[Route] AMap segments failed, falling back to OSRM:', err)
+    }
+  }
+
+  // OSRM 回退
+  return calculateOsmSegments(waypoints, { signal })
+}
+
+/** OSRM 段落计算（原始逻辑） */
+async function calculateOsmSegments(
+  waypoints: Waypoint[],
+  { signal }: { signal?: AbortSignal } = {}
+): Promise<RouteSegment[]> {
   const coords = waypoints.map((p) => `${p.lng},${p.lat}`).join(';')
   const url = `${OSRM_BASE}/driving/${coords}?overview=false&geometries=geojson&steps=false&annotations=distance,duration`
 

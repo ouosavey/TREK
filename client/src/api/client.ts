@@ -460,6 +460,8 @@ export const mapsApi = {
   searchAmap: (query: string, city?: string, lang?: string) => apiClient.post(`/maps/search-amap?lang=${lang || 'zh'}`, { query, city }).then(r => r.data),
   autocompleteAmap: (input: string, city?: string) => apiClient.post('/maps/autocomplete-amap', { input, city }).then(r => r.data),
   reverseAmap: (lat: number, lng: number) => apiClient.get('/maps/reverse-amap', { params: { lat, lng } }).then(r => r.data),
+  routeAmap: (waypoints: { lat: number; lng: number }[], profile?: 'driving' | 'walking' | 'cycling') => apiClient.post('/maps/route-amap', { waypoints, profile }).then(r => r.data),
+  segmentsAmap: (waypoints: { lat: number; lng: number }[]) => apiClient.post('/maps/segments-amap', { waypoints }).then(r => r.data),
 }
 
 export const airportsApi = {

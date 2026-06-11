@@ -853,6 +853,231 @@ export async function autocompleteAmap(input: string, city?: string): Promise<{ 
   } catch { return { suggestions: [], source: 'amap' } }
 }
 
+// ── AMap (高德地图) 路线规划 ──────────────────────────────────────────────
+
+export interface AmapRouteResult {
+  coordinates: [number, number][];  // [lat, lng] in WGS-84
+  distance: number;   // meters
+  duration: number;   // seconds
+  distanceText: string;
+  durationText: string;
+  walkingText: string;
+  drivingText: string;
+  source: 'amap';
+}
+
+export interface AmapSegmentResult {
+  mid: [number, number];
+  from: [number, number];
+  to: [number, number];
+  walkingText: string;
+  drivingText: string;
+}
+
+// WGS-84 → GCJ-02（与 weatherService.ts 和前端 coordTransform.ts 逻辑一致）
+const ROUTE_PI = Math.PI;
+const ROUTE_A = 6378245.0;
+const ROUTE_EE = 0.00669342162296594323;
+
+function routeOutOfChina(lng: number, lat: number): boolean {
+  return !(lng > 73.66 && lng < 135.05 && lat > 3.86 && lat < 53.55);
+}
+
+function routeTransformLat(lng: number, lat: number): number {
+  let ret = -100.0 + 2.0 * lng + 3.0 * lat + 0.2 * lat * lat + 0.1 * lng * lat + 0.2 * Math.sqrt(Math.abs(lng));
+  ret += (20.0 * Math.sin(6.0 * lng * ROUTE_PI) + 20.0 * Math.sin(2.0 * lng * ROUTE_PI)) * 2.0 / 3.0;
+  ret += (20.0 * Math.sin(lat * ROUTE_PI) + 40.0 * Math.sin(lat / 3.0 * ROUTE_PI)) * 2.0 / 3.0;
+  ret += (160.0 * Math.sin(lat / 12.0 * ROUTE_PI) + 320 * Math.sin(lat * ROUTE_PI / 30.0)) * 2.0 / 3.0;
+  return ret;
+}
+
+function routeTransformLng(lng: number, lat: number): number {
+  let ret = 300.0 + lng + 2.0 * lat + 0.1 * lng * lng + 0.1 * lng * lat + 0.1 * Math.sqrt(Math.abs(lng));
+  ret += (20.0 * Math.sin(6.0 * lng * ROUTE_PI) + 20.0 * Math.sin(2.0 * lng * ROUTE_PI)) * 2.0 / 3.0;
+  ret += (20.0 * Math.sin(lng * ROUTE_PI) + 40.0 * Math.sin(lng / 3.0 * ROUTE_PI)) * 2.0 / 3.0;
+  ret += (150.0 * Math.sin(lng / 12.0 * ROUTE_PI) + 300.0 * Math.sin(lng / 30.0 * ROUTE_PI)) * 2.0 / 3.0;
+  return ret;
+}
+
+function routeWgs84ToGcj02(lng: number, lat: number): [number, number] {
+  if (routeOutOfChina(lng, lat)) return [lng, lat];
+  let dLat = routeTransformLat(lng - 105.0, lat - 35.0);
+  let dLng = routeTransformLng(lng - 105.0, lat - 35.0);
+  const radLat = lat / 180.0 * ROUTE_PI;
+  let magic = Math.sin(radLat);
+  magic = 1 - ROUTE_EE * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  dLat = (dLat * 180.0) / ((ROUTE_A * (1 - ROUTE_EE)) / (magic * sqrtMagic) * ROUTE_PI);
+  dLng = (dLng * 180.0) / (ROUTE_A / sqrtMagic * Math.cos(radLat) * ROUTE_PI);
+  return [lng + dLng, lat + dLat];
+}
+
+function routeGcj02ToWgs84(lng: number, lat: number): [number, number] {
+  if (routeOutOfChina(lng, lat)) return [lng, lat];
+  let dLat = routeTransformLat(lng - 105.0, lat - 35.0);
+  let dLng = routeTransformLng(lng - 105.0, lat - 35.0);
+  const radLat = lat / 180.0 * ROUTE_PI;
+  let magic = Math.sin(radLat);
+  magic = 1 - ROUTE_EE * magic * magic;
+  const sqrtMagic = Math.sqrt(magic);
+  dLat = (dLat * 180.0) / ((ROUTE_A * (1 - ROUTE_EE)) / (magic * sqrtMagic) * ROUTE_PI);
+  dLng = (dLng * 180.0) / (ROUTE_A / sqrtMagic * Math.cos(radLat) * ROUTE_PI);
+  return [lng - dLng, lat - dLat];
+}
+
+function formatRouteDistance(meters: number): string {
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  return `${(meters / 1000).toFixed(1)} km`;
+}
+
+function formatRouteDuration(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) return `${h} h ${m} min`;
+  return `${m} min`;
+}
+
+export async function calculateAmapRoute(
+  waypoints: { lat: number; lng: number }[],
+  profile: 'driving' | 'walking' | 'cycling' = 'driving',
+): Promise<AmapRouteResult> {
+  const amapKey = getAmapKey();
+  if (!amapKey) throw new Error('AMap web service key not configured');
+
+  if (waypoints.length < 2) throw new Error('At least 2 waypoints required');
+
+  // WGS-84 → GCJ-02
+  const gcjPoints = waypoints.map(p => routeWgs84ToGcj02(p.lng, p.lat));
+
+  const origin = `${gcjPoints[0][0]},${gcjPoints[0][1]}`;
+  const dest = `${gcjPoints[gcjPoints.length - 1][0]},${gcjPoints[gcjPoints.length - 1][1]}`;
+
+  const params = new URLSearchParams({
+    key: amapKey,
+    origin,
+    destination: dest,
+    extensions: 'base',
+    output: 'JSON',
+  });
+
+  // 途经点（最多16个）
+  if (gcjPoints.length > 2) {
+    const viaPoints = gcjPoints.slice(1, -1).map(p => `${p[0]},${p[1]}`).join(';');
+    params.set('waypoints', viaPoints);
+  }
+
+  let apiPath: string;
+  if (profile === 'walking') {
+    apiPath = 'https://restapi.amap.com/v3/direction/walking';
+  } else if (profile === 'cycling') {
+    apiPath = 'https://restapi.amap.com/v4/direction/bicycling';
+  } else {
+    apiPath = 'https://restapi.amap.com/v3/direction/driving';
+  }
+
+  const response = await fetch(`${apiPath}?${params}`);
+  if (!response.ok) throw new Error('AMap route API error');
+
+  const data = await response.json() as {
+    status: string;
+    route?: {
+      paths?: { distance?: string; duration?: string; steps?: { polyline?: string }[] }[];
+    };
+    data?: {  // v4 cycling format
+      paths?: { distance?: string; duration?: string; steps?: { polyline?: string }[] }[];
+    };
+  };
+
+  if (data.status !== '1') throw new Error('AMap route calculation failed');
+
+  // v3 和 v4 返回格式不同
+  const paths = data.route?.paths || (data as any).data?.paths;
+  if (!paths?.length) throw new Error('No route found');
+
+  const path = paths[0];
+  const distance = parseInt(path.distance || '0', 10);
+  const duration = parseInt(path.duration || '0', 10);
+
+  // 从 steps 中提取坐标（GCJ-02），然后转回 WGS-84
+  const coordinates: [number, number][] = [];
+  if (path.steps) {
+    for (const step of path.steps) {
+      if (step.polyline) {
+        const points = step.polyline.split(';');
+        for (const point of points) {
+          const parts = point.split(',');
+          if (parts.length >= 2) {
+            const gcjLng = parseFloat(parts[0]);
+            const gcjLat = parseFloat(parts[1]);
+            const [wgsLng, wgsLat] = routeGcj02ToWgs84(gcjLng, gcjLat);
+            coordinates.push([wgsLat, wgsLng]); // [lat, lng] 格式
+          }
+        }
+      }
+    }
+  }
+
+  // 如果没有 polyline 数据，至少包含起终点
+  if (coordinates.length === 0) {
+    for (const wp of waypoints) {
+      coordinates.push([wp.lat, wp.lng]);
+    }
+  }
+
+  const walkingDuration = distance / (5000 / 3600);
+
+  return {
+    coordinates,
+    distance,
+    duration,
+    distanceText: formatRouteDistance(distance),
+    durationText: formatRouteDuration(duration),
+    walkingText: formatRouteDuration(walkingDuration),
+    drivingText: formatRouteDuration(duration),
+    source: 'amap',
+  };
+}
+
+export async function calculateAmapSegments(
+  waypoints: { lat: number; lng: number }[],
+): Promise<AmapSegmentResult[]> {
+  const amapKey = getAmapKey();
+  if (!amapKey) throw new Error('AMap web service key not configured');
+  if (waypoints.length < 2) return [];
+
+  const results: AmapSegmentResult[] = [];
+
+  // 逐段计算（高德不支持一次返回多段信息）
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    const from = waypoints[i];
+    const to = waypoints[i + 1];
+
+    try {
+      const route = await calculateAmapRoute([from, to], 'driving');
+      const mid: [number, number] = [(from.lat + to.lat) / 2, (from.lng + to.lng) / 2];
+      results.push({
+        mid,
+        from: [from.lat, from.lng],
+        to: [to.lat, to.lng],
+        walkingText: route.walkingText,
+        drivingText: route.drivingText,
+      });
+    } catch {
+      // 单段失败不阻断整体
+      const mid: [number, number] = [(from.lat + to.lat) / 2, (from.lng + to.lng) / 2];
+      results.push({
+        mid,
+        from: [from.lat, from.lng],
+        to: [to.lat, to.lng],
+        walkingText: '',
+        drivingText: '',
+      });
+    }
+  }
+
+  return results;
+}
+
 // ── Resolve Google Maps URL ──────────────────────────────────────────────────
 
 export async function resolveGoogleMapsUrl(url: string): Promise<{ lat: number; lng: number; name: string | null; address: string | null }> {

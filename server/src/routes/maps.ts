@@ -12,6 +12,8 @@ import {
   searchAmap,
   reverseGeocodeAmap,
   autocompleteAmap,
+  calculateAmapRoute,
+  calculateAmapSegments,
 } from '../services/mapsService';
 import { db } from '../db/database';
 import { serveFilePath } from '../services/placePhotoCache';
@@ -209,6 +211,47 @@ router.post('/autocomplete-amap', authenticate, async (req: Request, res: Respon
     const message = err instanceof Error ? err.message : 'AMap autocomplete error';
     console.error('AMap autocomplete error:', err);
     res.status(status).json({ error: message });
+  }
+});
+
+// POST /route-amap
+router.post('/route-amap', authenticate, async (req: Request, res: Response) => {
+  const { waypoints, profile } = req.body as {
+    waypoints: { lat: number; lng: number }[];
+    profile?: 'driving' | 'walking' | 'cycling';
+  };
+
+  if (!waypoints || !Array.isArray(waypoints) || waypoints.length < 2) {
+    return res.status(400).json({ error: 'At least 2 waypoints required' });
+  }
+
+  try {
+    const result = await calculateAmapRoute(waypoints, profile || 'driving');
+    res.json(result);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'AMap route calculation error';
+    console.error('AMap route error:', err);
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /segments-amap
+router.post('/segments-amap', authenticate, async (req: Request, res: Response) => {
+  const { waypoints } = req.body as {
+    waypoints: { lat: number; lng: number }[];
+  };
+
+  if (!waypoints || !Array.isArray(waypoints) || waypoints.length < 2) {
+    return res.status(400).json({ error: 'At least 2 waypoints required' });
+  }
+
+  try {
+    const result = await calculateAmapSegments(waypoints);
+    res.json(result);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'AMap segments calculation error';
+    console.error('AMap segments error:', err);
+    res.status(500).json({ error: message });
   }
 });
 
