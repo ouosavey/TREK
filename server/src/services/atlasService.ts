@@ -330,7 +330,9 @@ export async function getStats(userId: number) {
 
   if (tripIds.length === 0) {
     const manualCountries = db.prepare('SELECT country_code FROM visited_countries WHERE user_id = ?').all(userId) as { country_code: string }[];
-    const countries = manualCountries.map(mc => ({ code: mc.country_code, placeCount: 0, tripCount: 0, firstVisit: null, lastVisit: null }));
+    let countries = manualCountries.map(mc => ({ code: mc.country_code, placeCount: 0, tripCount: 0, firstVisit: null, lastVisit: null }));
+    // Merge TW into CN
+    countries = mergeTaiwanIntoChina(countries);
     return { countries, trips: [], stats: { totalTrips: 0, totalPlaces: 0, totalCountries: countries.length, totalDays: 0 } };
   }
 
@@ -398,6 +400,9 @@ export async function getStats(userId: number) {
       countries.push({ code: mc.country_code, placeCount: 0, tripCount: 0, firstVisit: null, lastVisit: null });
     }
   }
+
+  // Merge TW into CN
+  countries = mergeTaiwanIntoChina(countries);
 
   const mostVisited = countries.length > 0 ? countries.reduce((a, b) => a.placeCount > b.placeCount ? a : b) : null;
 
@@ -485,6 +490,45 @@ export function getCountryPlaces(userId: number, code: string) {
 
 // ── Mark / unmark country ───────────────────────────────────────────────────
 
+function mergeTaiwanIntoChina(countries: { code: string; placeCount: number; tripCount: number; firstVisit: string | null; lastVisit: string | null }[]): typeof countries {
+  const result: typeof countries = [];
+  let cnEntry: typeof countries[0] | null = null;
+  for (const c of countries) {
+    if (c.code === 'TW') {
+      if (cnEntry) {
+        cnEntry.placeCount += c.placeCount;
+        cnEntry.tripCount += c.tripCount;
+        if (c.firstVisit && (!cnEntry.firstVisit || c.firstVisit < cnEntry.firstVisit)) {
+          cnEntry.firstVisit = c.firstVisit;
+        }
+        if (c.lastVisit && (!cnEntry.lastVisit || c.lastVisit > cnEntry.lastVisit)) {
+          cnEntry.lastVisit = c.lastVisit;
+        }
+      } else {
+        result.push({ ...c, code: 'CN' });
+        cnEntry = result[result.length - 1];
+      }
+    } else if (c.code === 'CN') {
+      if (!cnEntry) {
+        result.push({ ...c });
+        cnEntry = result[result.length - 1];
+      } else {
+        cnEntry.placeCount += c.placeCount;
+        cnEntry.tripCount += c.tripCount;
+        if (c.firstVisit && (!cnEntry.firstVisit || c.firstVisit < cnEntry.firstVisit)) {
+          cnEntry.firstVisit = c.firstVisit;
+        }
+        if (c.lastVisit && (!cnEntry.lastVisit || c.lastVisit > cnEntry.lastVisit)) {
+          cnEntry.lastVisit = c.lastVisit;
+        }
+      }
+    } else {
+      result.push(c);
+    }
+  }
+  return result;
+}
+
 export function listVisitedCountries(userId: number): { country_code: string; created_at: string }[] {
   return db.prepare(
     'SELECT country_code, created_at FROM visited_countries WHERE user_id = ? ORDER BY created_at DESC'
@@ -496,8 +540,14 @@ export function markCountryVisited(userId: number, code: string): void {
 }
 
 export function unmarkCountryVisited(userId: number, code: string): void {
-  db.prepare('DELETE FROM visited_countries WHERE user_id = ? AND country_code = ?').run(userId, code);
-  db.prepare('DELETE FROM visited_regions WHERE user_id = ? AND country_code = ?').run(userId, code);
+  // If deleting CN or TW, delete both to keep them in sync
+  if (code === 'CN' || code === 'TW') {
+    db.prepare('DELETE FROM visited_countries WHERE user_id = ? AND country_code IN (?, ?)').run(userId, 'CN', 'TW');
+    db.prepare('DELETE FROM visited_regions WHERE user_id = ? AND country_code IN (?, ?)').run(userId, 'CN', 'TW');
+  } else {
+    db.prepare('DELETE FROM visited_countries WHERE user_id = ? AND country_code = ?').run(userId, code);
+    db.prepare('DELETE FROM visited_regions WHERE user_id = ? AND country_code = ?').run(userId, code);
+  }
 }
 
 // ── Mark / unmark region ────────────────────────────────────────────────────
