@@ -454,13 +454,8 @@ export default function AtlasPage(): React.ReactElement {
             sticky: false, permanent: false, className: 'atlas-tooltip', direction: 'top', offset: [0, -10], opacity: 1
           })
           layer.on('click', () => {
-            // 已访问国家：手动标记的(无trip/place) -> 弹出unmark确认
-            if (c.placeCount === 0 && c.tripCount === 0) {
-              handleUnmarkCountry(c.code)
-            } else {
-              // 有trip或place -> 加载国家详情（含unmark按钮）
-              loadCountryDetail(c.code)
-            }
+            // 已访问国家：统一弹出unmark确认弹窗
+            handleUnmarkCountry(c.code)
           })
           layer.on('mouseover', (e) => {
             e.target.setStyle({ fillOpacity: 0.9, weight: 2, color: dark ? '#818cf8' : '#4f46e5' })
