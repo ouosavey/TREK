@@ -72,8 +72,8 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **全面修复天气白屏**: MapViewAMap 所有传给 AMap SDK 的坐标点增加 safeGcj NaN 保护，外层 try-catch 防止 SDK 异常冒泡导致整页白屏" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复地点搜索框无反应** (2个根因):" >> $GITHUB_STEP_SUMMARY
-          echo "  - 前端: auto模式下只要配置了 AMap Key 就优先使用高德搜索（不再限制中文输入或amap地图模式）" >> $GITHUB_STEP_SUMMARY
-          echo "  - 后端: getAmapKey() 增加 amap_key 回退查找，解决只配置 JS API Key 时后端查不到 key 的问题" >> $GITHUB_STEP_SUMMARY
-          echo "- 涵盖修复: marker reconciliation / fit bounds / pan-to-selected / route labels / reservation overlay / location dot / center-zoom 全部坐标路径" >> $GITHUB_STEP_SUMMARY
+          echo "- **根除 AMap.Scale 导致的控制台 LngLat(NaN) 错误**: 移除 AMap.Scale 插件（该插件在地图状态不完整时内部产生大量 NaN 坐标调用）" >> $GITHUB_STEP_SUMMARY
+          echo "- **彻底修复地点搜索框无反应** (根因: settings API 未返回 amap_key):" >> $GITHUB_STEP_SUMMARY
+          echo "  - 后端 getUserSettings() 现在从 app_settings 表注入 amap_key/amap_web_service_key/amap_security_code 到用户设置响应中" >> $GITHUB_STEP_SUMMARY
+          echo "  - 之前这些 key 存储在 app_settings 表但 /api/settings 只查 settings 表，导致前端 hasAmapKey 永远为 false" >> $GITHUB_STEP_SUMMARY
+          echo "  - 前端 auto 模式搜索逻辑已优化：只要 hasAmapKey=true 就优先高德" >> $GITHUB_STEP_SUMMARY

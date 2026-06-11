@@ -102,7 +102,18 @@ export function getUserSettings(userId: number): Record<string, unknown> {
   }
 
   // Admin defaults fill in only for keys the user hasn't explicitly set
-  return { ...adminDefaults, ...userSettings };
+  const merged = { ...adminDefaults, ...userSettings };
+
+  // Inject AMap keys from app_settings so the client can use them for search/autocomplete
+  // (AMap keys are stored globally in app_settings, not per-user in settings table)
+  const amapKeyRow = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_key'").get() as { value: string } | undefined;
+  if (amapKeyRow?.value) merged.amap_key = amapKeyRow.value;
+  const amapWsKeyRow = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_web_service_key'").get() as { value: string } | undefined;
+  if (amapWsKeyRow?.value) merged.amap_web_service_key = amapWsKeyRow.value;
+  const securityCodeRow = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_security_code'").get() as { value: string } | undefined;
+  if (securityCodeRow?.value) merged.amap_security_code = securityCodeRow.value;
+
+  return merged;
 }
 
 function serializeValue(key: string, value: unknown): string {

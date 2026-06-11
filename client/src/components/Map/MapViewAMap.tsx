@@ -441,7 +441,8 @@ export const MapViewAMap = memo(function MapViewAMap({
       key: amapKey,
       version: '2.0',
       plugins: [
-        'AMap.Scale',
+        // Note: AMap.Scale removed — it internally calls lngLatToContainer with
+        // invalid coords when map state is incomplete, causing LngLat(NaN) spam
         'AMap.MarkerCluster',
       ],
     }).then((AMap: any) => {
