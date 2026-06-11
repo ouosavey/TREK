@@ -40,6 +40,49 @@ router.get('/regions/geo', async (req: Request, res: Response) => {
   res.json(geo);
 });
 
+// Proxy world GeoJSON — avoids CSP and network issues in Docker
+const WORLD_GEOJSON_URLS = [
+  'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_50m_admin_0_countries.geojson',
+  'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson',
+];
+let worldGeoJsonCache: { data: any; ts: number } | null = null;
+const GEOJSON_CACHE_TTL = 3600000; // 1 hour
+
+router.get('/geojson/world', async (req: Request, res: Response) => {
+  // Return cached version if fresh enough
+  if (worldGeoJsonCache && Date.now() - worldGeoJsonCache.ts < GEOJSON_CACHE_TTL) {
+    return res.setHeader('Cache-Control', 'public, max-age=300').json(worldGeoJsonCache.data);
+  }
+
+  for (const url of WORLD_GEOJSON_URLS) {
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+      if (!response.ok) continue;
+      const json = await response.json();
+      if (!json?.features) continue;
+
+      // Override Taiwan properties to merge with China
+      for (const f of json.features) {
+        if (f.properties?.ISO_A2 === 'TW') {
+          f.properties.ADM0_A3 = 'CHN';
+          f.properties.ISO_A3 = 'CHN';
+          f.properties.ISO_A2 = 'CN';
+          if (f.properties['ISO3166-1-Alpha-3']) f.properties['ISO3166-1-Alpha-3'] = 'CHN';
+          if (f.properties.NAME) f.properties.NAME = 'China';
+          if (f.properties.ADMIN) f.properties.ADMIN = 'China';
+        }
+      }
+
+      worldGeoJsonCache = { data: json, ts: Date.now() };
+      return res.setHeader('Cache-Control', 'public, max-age=300').json(json);
+    } catch {
+      continue;
+    }
+  }
+
+  res.status(502).json({ error: 'Failed to load world GeoJSON from all sources' });
+});
+
 router.get('/country/:code', (req: Request, res: Response) => {
   const userId = (req as AuthRequest).user.id;
   const code = req.params.code.toUpperCase();

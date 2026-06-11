@@ -246,33 +246,12 @@ export default function AtlasPage(): React.ReactElement {
     }).catch(() => setLoading(false))
   }, [])
 
-  // Load GeoJSON world data (direct GeoJSON, no conversion needed)
-  // 使用多个源，Docker容器内raw.githubusercontent.com可能不可达
-  const GEOJSON_URLS = [
-    'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_50m_admin_0_countries.geojson',
-    'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson',
-  ]
+  // Load GeoJSON world data via backend proxy (avoids CSP + Docker network issues)
   useEffect(() => {
-    let aborted = false
-    const tryFetch = async (urls: string[], idx = 0): Promise<void> => {
-      if (aborted || idx >= urls.length) return
-      try {
-        const r = await fetch(urls[idx], { signal: AbortSignal.timeout(15000) })
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        const geo = await r.json()
-        if (aborted || !geo?.features) throw new Error('Invalid GeoJSON')
-        // Do NOT filter out Taiwan — keep it on the map but color it as part of China.
-        // Override Taiwan's country code properties so it maps to China (CHN).
-        for (const f of geo.features) {
-          if (f.properties?.ISO_A2 === 'TW') {
-            f.properties.ADM0_A3 = 'CHN'
-            f.properties.ISO_A3 = 'CHN'
-            f.properties.ISO_A2 = 'CN'
-            if (f.properties['ISO3166-1-Alpha-3']) f.properties['ISO3166-1-Alpha-3'] = 'CHN'
-            if (f.properties.NAME) f.properties.NAME = 'China'
-            if (f.properties.ADMIN) f.properties.ADMIN = 'China'
-          }
-        }
+    apiClient.get('/addons/atlas/geojson/world')
+      .then(r => {
+        const geo = r.data
+        if (!geo?.features) throw new Error('Invalid GeoJSON')
         // Dynamically build A2→A3 mapping from GeoJSON
         for (const f of geo.features) {
           const a2 = f.properties?.ISO_A2
@@ -282,13 +261,8 @@ export default function AtlasPage(): React.ReactElement {
           }
         }
         setGeoData(geo)
-      } catch (err) {
-        console.warn(`Atlas GeoJSON source ${idx + 1} failed:`, err)
-        await tryFetch(urls, idx + 1)
-      }
-    }
-    tryFetch(GEOJSON_URLS)
-    return () => { aborted = true }
+      })
+      .catch(err => console.warn('Atlas GeoJSON load failed:', err))
   }, [])
 
   // Load visited regions (geocoded from places/trips) — once on mount
