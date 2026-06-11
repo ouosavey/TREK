@@ -33,6 +33,16 @@ function safeCoords(lat: unknown, lng: unknown): { lat: number; lng: number } | 
   return { lat: nLat, lng: nLng }
 }
 
+/** Check if an error message is a known-harmless AMap coordinate validation error */
+function isAmapNaNError(msg: string, src: string): boolean {
+  const lower = msg.toLowerCase()
+  // Match "Invalid Object: LngLat(NaN, NaN)" or "Invalid Object: Pixel(NaN, NaN)"
+  if (lower.includes('invalid object') && (lower.includes('lnglat') || lower.includes('pixel'))) return true
+  // Match any NaN error from AMap/plugin sources
+  if ((src.includes('amap') || src.includes('plugin') || src.includes('webapi') || src.includes('map_')) && lower.includes('nan')) return true
+  return false
+}
+
 // ── AMap type shorthands ─────────────────────────────────────────────────
 // We reference the global AMap namespace that @amap/amap-jsapi-loader injects.
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -457,24 +467,44 @@ export const MapViewAMap = memo(function MapViewAMap({
       // event loop (zoom, pan, mousemove) when any marker/overlay has
       // invalid coordinates. These CANNOT be caught by try-catch in React
       // effects because they fire asynchronously from SDK internals.
-      // We intercept them globally to prevent map interaction lock-up.
+      // We intercept them globally via 3 mechanisms:
+      //   1. window.onerror — for synchronous throws
+      //   2. unhandledrejection — for async/rejected promises
+      //   3. console.error override — for direct console.error calls by SDK
       const _origOnError = window.onerror
+      const _origOnRejection = (window as any).onunhandledrejection
+      const _origConsoleError = console.error.bind(console)
+
+      // 1. Sync error handler
       window.onerror = (message, source, lineno, colno, error) => {
         const msg = String(message ?? '')
         const src = String(source ?? '')
-        // Suppress AMap's known-harmless coordinate validation errors
-        if (msg.includes('Invalid Object') && (msg.includes('LngLat') || msg.includes('Pixel'))) {
-          return true // prevent default (suppress)
-        }
-        if (src.includes('amap') || src.includes('plugin') || src.includes('webapi')) {
-          if (msg.includes('NaN')) return true
-        }
-        // Pass through all other errors
+        if (isAmapNaNError(msg, src)) return true
         return _origOnError ? _origOnError(message, source, lineno, colno, error) : false
       }
+
+      // 2. Unhandled rejection handler
+      ;(window as any).onunhandledrejection = (event: any) => {
+        const msg = String(event.reason?.message || event.reason || '')
+        if (isAmapNaNError(msg, '')) {
+          event.preventDefault()
+          return
+        }
+        if (_origOnRejection) return _origOnRejection(event)
+      }
+
+      // 3. Console.error override — suppress known-harmless AMap noise
+      console.error = (...args: any[]) => {
+        const first = String(args[0] ?? '')
+        if (isAmapNaNError(first, '')) return // silently drop
+        _origConsoleError(...args)
+      }
+
       // Store cleanup ref
       ;(window as any).__amapErrorInterceptor = () => {
         window.onerror = _origOnError
+        ;(window as any).onunhandledrejection = _origOnRejection
+        console.error = _origConsoleError
       }
 
       const gcj = safeGcj(center[1], center[0]) || [116.397428, 39.90923] // fallback: Beijing

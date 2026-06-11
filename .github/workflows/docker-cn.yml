@@ -72,12 +72,10 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **地图交互锁死根除 (最终方案)**: 全局 window.onerror 拦截器" >> $GITHUB_STEP_SUMMARY
-          echo "  - AMap SDK 内部事件循环(缩放/平移/鼠标)产生同步 Uncaught Error" >> $GITHUB_STEP_SUMMARY
-          echo "  - try-catch 无法拦截 SDK 内部异步抛出的错误" >> $GITHUB_STEP_SUMMARY
-          echo "  - 方案: 安装 window.onerror 过滤器，拦截 Invalid Object: LngLat/Pixel(NaN)" >> $GITHUB_STEP_SUMMARY
-          echo "  - 组件卸载时自动恢复原始 error handler，不影响其他错误报告" >> $GITHUB_STEP_SUMMARY
-          echo "- **safeGcj 增强**: 额外过滤 (0,0) 默认坐标占位值" >> $GITHUB_STEP_SUMMARY
-          echo "- **搜索框调试日志**: 添加 [Search] 前缀的 console.log 到完整调用链" >> $GITHUB_STEP_SUMMARY
-          echo "  - debounce → fetchSuggestions → API 调用 → 结果处理 全链路可追踪" >> $GITHUB_STEP_SUMMARY
-          echo "  - 请在 F12 Console 中查看 [Search] 日志确认搜索流程执行情况" >> $GITHUB_STEP_SUMMARY
+          echo "- **地图锁死: 3层全局错误拦截器** (window.onerror + unhandledrejection + console.error)" >> $GITHUB_STEP_SUMMARY
+          echo "  - AMap SDK 通过3种不同机制抛出坐标验证错误，全部拦截" >> $GITHUB_STEP_SUMMARY
+          echo "  - isAmapNaNError() 统一匹配 Invalid Object: LngLat/Pixel(NaN)" >> $GITHUB_STEP_SUMMARY
+          echo "- **编辑条目地点搜索框修复** (JourneyDetailPage.tsx):" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: 搜索条件限制 mapProvider===amap || 中文输入，非中文时永远不走高德" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: auto/amap模式始终先尝试高德API，失败后fallback到Google/OSM" >> $GITHUB_STEP_SUMMARY
+          echo "  - 注意: 这是 JourneyDetailPage 内联的搜索逻辑（不是 PlaceFormModal）" >> $GITHUB_STEP_SUMMARY

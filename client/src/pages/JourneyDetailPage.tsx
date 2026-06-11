@@ -2554,12 +2554,25 @@ function EntryEditor({ entry, journeyId, tripDates, galleryPhotos, onClose, onSa
                       locationTimerRef.current = setTimeout(async () => {
                         setLocationSearching(true)
                         try {
-                          const hasChinese = /[\u4e00-\u9fff]/.test(q)
-                          const useAmap = searchProviderSetting === 'amap'
-                            || (searchProviderSetting === 'auto' && (mapProvider === 'amap' || (hasChinese && hasAmapKey)))
-                          const res = useAmap
-                            ? await mapsApi.searchAmap(q)
-                            : await mapsApi.search(q)
+                          // In auto mode: always try AMap first, fallback to Google/OSM on failure
+                          const explicitlyGoogle = searchProviderSetting === 'google'
+                          const explicitlyAmap = searchProviderSetting === 'amap'
+                          let res: any
+                          if (explicitlyGoogle) {
+                            res = await mapsApi.search(q)
+                          } else {
+                            // auto or amap → try AMap first
+                            try {
+                              res = await mapsApi.searchAmap(q)
+                            } catch (amapErr) {
+                              console.warn('[JourneySearch] AMap failed, falling back:', amapErr instanceof Error ? amapErr.message : amapErr)
+                              if (!explicitlyAmap) {
+                                res = await mapsApi.search(q)
+                              } else {
+                                throw amapErr
+                              }
+                            }
+                          }
                           setLocationResults((res.places || []).slice(0, 6).map((p: any) => ({
                             name: p.name, address: p.address, lat: Number(p.lat), lng: Number(p.lng),
                           })))
