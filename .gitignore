@@ -5,6 +5,7 @@ node_modules/
 client/dist/
 server/public/*
 !server/public/.gitkeep
+!server/public/geo/
 
 # Generated PWA icons (built from SVG via prebuild)
 client/public/icons/*.png
