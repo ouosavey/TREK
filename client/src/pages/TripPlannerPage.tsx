@@ -482,6 +482,20 @@ export default function TripPlannerPage(): React.ReactElement | null {
   const handleSavePlace = useCallback(async (data) => {
     const pendingFiles = data._pendingFiles
     delete data._pendingFiles
+    
+    // 如果有坐标但没有地址，尝试逆地理编码获取地址
+    if (data.lat && data.lng && !data.address) {
+      try {
+        const { mapsApi } = await import('../api/client')
+        const reverseData = (mapProvider === 'amap' || hasAmapKey)
+          ? await mapsApi.reverseAmap(data.lat, data.lng)
+          : await mapsApi.reverse(data.lat, data.lng, language)
+        if (reverseData.address) {
+          data.address = reverseData.address
+        }
+      } catch { /* best effort */ }
+    }
+    
     if (editingPlace) {
       // Always strip time fields from place update — time is per-assignment only
       const { place_time, end_time, ...placeData } = data
