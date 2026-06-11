@@ -34,16 +34,6 @@ export default defineConfig({
             },
           },
           {
-            // Leaflet CSS/JS from unpkg CDN
-            urlPattern: /^https:\/\/unpkg\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'cdn-libs',
-              expiration: { maxEntries: 30, maxAgeSeconds: 365 * 24 * 60 * 60 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
             // API calls — prefer network, fall back to cache
             // Exclude sensitive endpoints (auth, admin, backup, settings)
             urlPattern: /\/api\/(?!auth|admin|backup|settings|health).*/i,

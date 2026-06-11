@@ -221,9 +221,12 @@ export default function PlaceFormModal({
           return
         }
       }
+      // Detect Chinese characters in query and use zh language for better results
+      const hasChinese = /[\u4e00-\u9fff]/.test(trimmed)
+      const searchLang = hasChinese ? 'zh' : language
       const result = mapProvider === 'amap'
         ? await mapsApi.searchAmap(mapsSearch)
-        : await mapsApi.search(mapsSearch, language)
+        : await mapsApi.search(mapsSearch, searchLang)
       setMapsResults(result.places || [])
     } catch (err: unknown) {
       toast.error(t('places.mapsSearchError'))

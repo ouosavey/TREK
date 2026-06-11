@@ -124,7 +124,7 @@ export function createApp(): express.Application {
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'unsafe-inline'", "'wasm-unsafe-eval'", "'unsafe-eval'", "https://webapi.amap.com", "https://*.amap.com"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://unpkg.com", "https://webapi.amap.com", "https://*.amap.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://webapi.amap.com", "https://*.amap.com"],
         imgSrc: ["'self'", "data:", "blob:", "https:"],
         connectSrc: [
           "'self'", "ws:", "wss:",
@@ -132,7 +132,7 @@ export function createApp(): express.Application {
           "https://places.googleapis.com", "https://api.openweathermap.org",
           "https://en.wikipedia.org", "https://commons.wikimedia.org",
           "https://*.basemaps.cartocdn.com", "https://*.tile.openstreetmap.org",
-          "https://unpkg.com", "https://open-meteo.com", "https://api.open-meteo.com",
+          "https://open-meteo.com", "https://api.open-meteo.com",
           "https://geocoding-api.open-meteo.com", "https://api.exchangerate-api.com",
           "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson",
           "https://router.project-osrm.org/route/v1/",
