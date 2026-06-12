@@ -418,32 +418,9 @@ async function _getWeatherImpl(
 ): Promise<WeatherResult> {
   const ck = cacheKey(lat, lng, date);
 
-  // ── 高德天气优先（仅中国境内 + 有 amap_web_service_key）──
-  const latNum = parseFloat(lat);
-  const lngNum = parseFloat(lng);
-  const inChina = lngNum > 73.66 && lngNum < 135.05 && latNum > 3.86 && latNum < 53.55;
-  if (inChina) {
-    try {
-      let amapResult: WeatherResult | null = null;
-      if (date) {
-        const targetDate = new Date(date);
-        const now = new Date();
-        const diffDays = (targetDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-        // 高德只提供未来3天预报，且不支持历史天气
-        if (diffDays >= -1 && diffDays <= 3) {
-          amapResult = await getAmapForecastWeather(lat, lng, date);
-        }
-      } else {
-        amapResult = await getAmapCurrentWeather(lat, lng);
-      }
-      if (amapResult) {
-        setCache(ck, amapResult, date ? TTL_FORECAST_MS : TTL_CURRENT_MS);
-        return amapResult;
-      }
-    } catch (err) {
-      console.warn('[Weather] AMap weather failed, falling back to Open-Meteo:', err);
-    }
-  }
+  // ── 统一使用 Open-Meteo 天气数据 ──
+  // 高德天气已移除：不同日期返回的数据格式不一致（近3天简略/远期详细），
+  // 导致 DayDetailPanel 面板大小差异大，触发 AMap SDK 坐标系统 NaN 错误级联
 
   if (date) {
     const cached = getCached(ck);
@@ -636,27 +613,8 @@ async function _getDetailedWeatherImpl(
   const cached = getCached(ck);
   if (cached) return cached;
 
-  // ── 高德天气优先（仅中国境内 + 有 amap_web_service_key）──
-  const latNum = parseFloat(lat);
-  const lngNum = parseFloat(lng);
-  const inChina = lngNum > 73.66 && lngNum < 135.05 && latNum > 3.86 && latNum < 53.55;
-  if (inChina) {
-    const targetDate = new Date(date);
-    const now = new Date();
-    const diffDays = (targetDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-    // 高德只提供未来3天预报
-    if (diffDays >= -1 && diffDays <= 3) {
-      try {
-        const amapResult = await getAmapDetailedWeather(lat, lng, date);
-        if (amapResult) {
-          setCache(ck, amapResult, TTL_FORECAST_MS);
-          return amapResult;
-        }
-      } catch (err) {
-        console.warn('[Weather] AMap detailed weather failed, falling back to Open-Meteo:', err);
-      }
-    }
-  }
+  // ── 统一使用 Open-Meteo 天气数据（含逐小时预报）──
+  // 高德天气已移除：不同日期返回的数据格式不一致，导致面板大小差异触发地图NaN错误
 
   const targetDate = new Date(date);
   const now = new Date();

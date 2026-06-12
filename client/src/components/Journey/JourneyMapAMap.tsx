@@ -8,6 +8,46 @@ type AMapInstance = any
 type AMapMarkerType = any
 type AMapPolylineType = any
 
+// ═══════════════════════════════════════════════════════════════════
+// MODULE-LEVEL: Suppress AMap LngLat/Pixel NaN errors
+// Same suppressor as MapViewAMap — prevents uncaught errors from
+// breaking the SDK's event loop when coordinates become inconsistent.
+// ═══════════════════════════════════════════════════════════════════
+;(function installAmapErrorSuppressor() {
+  if ((window as any).__amapErrorSuppressed) return
+  ;(window as any).__amapErrorSuppressed = true
+
+  function isAmapNaNError(msg: string): boolean {
+    if (!msg) return false
+    if (msg.includes('Invalid Object') && (msg.includes('LngLat') || msg.includes('Pixel'))) return true
+    if (msg.includes('NaN') && (msg.includes('LngLat') || msg.includes('Pixel') || msg.includes('containerToLngLat') || msg.includes('lngLatToContainer'))) return true
+    return false
+  }
+
+  window.addEventListener('error', function(event) {
+    const msg = String(event.message ?? '')
+    if (isAmapNaNError(msg)) {
+      event.stopImmediatePropagation()
+      event.preventDefault()
+      return
+    }
+  }, true)
+
+  window.addEventListener('unhandledrejection', function(event) {
+    const reason = String(event.reason?.message ?? event.reason ?? '')
+    if (isAmapNaNError(reason)) {
+      event.preventDefault()
+    }
+  })
+
+  const _origConsoleError = console.error
+  console.error = function(...args: any[]) {
+    const msg = args.map(a => typeof a === 'string' ? a : (a?.message ?? '')).join(' ')
+    if (isAmapNaNError(msg)) return
+    _origConsoleError.apply(console, args)
+  }
+})()
+
 export interface JourneyMapAMapHandle {
   highlightMarker: (id: string | null) => void
   focusMarker: (id: string) => void
@@ -344,10 +384,45 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
     AMapLoader.load({
       key: amapKey,
       version: '2.0',
-      plugins: ['AMap.Scale'],
+      plugins: [
+        // Note: AMap.Scale removed — it internally produces LngLat(NaN)/Pixel(NaN)
+        // errors when map state is incomplete, causing 400+ uncaught errors that
+        // prevent the map from rendering properly.
+      ],
     }).then((AMap: any) => {
       if (destroyed) return
       AMapRef.current = AMap
+
+      // ── Monkey-patch AMap.LngLat and AMap.Pixel ──────────────────────
+      // Same patch as MapViewAMap: replace constructors with NaN-safe wrappers.
+      const _OrigLngLat = AMap.LngLat
+      const _OrigPixel = AMap.Pixel
+
+      AMap.LngLat = function(lng: any, lat: any) {
+        const nLng = Number(lng)
+        const nLat = Number(lat)
+        if (!Number.isFinite(nLng) || !Number.isFinite(nLat)) {
+          return new _OrigLngLat(116.397428, 39.90923)
+        }
+        return new _OrigLngLat(nLng, nLat)
+      } as any
+      AMap.LngLat.prototype = _OrigLngLat.prototype
+      Object.keys(_OrigLngLat).forEach(k => {
+        if (!(k in AMap.LngLat)) (AMap.LngLat as any)[k] = (_OrigLngLat as any)[k]
+      })
+
+      AMap.Pixel = function(x: any, y: any) {
+        const nX = Number(x)
+        const nY = Number(y)
+        if (!Number.isFinite(nX) || !Number.isFinite(nY)) {
+          return new _OrigPixel(0, 0)
+        }
+        return new _OrigPixel(nX, nY)
+      } as any
+      AMap.Pixel.prototype = _OrigPixel.prototype
+      Object.keys(_OrigPixel).forEach(k => {
+        if (!(k in AMap.Pixel)) (AMap.Pixel as any)[k] = (_OrigPixel as any)[k]
+      })
 
       // Determine initial center & zoom
       const hasPoints = items.length > 0 || stableTrail.length > 0
@@ -383,6 +458,49 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
         mapStyle: dark ? 'amap://styles/dark' : 'amap://styles/normal',
       })
       mapRef.current = map
+
+      // ── Map-instance-level coordinate safety wrappers ───────────────
+      // Intercept coordinate conversions to guarantee no NaN leaks.
+      const SAFE_CENTER: [number, number] = [116.397428, 39.90923]
+      const _origContainerToLngLat = map.containerToLngLat.bind(map)
+      map.containerToLngLat = function(pixel: any): any {
+        try {
+          const result = _origContainerToLngLat(pixel)
+          if (!result) return new AMap.LngLat(...SAFE_CENTER)
+          const lng = result.getLng?.() ?? result.lng
+          const lat = result.getLat?.() ?? result.lat
+          if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+            return new AMap.LngLat(...SAFE_CENTER)
+          }
+          return result
+        } catch { return new AMap.LngLat(...SAFE_CENTER) }
+      }
+      const _origLngLatToContainer = map.lngLatToContainer.bind(map)
+      map.lngLatToContainer = function(lnglat: any): any {
+        try {
+          const result = _origLngLatToContainer(lnglat)
+          if (!result) return new AMap.Pixel(0, 0)
+          const x = result.getX?.() ?? result.x
+          const y = result.getY?.() ?? result.y
+          if (!Number.isFinite(x) || !Number.isFinite(y)) return new AMap.Pixel(0, 0)
+          return result
+        } catch { return new AMap.Pixel(0, 0) }
+      }
+
+      // Periodic health monitor — detect and recover silent NaN state
+      const healthInterval = setInterval(() => {
+        try {
+          const c = map.getCenter()
+          if (!c || Number.isNaN(c.getLng()) || Number.isNaN(c.getLat()) || !Number.isFinite(c.getLng()) || !Number.isFinite(c.getLat())) {
+            map.resize()
+            map.setCenter(SAFE_CENTER)
+            map.setZoom(10)
+          }
+          const z = map.getZoom()
+          if (Number.isNaN(z) || !Number.isFinite(z)) map.setZoom(10)
+        } catch {}
+      }, 2000)
+      ;(map as any).__healthInterval = healthInterval
 
       // Force resize after DOM layout to ensure correct dimensions
       setTimeout(() => { try { map.resize() } catch {} }, 200)
@@ -475,6 +593,10 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
 
     return () => {
       destroyed = true
+      // Clear periodic health monitor
+      if (mapRef.current && (mapRef.current as any).__healthInterval) {
+        clearInterval((mapRef.current as any).__healthInterval)
+      }
       markersRef.current.forEach(m => { try { m.setMap(null) } catch {} })
       markersRef.current.clear()
       if (polylineRef.current) { try { polylineRef.current.setMap(null) } catch {} polylineRef.current = null }

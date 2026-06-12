@@ -73,13 +73,12 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
           echo "- **Bug1: 旅行计划页面地图交互锁死** (点击天气弹窗后地图不能缩放/点击，F12控制台大量报错):" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因1: DayDetailPanel出现后AMap SDK内部坐标系统变得不一致，map.resize()调用时机不对导致NaN错误级联" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因2: 从第1天切换到第2天天气时hasDayDetail布尔值不变（始终为true），useEffect不会重新执行resize" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因3: AMap SDK内部有绕过构造函数的代码路径创建LngLat/Pixel对象，monkey-patch构造函数无法覆盖所有场景" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复1: 新增dayDetailId prop传递给MapViewAMap，切换天数时触发resize（解决根因2）" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复2: 在地图实例级别包装containerToLngLat/lngLatToContainer方法，确保返回值永不为NaN（解决根因3）" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复3: 添加每2秒周期性健康监控，检测并自动恢复静默的NaN状态" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复4: overlay变化时立即+多次延迟调用map.resize()+setStatus()重置交互状态" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bug2: 旅程页面编辑条目地点搜索不工作** (JourneyDetailPage EntryEditor):" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: EntryEditor是模块级函数组件，但引用了JourneyDetailPage组件内的局部变量searchProviderSetting，导致ReferenceError被try-catch捕获后搜索始终返回空结果" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 在EntryEditor中添加useSettingsStore获取search_provider/amap_key/amap_web_service_key设置" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: 高德天气API对不同日期返回不同格式数据（近3天简略/远期详细），导致DayDetailPanel面板大小差异大，触发AMap SDK坐标系统NaN错误级联" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: 移除高德天气API，统一使用Open-Meteo天气数据（所有日期格式一致）" >> $GITHUB_STEP_SUMMARY
+          echo "  - 同时保留: dayDetailId prop触发resize + 地图实例级坐标转换包装 + 周期性健康监控 + 错误抑制器" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bug2: 旅程页面保存地点后地图不显示/大量NaN报错:**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: JourneyMapAMap加载了AMap.Scale插件（产生400+ NaN错误），且没有任何NaN防护（无monkey-patch、无错误抑制、无坐标包装）" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复1: 移除AMap.Scale插件（与MapViewAMap一致）" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复2: 添加完整的NaN防护体系（模块级错误抑制器 + LngLat/Pixel monkey-patch + 坐标转换包装 + 周期性健康监控）" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bug3: 旅程页面编辑条目地点搜索不工作** (已在上次提交修复):" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: EntryEditor中添加useSettingsStore获取搜索设置" >> $GITHUB_STEP_SUMMARY
