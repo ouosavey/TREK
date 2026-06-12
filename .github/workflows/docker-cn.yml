@@ -73,12 +73,10 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
           echo "- **Bug1: 旅行计划页面点击天气地图灰掉:**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根本原因: DayDetailPanel/PlaceInspector使用position:fixed，不改变地图容器尺寸" >> $GITHUB_STEP_SUMMARY
-          echo "  - 之前overlay变化时调用map.resize()导致AMap内部坐标系统重算产生NaN" >> $GITHUB_STEP_SUMMARY
-          echo "  - 参考main分支: Leaflet版本overlay变化时不调用invalidateSize()" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 删除overlay resize effect，仅保留ResizeObserver处理真实容器尺寸变化" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bug2: 旅程页面地图不显示(大量NaN报错):**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根本原因: 地图初始化useEffect依赖entries，每次数据变化都销毁重建地图" >> $GITHUB_STEP_SUMMARY
-          echo "  - 参考MapViewAMap模式: 地图只初始化一次(依赖amapKey)，标记/折线/边界在单独effect更新" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 分离地图初始化和标记渲染，避免频繁重建触发NaN" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复invalidateSize: 从toggle display改为map.resize()" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: AMap的setBounds/resize在特定条件下会破坏地图内部坐标系统产生NaN" >> $GITHUB_STEP_SUMMARY
+          echo "  - setBounds后验证center/zoom有效性，NaN时回滚到之前的状态" >> $GITHUB_STEP_SUMMARY
+          echo "  - 所有map.resize()调用后添加NaN验证和自动恢复" >> $GITHUB_STEP_SUMMARY
+          echo "  - mousemove/健康监控中不再调用resize()恢复NaN，改为直接setCenter/setZoom" >> $GITHUB_STEP_SUMMARY
+          echo "  - 地图容器添加isolation:isolate+transform:translateZ(0)防止backdrop-filter干扰" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bug2: 旅程页面地图不显示:**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 已在上次修复(分离地图初始化和标记渲染)" >> $GITHUB_STEP_SUMMARY

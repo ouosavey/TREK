@@ -608,12 +608,12 @@ export const MapViewAMap = memo(function MapViewAMap({
       // ── Periodic health monitor ───────────────────────────────────────
       // Runs every 2 seconds to detect and recover from silent state corruption.
       // This catches NaN states that slip past event-based health checks.
+      // NOTE: Do NOT call map.resize() here — it can trigger more NaN errors.
       const healthInterval = setInterval(() => {
         try {
           const c = map.getCenter()
           if (!c || Number.isNaN(c.getLng()) || Number.isNaN(c.getLat()) || !Number.isFinite(c.getLng()) || !Number.isFinite(c.getLat())) {
             console.warn('[AMap] Health check: NaN center detected, recovering...')
-            map.resize()
             map.setCenter(SAFE_CENTER)
             map.setZoom(10)
           }
@@ -628,7 +628,20 @@ export const MapViewAMap = memo(function MapViewAMap({
       ;(map as any).__healthInterval = healthInterval
 
       // Force resize after DOM layout to ensure correct dimensions
-      setTimeout(() => { try { map.resize() } catch {} }, 200)
+      // Then validate: if resize corrupted state, restore safe defaults
+      setTimeout(() => {
+        try {
+          const prevCenter = map.getCenter()
+          const prevZoom = map.getZoom()
+          map.resize()
+          const c = map.getCenter()
+          if (c && (!Number.isFinite(c.getLng()) || !Number.isFinite(c.getLat()))) {
+            console.warn('[AMap] resize() produced NaN, restoring...')
+            map.setCenter(prevCenter && Number.isFinite(prevCenter.getLng()) ? prevCenter : SAFE_CENTER)
+            map.setZoom(Number.isFinite(prevZoom) ? prevZoom : 10)
+          }
+        } catch {}
+      }, 200)
 
       // Click handler — convert GCJ-02 back to WGS-84
       map.on('click', (e: any) => {
@@ -679,16 +692,19 @@ export const MapViewAMap = memo(function MapViewAMap({
       })
 
       // Debounced mousemove health check: detect NaN coordinates early
-      // and call resize() to prevent cascading errors
+      // and recover by resetting center/zoom (NOT by calling resize(),
+      // which can itself trigger NaN errors in AMap SDK)
       let mouseMoveRecoverTimer: ReturnType<typeof setTimeout> | null = null
       map.on('mousemove', () => {
         if (mouseMoveRecoverTimer) return // debounce: only check once per 500ms
         mouseMoveRecoverTimer = setTimeout(() => { mouseMoveRecoverTimer = null }, 500)
         try {
           const center = map.getCenter()
-          if (center && (Number.isNaN(center.getLng()) || Number.isNaN(center.getLat()))) {
-            console.warn('[AMap] NaN center on mousemove, calling resize()...')
-            map.resize()
+          if (center && (Number.isNaN(center.getLng()) || Number.isNaN(center.getLat()) ||
+              !Number.isFinite(center.getLng()) || !Number.isFinite(center.getLat()))) {
+            console.warn('[AMap] NaN center on mousemove, recovering...')
+            map.setCenter(SAFE_CENTER)
+            map.setZoom(10)
           }
         } catch {}
       })
@@ -720,14 +736,24 @@ export const MapViewAMap = memo(function MapViewAMap({
   }, [amapKey, amapSecurityCode]) // rebuild on key change
 
   // ── ResizeObserver: keep map coordinate system consistent ───────────
+  // Only call map.resize() for genuine container size changes.
+  // After resize, validate state — if NaN, restore safe defaults.
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
     const observer = new ResizeObserver(() => {
       const map = mapRef.current
-      if (map) {
-        try { map.resize() } catch {}
-      }
+      if (!map) return
+      try {
+        const prevCenter = map.getCenter()
+        const prevZoom = map.getZoom()
+        map.resize()
+        const c = map.getCenter()
+        if (c && (!Number.isFinite(c.getLng()) || !Number.isFinite(c.getLat()))) {
+          map.setCenter(prevCenter && Number.isFinite(prevCenter.getLng()) ? prevCenter : [116.397428, 39.90923])
+          map.setZoom(Number.isFinite(prevZoom) ? prevZoom : 10)
+        }
+      } catch {}
     })
     observer.observe(container)
     return () => observer.disconnect()
@@ -1389,7 +1415,7 @@ export const MapViewAMap = memo(function MapViewAMap({
 
   return (
     <>
-      <div className="w-full h-full relative">
+      <div className="w-full h-full relative" style={{ isolation: 'isolate', transform: 'translateZ(0)' }}>
         <div ref={containerRef} className="w-full h-full" />
         {isMobile && (
           <LocationButton
