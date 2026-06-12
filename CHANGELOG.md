@@ -3,13 +3,14 @@
 ## 2026-06-12 — AMap 地图灰掉/NaN 错误修复
 
 ### Bug1: 旅行计划页面点击天气地图灰掉
-- **根因**: AMap SDK 的 `setBounds()` 和 `resize()` 在特定条件下会破坏地图内部坐标系统，产生 NaN center/zoom，导致地图瓦片无法加载（灰掉），鼠标交互触发大量 NaN 报错
-- **触发条件**: 点击天数卡片天气 → `onSelectDay` + `onDayDetail` → `fitKey` 递增 → fitKey effect 调用 `map.setBounds()` → AMap 内部坐标计算产生 NaN
+- **根因**: AMap SDK 在 `requestAnimationFrame` 渲染循环中抛出 `"Invalid Object: LngLat(NaN, NaN)"` 错误，中断渲染循环导致地图灰掉。之前的 LngLat/Pixel monkey-patch 无法拦截 SDK 内部缓存的原始构造函数引用，`window.onerror` 也无法拦截 rAF 中的错误
+- **触发链**: 点击天数卡片天气 → `onSelectDay` + `onDayDetail` → `fitKey` 递增 → fitKey effect 调用 `map.setBounds()` → AMap 内部坐标计算产生 NaN → rAF 渲染循环抛出错误 → 渲染中断 → 地图灰掉
 - **修复方案**:
-  1. `setBounds` 后验证 center/zoom 有效性，NaN 时回滚到之前的状态
-  2. 所有 `map.resize()` 调用后添加 NaN 验证和自动恢复
-  3. mousemove/健康监控中不再调用 `resize()` 恢复 NaN，改为直接 `setCenter`/`setZoom`（resize 本身可能触发更多 NaN）
-  4. 地图容器添加 `isolation:isolate` + `transform:translateZ(0)` 强制独立合成层，防止 DayDetailPanel 的 `backdrop-filter` 干扰 canvas 渲染
+  1. **包装 `window.requestAnimationFrame`**：在回调中 try-catch 捕获 LngLat/Pixel NaN 错误并静默吞掉，让渲染循环继续运行
+  2. `setBounds` 后验证 center/zoom 有效性，NaN 时回滚到之前的状态
+  3. **zoomend/moveend 事件中不再调用 `map.resize()` 恢复 NaN**（resize 本身触发更多 NaN 形成恶性循环），改为直接 `setCenter`/`setZoom`
+  4. mousemove/健康监控中同样不调用 `resize()`
+  5. 地图容器添加 `isolation:isolate` + `transform:translateZ(0)` 强制独立合成层
 - **涉及文件**: `client/src/components/Map/MapViewAMap.tsx`
 
 ### Bug2: 旅程页面地图不显示（大量 NaN 报错）
@@ -22,7 +23,8 @@
 - DayDetailPanel 使用 `position:fixed` 不改变地图容器尺寸，删除 overlay resize effect
 - JourneyMapAMap 的 `invalidateSize` 从 toggle display 改为 `map.resize()`
 - JourneyMapAMap 添加 ResizeObserver 监听容器尺寸变化
+- 统一 MapViewAMap 和 JourneyMapAMap 的错误抑制器
 
 ### 待处理
 - AMap SDK 内部仍有少量 NaN 错误无法完全消除（SDK 内部代码路径绕过 monkey-patch）
-- 如果 NaN 防护仍不够，可能需要考虑在 AMap 初始化时使用不同配置
+- 如果 rAF 包装仍不够，可能需要考虑在 AMap 初始化时使用不同配置
