@@ -408,6 +408,7 @@ export const MapViewAMap = memo(function MapViewAMap({
   const showEndpointLabels = useSettingsStore(s => s.settings.map_booking_labels) !== false
 
   const containerRef = useRef<HTMLDivElement>(null)
+  const blockerRef = useRef<HTMLDivElement>(null) // transparent event-blocking overlay
   const mapRef = useRef<AMapInstance | null>(null)
   const AMapRef = useRef<any>(null) // the AMap constructor namespace
   const markersRef = useRef<Map<number, AMapMarkerType>>(new Map())
@@ -733,23 +734,24 @@ export const MapViewAMap = memo(function MapViewAMap({
     return () => observer.disconnect()
   }, [])
 
-  // ── Overlay visibility change: DOM-level event blocking + map recovery ──
-  // ROOT CAUSE STRATEGY CHANGE:
-  // Instead of trying to intercept every NaN error after it occurs (impossible —
-  // AMap SDK has too many internal code paths), we prevent errors from happening
-  // in the first place by blocking mouse events at the DOM level when an overlay
-  // (DayDetailPanel/PlaceInspector) is visible over the map.
+  // ── Overlay visibility change: transparent blocker overlay ─────────
+  // STRATEGY: Use a transparent div overlay on top of the map container
+  // (instead of modifying container.style.pointerEvents which can affect
+  // AMap's internal rendering/tile loading). The blocker catches all mouse
+  // events while keeping the map container fully functional for rendering.
   useEffect(() => {
     const container = containerRef.current
+    const blocker = blockerRef.current
     const map = mapRef.current
     if (!container || !map) return
 
     const hasOverlay = hasDayDetail || hasInspector
 
     if (hasOverlay) {
-      // BLOCK all mouse events at DOM level — prevents AMap SDK from receiving
-      // any mousemove/click/wheel events while overlay is showing
-      container.style.pointerEvents = 'none'
+      // Show transparent event-blocking overlay on top of map container
+      if (blocker) {
+        blocker.style.display = 'block'
+      }
 
       try {
         map.setStatus({
@@ -760,11 +762,14 @@ export const MapViewAMap = memo(function MapViewAMap({
           jogEnable: false,
           scrollWheel: false,
         })
+        // Keep map rendered by calling resize (don't disable rendering)
         map.resize()
       } catch {}
     } else {
-      // RESTORE map interaction after overlay closes
-      container.style.pointerEvents = ''
+      // Hide blocker — restore full interaction
+      if (blocker) {
+        blocker.style.display = 'none'
+      }
 
       const recover = () => {
         try {
@@ -1399,6 +1404,13 @@ export const MapViewAMap = memo(function MapViewAMap({
     <>
       <div className="w-full h-full relative">
         <div ref={containerRef} className="w-full h-full" />
+        {/* Transparent event-blocking overlay — shown when DayDetailPanel/PlaceInspector is open */}
+        <div
+          ref={blockerRef}
+          className="absolute inset-0 z-10"
+          style={{ display: 'none' }}
+          aria-hidden="true"
+        />
         {isMobile && (
           <LocationButton
             mode={trackingMode}

@@ -9,44 +9,82 @@ type AMapMarkerType = any
 type AMapPolylineType = any
 
 // ═══════════════════════════════════════════════════════════════════
-// MODULE-LEVEL: Suppress AMap LngLat/Pixel NaN errors
-// Same suppressor as MapViewAMap — prevents uncaught errors from
-// breaking the SDK's event loop when coordinates become inconsistent.
+// MODULE-LEVEL: Aggressive AMap NaN error suppression
+// Installs global interceptors that catch ALL AMap-related NaN errors
+// before they reach the console or break the SDK event loop.
 // ═══════════════════════════════════════════════════════════════════
 ;(function installAmapErrorSuppressor() {
-  if ((window as any).__amapErrorSuppressed) return
-  ;(window as any).__amapErrorSuppressed = true
+  // Always re-install to ensure it's active (idempotent)
+  const FLAG = '__amapErrorSuppressorV2'
+  if ((window as any)[FLAG]) return
+  ;(window as any)[FLAG] = true
 
   function isAmapNaNError(msg: string): boolean {
     if (!msg) return false
-    if (msg.includes('Invalid Object') && (msg.includes('LngLat') || msg.includes('Pixel'))) return true
-    if (msg.includes('NaN') && (msg.includes('LngLat') || msg.includes('Pixel') || msg.includes('containerToLngLat') || msg.includes('lngLatToContainer'))) return true
+    const s = String(msg)
+    // Match all known AMap NaN error patterns
+    if (s.includes('Invalid Object') && (s.includes('LngLat') || s.includes('Pixel'))) return true
+    if (s.includes('LngLat') && s.includes('NaN')) return true
+    if (s.includes('Pixel') && s.includes('NaN')) return true
     return false
   }
 
-  window.addEventListener('error', function(event) {
-    const msg = String(event.message ?? '')
+  // 1. Capture-phase error listener — runs before ANY other handler
+  window.addEventListener('error', function(event: Event) {
+    const e = event as ErrorEvent
+    const msg = String(e.message ?? '')
     if (isAmapNaNError(msg)) {
-      event.stopImmediatePropagation()
-      event.preventDefault()
-      return
+      e.stopPropagation()
+      e.stopImmediatePropagation()
+      e.preventDefault()
+      return false
     }
-  }, true)
+  }, true) // CAPTURE phase — highest priority
 
-  window.addEventListener('unhandledrejection', function(event) {
-    const reason = String(event.reason?.message ?? event.reason ?? '')
-    if (isAmapNaNError(reason)) {
-      event.preventDefault()
+  // 2. Bubbling-phase fallback — catches anything that slips through
+  window.addEventListener('error', function(event: Event) {
+    const e = event as ErrorEvent
+    const msg = String(e.message ?? '')
+    if (isAmapNaNError(msg)) {
+      e.preventDefault()
+    }
+  }, false)
+
+  // 3. Unhandled promise rejection suppression
+  window.addEventListener('unhandledrejection', function(event: Event) {
+    const e = event as PromiseRejectionEvent
+    const reason = e.reason
+    const msg = reason?.message ? String(reason.message) : String(reason ?? '')
+    if (isAmapNaNError(msg)) {
+      e.preventDefault()
     }
   })
 
-  const _origConsoleError = console.error
+  // 4. Console.error override — last line of defense
+  const _origConsoleError = console.error.bind(console)
   console.error = function(...args: any[]) {
     const msg = args.map(a => typeof a === 'string' ? a : (a?.message ?? '')).join(' ')
     if (isAmapNaNError(msg)) return
-    _origConsoleError.apply(console, args)
+    _origConsoleError(...args)
   }
+
+  // 5. Console.warn override — some AMap errors come through warn
+  const _origConsoleWarn = console.warn.bind(console)
+  console.warn = function(...args: any[]) {
+    const msg = args.map(a => typeof a === 'string' ? a : (a?.message ?? '')).join(' ')
+    if (isAmapNaNError(msg)) return
+    _origConsoleWarn(...args)
+  }
+
+  console.log('[JourneyMapAMap] AMap NaN error suppressor v2 installed')
 })()
+
+/** Validate a coordinate pair — returns false for NaN/Infinity/null/undefined */
+function isValidCoord(lat: unknown, lng: unknown): boolean {
+  const nLat = Number(lat), nLng = Number(lng)
+  return Number.isFinite(nLat) && Number.isFinite(nLng) &&
+         nLat >= -90 && nLat <= 90 && nLng >= -180 && nLng <= 180
+}
 
 export interface JourneyMapAMapHandle {
   highlightMarker: (id: string | null) => void
@@ -424,28 +462,26 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
         if (!(k in AMap.Pixel)) (AMap.Pixel as any)[k] = (_OrigPixel as any)[k]
       })
 
-      // Determine initial center & zoom
-      const hasPoints = items.length > 0 || stableTrail.length > 0
+      // Determine initial center & zoom (filter out invalid coordinates)
+      const validItems = items.filter(i => isValidCoord(i.lat, i.lng))
+      const validTrail = stableTrail.filter(p => isValidCoord(p.lat, p.lng))
+      const hasPoints = validItems.length > 0 || validTrail.length > 0
       let initialCenter: [number, number]
       let initialZoom: number
 
       if (hasPoints) {
-        // Compute center from all points (converted to GCJ-02)
+        // Compute center from all VALID points (converted to GCJ-02)
         let sumLng = 0, sumLat = 0, count = 0
-        for (const i of items) {
+        for (const i of validItems) {
           const [gcjLng, gcjLat] = wgs84ToGcj02(i.lng, i.lat)
-          sumLng += gcjLng
-          sumLat += gcjLat
-          count++
+          if (isValidCoord(gcjLat, gcjLng)) { sumLng += gcjLng; sumLat += gcjLat; count++ }
         }
-        for (const p of stableTrail) {
+        for (const p of validTrail) {
           const [gcjLng, gcjLat] = wgs84ToGcj02(p.lng, p.lat)
-          sumLng += gcjLng
-          sumLat += gcjLat
-          count++
+          if (isValidCoord(gcjLat, gcjLng)) { sumLng += gcjLng; sumLat += gcjLat; count++ }
         }
-        initialCenter = [sumLng / count, sumLat / count]
-        initialZoom = 2
+        initialCenter = count > 0 ? [sumLng / count, sumLat / count] : [116.397428, 39.90923]
+        initialZoom = count > 0 ? 2 : 1
       } else {
         initialCenter = [116.397428, 39.90923] // Beijing default
         initialZoom = 1
@@ -506,28 +542,34 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
       setTimeout(() => { try { map.resize() } catch {} }, 200)
 
       // ── Dashed trail line connecting entries in time order ──────────
-      if (items.length > 1) {
-        const path = items.map(i => {
+      if (validItems.length > 1) {
+        const path = validItems.map(i => {
           const [gcjLng, gcjLat] = wgs84ToGcj02(i.lng, i.lat)
           return new AMap.LngLat(gcjLng, gcjLat)
+        }).filter(p => {
+          // Filter out any LngLat that still ended up NaN despite validation
+          try { return Number.isFinite(p.getLng()) && Number.isFinite(p.getLat()) }
+          catch { return false }
         })
-        const polyline = new AMap.Polyline({
-          path,
-          strokeColor: darkRef.current ? '#71717A' : '#A1A1AA',
-          strokeWeight: 1.5,
-          strokeOpacity: 0.5,
-          strokeStyle: 'dashed',
-          strokeDasharray: [2, 3],
-          lineJoin: 'round',
-          lineCap: 'round',
-          zIndex: 50,
-        })
-        polyline.setMap(map)
-        polylineRef.current = polyline
+        if (path.length > 1) {
+          const polyline = new AMap.Polyline({
+            path,
+            strokeColor: darkRef.current ? '#71717A' : '#A1A1AA',
+            strokeWeight: 1.5,
+            strokeOpacity: 0.5,
+            strokeStyle: 'dashed',
+            strokeDasharray: [2, 3],
+            lineJoin: 'round',
+            lineCap: 'round',
+            zIndex: 50,
+          })
+          polyline.setMap(map)
+          polylineRef.current = polyline
+        }
       }
 
-      // ── Markers ────────────────────────────────────────────────────
-      items.forEach((item) => {
+      // ── Markers (only for valid coordinates) ────────────────────────
+      validItems.forEach((item) => {
         const el = markerHtml(item.dayColor, item.dayLabel, false)
 
         // Click handler
@@ -559,16 +601,16 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
         markersRef.current.set(item.id, marker)
       })
 
-      // ── Fit bounds to all points ───────────────────────────────────
+      // ── Fit bounds to all VALID points ───────────────────────────────
       if (hasPoints) {
         const allCoords: any[] = []
-        items.forEach(i => {
+        validItems.forEach(i => {
           const [gcjLng, gcjLat] = wgs84ToGcj02(i.lng, i.lat)
-          allCoords.push(new AMap.LngLat(gcjLng, gcjLat))
+          if (isValidCoord(gcjLat, gcjLng)) allCoords.push(new AMap.LngLat(gcjLng, gcjLat))
         })
-        stableTrail.forEach(p => {
+        validTrail.forEach(p => {
           const [gcjLng, gcjLat] = wgs84ToGcj02(p.lng, p.lat)
-          allCoords.push(new AMap.LngLat(gcjLng, gcjLat))
+          if (isValidCoord(gcjLat, gcjLng)) allCoords.push(new AMap.LngLat(gcjLng, gcjLat))
         })
 
         if (allCoords.length > 0) {

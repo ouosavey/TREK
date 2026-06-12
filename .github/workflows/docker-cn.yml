@@ -72,12 +72,13 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bug1: 旅行计划页面地图交互锁死** (点击天气弹窗后地图灰掉/无法缩放，F12大量报错):" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: AMap SDK有太多内部代码路径产生NaN，事后拦截方案(monkey-patch/错误抑制)无法覆盖所有场景" >> $GITHUB_STEP_SUMMARY
-          echo "  - 策略转变: 从'事后补救'改为'事前预防' — DayDetailPanel出现时在DOM层面用pointer-events:none阻断所有鼠标事件到达地图" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复1: overlay打开时设置container.style.pointerEvents='none'+禁用所有地图交互(scrollWheel/drag/zoom等)" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复2: overlay关闭时恢复pointer-events+多次延迟resize()恢复地图状态" >> $GITHUB_STEP_SUMMARY
-          echo "  - 同时保留: 高德天气已移除统一Open-Meteo + dayDetailId prop + 坐标转换包装 + 健康监控" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bug2: 旅程页面地图不显示(672个NaN报错):**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: JourneyMapAMap缺少NaN防护 + AMap.Scale插件产生大量错误" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 移除AMap.Scale + 完整NaN防护体系(错误抑制器+monkey-patch+坐标包装+健康监控)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bug1: 旅行计划页面地图灰掉(天气弹窗后):**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 之前用container.style.pointerEvents='none'可能影响AMap瓦片渲染" >> $GITHUB_STEP_SUMMARY
+          echo "  - 改为透明遮罩层div方案: 在地图容器上方叠加invisible blocker div" >> $GITHUB_STEP_SUMMARY
+          echo "  - overlay打开时显示blocker(div display:block)拦截所有鼠标事件" >> $GITHUB_STEP_SUMMARY
+          echo "  - overlay关闭时隐藏blocker(div display:none)恢复地图交互" >> $GITHUB_STEP_SUMMARY
+          echo "  - 地图容器CSS保持不变，确保AMap正常渲染瓦片" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bug2: 旅程页面地图不显示(388个NaN报错):**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 升级错误抑制器v2: capture+bubbling双阶段拦截 + console.error/warn双重覆盖" >> $GITHUB_STEP_SUMMARY
+          echo "  - 数据层坐标验证: isValidCoord()过滤NaN/Infinity/越界坐标" >> $GITHUB_STEP_SUMMARY
+          echo "  - 地图初始化/折线/标记/边界适配全部使用验证后的坐标数据" >> $GITHUB_STEP_SUMMARY
