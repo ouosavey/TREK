@@ -73,10 +73,10 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
           echo "- **Bug1: 旅行计划页面点击天气地图灰掉:**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: AMap的setBounds/resize在特定条件下会破坏地图内部坐标系统产生NaN" >> $GITHUB_STEP_SUMMARY
-          echo "  - setBounds后验证center/zoom有效性，NaN时回滚到之前的状态" >> $GITHUB_STEP_SUMMARY
-          echo "  - 所有map.resize()调用后添加NaN验证和自动恢复" >> $GITHUB_STEP_SUMMARY
-          echo "  - mousemove/健康监控中不再调用resize()恢复NaN，改为直接setCenter/setZoom" >> $GITHUB_STEP_SUMMARY
-          echo "  - 地图容器添加isolation:isolate+transform:translateZ(0)防止backdrop-filter干扰" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bug2: 旅程页面地图不显示:**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 已在上次修复(分离地图初始化和标记渲染)" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: AMap SDK在requestAnimationFrame渲染循环中抛出LngLat(NaN,NaN)" >> $GITHUB_STEP_SUMMARY
+          echo "    错误，中断渲染循环导致地图灰掉。之前的monkey-patch无法拦截SDK内部" >> $GITHUB_STEP_SUMMARY
+          echo "    缓存的原始LngLat引用，window.onerror也无法拦截rAF中的错误" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: 包装window.requestAnimationFrame，在回调中try-catch捕获" >> $GITHUB_STEP_SUMMARY
+          echo "    LngLat/Pixel NaN错误并静默吞掉，让渲染循环继续运行" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: zoomend/moveend事件中不再调用map.resize()恢复NaN" >> $GITHUB_STEP_SUMMARY
+          echo "    (resize本身触发更多NaN形成恶性循环)，改为直接setCenter/setZoom" >> $GITHUB_STEP_SUMMARY

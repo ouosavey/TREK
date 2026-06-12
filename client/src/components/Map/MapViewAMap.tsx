@@ -16,9 +16,12 @@ import type { GeoPosition, TrackingMode } from '../../hooks/useGeolocation'
 // MODULE-LEVEL: Suppress AMap LngLat/Pixel NaN errors
 // These errors originate from the AMap SDK's internal event loop when
 // the map's coordinate system becomes temporarily inconsistent.
-// The primary fix is map.resize() + recovery in the component;
-// this listener is a safety net to prevent uncaught errors from
-// breaking the SDK's event loop entirely.
+// The SDK throws "Invalid Object: LngLat(NaN, NaN)" inside
+// requestAnimationFrame callbacks, which breaks the rendering loop
+// and causes the map to go gray. We intercept at multiple levels:
+// 1. Wrap requestAnimationFrame to catch errors in AMap's render loop
+// 2. Capture-phase window.error listener as safety net
+// 3. Console.error override to reduce noise
 // ═══════════════════════════════════════════════════════════════════
 ;(function installAmapErrorSuppressor() {
   if ((window as any).__amapErrorSuppressed) return
@@ -33,7 +36,30 @@ import type { GeoPosition, TrackingMode } from '../../hooks/useGeolocation'
     return false
   }
 
-  // Capture-phase error listener — runs before any other handler
+  // ── 1. Wrap requestAnimationFrame ──────────────────────────────────
+  // AMap SDK's render loop runs in rAF callbacks. When it throws
+  // "Invalid Object: LngLat(NaN, NaN)", the rAF callback is aborted
+  // and the map stops rendering (goes gray). By wrapping rAF, we can
+  // catch these errors and allow the render loop to continue.
+  const _origRAF = window.requestAnimationFrame.bind(window)
+  window.requestAnimationFrame = function(callback: FrameRequestCallback): number {
+    const wrappedCallback = function(timestamp: number) {
+      try {
+        callback(timestamp)
+      } catch (e: any) {
+        const msg = String(e?.message ?? e ?? '')
+        if (isAmapNaNError(msg)) {
+          // Silently swallow — the map will recover on next frame
+          return
+        }
+        // Re-throw non-AMap errors
+        throw e
+      }
+    }
+    return _origRAF(wrappedCallback)
+  }
+
+  // ── 2. Capture-phase error listener ────────────────────────────────
   window.addEventListener('error', function(event) {
     const msg = String(event.message ?? '')
     if (isAmapNaNError(msg)) {
@@ -43,7 +69,7 @@ import type { GeoPosition, TrackingMode } from '../../hooks/useGeolocation'
     }
   }, true)
 
-  // Also suppress unhandled promise rejections from AMap
+  // ── 3. Unhandled promise rejection suppression ─────────────────────
   window.addEventListener('unhandledrejection', function(event) {
     const reason = String(event.reason?.message ?? event.reason ?? '')
     if (isAmapNaNError(reason)) {
@@ -51,7 +77,7 @@ import type { GeoPosition, TrackingMode } from '../../hooks/useGeolocation'
     }
   })
 
-  // Override console.error to filter out AMap NaN noise (keeps console usable)
+  // ── 4. Console.error override ──────────────────────────────────────
   const _origConsoleError = console.error
   console.error = function(...args: any[]) {
     const msg = args.map(a => typeof a === 'string' ? a : (a?.message ?? '')).join(' ')
@@ -668,11 +694,12 @@ export const MapViewAMap = memo(function MapViewAMap({
       map.on('moveend', () => {
         updateReservationStatsRotation()
         // Health check: detect NaN center and recover
+        // Do NOT call map.resize() here — it triggers more NaN errors!
         try {
           const center = map.getCenter()
-          if (center && (Number.isNaN(center.getLng()) || Number.isNaN(center.getLat()))) {
+          if (center && (Number.isNaN(center.getLng()) || Number.isNaN(center.getLat()) ||
+              !Number.isFinite(center.getLng()) || !Number.isFinite(center.getLat()))) {
             console.warn('[AMap] NaN center detected on moveend, resetting...')
-            map.resize()
             map.setCenter([116.397428, 39.90923])
             map.setZoom(10)
           }
@@ -681,11 +708,11 @@ export const MapViewAMap = memo(function MapViewAMap({
       map.on('zoomend', () => {
         updateReservationStatsRotation()
         // Health check: detect NaN zoom and recover
+        // Do NOT call map.resize() here — it triggers more NaN errors!
         try {
           const zoom = map.getZoom()
           if (Number.isNaN(zoom) || !Number.isFinite(zoom)) {
             console.warn('[AMap] NaN zoom detected on zoomend, resetting...')
-            map.resize()
             map.setZoom(10)
           }
         } catch {}

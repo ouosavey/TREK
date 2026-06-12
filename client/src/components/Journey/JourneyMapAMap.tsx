@@ -13,8 +13,13 @@ type AMapPolylineType = any
 // Installs global interceptors that catch ALL AMap-related NaN errors
 // before they reach the console or break the SDK event loop.
 // ═══════════════════════════════════════════════════════════════════
-;(function installAmapErrorSuppressor() {
-  const FLAG = '__amapErrorSuppressorV2'
+// AMap NaN error suppression — shared with MapViewAMap
+// The requestAnimationFrame wrapper in MapViewAMap handles the core
+// issue (rAF errors breaking the render loop). This file only adds
+// JourneyMapAMap-specific console.warn suppression.
+// ═══════════════════════════════════════════════════════════════════
+;(function installJourneyMapSuppressor() {
+  const FLAG = '__amapJourneySuppressor'
   if ((window as any)[FLAG]) return
   ;(window as any)[FLAG] = true
 
@@ -22,59 +27,17 @@ type AMapPolylineType = any
     if (!msg) return false
     const s = String(msg)
     if (s.includes('Invalid Object') && (s.includes('LngLat') || s.includes('Pixel'))) return true
-    if (s.includes('LngLat') && s.includes('NaN')) return true
-    if (s.includes('Pixel') && s.includes('NaN')) return true
+    if (s.includes('NaN') && (s.includes('LngLat') || s.includes('Pixel'))) return true
     return false
   }
 
-  // 1. Capture-phase error listener
-  window.addEventListener('error', function(event: Event) {
-    const e = event as ErrorEvent
-    const msg = String(e.message ?? '')
-    if (isAmapNaNError(msg)) {
-      e.stopPropagation()
-      e.stopImmediatePropagation()
-      e.preventDefault()
-      return false
-    }
-  }, true)
-
-  // 2. Bubbling-phase fallback
-  window.addEventListener('error', function(event: Event) {
-    const e = event as ErrorEvent
-    const msg = String(e.message ?? '')
-    if (isAmapNaNError(msg)) {
-      e.preventDefault()
-    }
-  }, false)
-
-  // 3. Unhandled promise rejection suppression
-  window.addEventListener('unhandledrejection', function(event: Event) {
-    const e = event as PromiseRejectionEvent
-    const reason = e.reason
-    const msg = reason?.message ? String(reason.message) : String(reason ?? '')
-    if (isAmapNaNError(msg)) {
-      e.preventDefault()
-    }
-  })
-
-  // 4. Console.error override
-  const _origConsoleError = console.error.bind(console)
-  console.error = function(...args: any[]) {
-    const msg = args.map(a => typeof a === 'string' ? a : (a?.message ?? '')).join(' ')
-    if (isAmapNaNError(msg)) return
-    _origConsoleError(...args)
-  }
-
-  // 5. Console.warn override
+  // Console.warn override for JourneyMapAMap-specific warnings
   const _origConsoleWarn = console.warn.bind(console)
   console.warn = function(...args: any[]) {
     const msg = args.map(a => typeof a === 'string' ? a : (a?.message ?? '')).join(' ')
     if (isAmapNaNError(msg)) return
     _origConsoleWarn(...args)
   }
-
-  console.log('[JourneyMapAMap] AMap NaN error suppressor v2 installed')
 })()
 
 /** Validate a coordinate pair — returns false for NaN/Infinity/null/undefined */
