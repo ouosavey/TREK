@@ -72,13 +72,12 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bug1: 旅行计划页面地图灰掉(天气弹窗后):**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 之前用container.style.pointerEvents='none'可能影响AMap瓦片渲染" >> $GITHUB_STEP_SUMMARY
-          echo "  - 改为透明遮罩层div方案: 在地图容器上方叠加invisible blocker div" >> $GITHUB_STEP_SUMMARY
-          echo "  - overlay打开时显示blocker(div display:block)拦截所有鼠标事件" >> $GITHUB_STEP_SUMMARY
-          echo "  - overlay关闭时隐藏blocker(div display:none)恢复地图交互" >> $GITHUB_STEP_SUMMARY
-          echo "  - 地图容器CSS保持不变，确保AMap正常渲染瓦片" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bug2: 旅程页面地图不显示(388个NaN报错):**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 升级错误抑制器v2: capture+bubbling双阶段拦截 + console.error/warn双重覆盖" >> $GITHUB_STEP_SUMMARY
-          echo "  - 数据层坐标验证: isValidCoord()过滤NaN/Infinity/越界坐标" >> $GITHUB_STEP_SUMMARY
-          echo "  - 地图初始化/折线/标记/边界适配全部使用验证后的坐标数据" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bug1: 旅行计划页面地图灰掉/交互锁死:**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 删除blocker div和pointer-events方案，改为仅调用map.resize()" >> $GITHUB_STEP_SUMMARY
+          echo "  - 参考main分支Leaflet逻辑：overlay变化时只做invalidateSize，不禁用交互" >> $GITHUB_STEP_SUMMARY
+          echo "  - 保留LngLat/Pixel NaN-safe monkey-patch防止SDK内部崩溃" >> $GITHUB_STEP_SUMMARY
+          echo "  - 保留周期性健康监控和mousemove NaN检测自动恢复" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bug2: 旅程页面地图不显示(NaN报错):**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复invalidateSize实现：从toggle display改为map.resize()" >> $GITHUB_STEP_SUMMARY
+          echo "  - 添加ResizeObserver监听容器尺寸变化自动resize" >> $GITHUB_STEP_SUMMARY
+          echo "  - 保留v2错误抑制器+LngLat/Pixel monkey-patch+坐标验证" >> $GITHUB_STEP_SUMMARY

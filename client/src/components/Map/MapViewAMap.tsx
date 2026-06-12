@@ -408,7 +408,6 @@ export const MapViewAMap = memo(function MapViewAMap({
   const showEndpointLabels = useSettingsStore(s => s.settings.map_booking_labels) !== false
 
   const containerRef = useRef<HTMLDivElement>(null)
-  const blockerRef = useRef<HTMLDivElement>(null) // transparent event-blocking overlay
   const mapRef = useRef<AMapInstance | null>(null)
   const AMapRef = useRef<any>(null) // the AMap constructor namespace
   const markersRef = useRef<Map<number, AMapMarkerType>>(new Map())
@@ -734,74 +733,25 @@ export const MapViewAMap = memo(function MapViewAMap({
     return () => observer.disconnect()
   }, [])
 
-  // ── Overlay visibility change: transparent blocker overlay ─────────
-  // STRATEGY: Use a transparent div overlay on top of the map container
-  // (instead of modifying container.style.pointerEvents which can affect
-  // AMap's internal rendering/tile loading). The blocker catches all mouse
-  // events while keeping the map container fully functional for rendering.
+  // ── Overlay visibility change: resize map (like Leaflet's invalidateSize) ──
+  // When DayDetailPanel or PlaceInspector appears/disappears, the visible
+  // area of the map changes. Call map.resize() to update the SDK's internal
+  // coordinate system — this is the AMap equivalent of Leaflet's invalidateSize().
+  // DO NOT disable interactions or block events — that makes the map unusable.
   useEffect(() => {
-    const container = containerRef.current
-    const blocker = blockerRef.current
     const map = mapRef.current
-    if (!container || !map) return
+    if (!map) return
 
-    const hasOverlay = hasDayDetail || hasInspector
-
-    if (hasOverlay) {
-      // Show transparent event-blocking overlay on top of map container
-      if (blocker) {
-        blocker.style.display = 'block'
-      }
-
-      try {
-        map.setStatus({
-          dragEnable: false,
-          zoomEnable: false,
-          doubleClickZoom: false,
-          keyboardEnable: false,
-          jogEnable: false,
-          scrollWheel: false,
-        })
-        // Keep map rendered by calling resize (don't disable rendering)
-        map.resize()
-      } catch {}
-    } else {
-      // Hide blocker — restore full interaction
-      if (blocker) {
-        blocker.style.display = 'none'
-      }
-
-      const recover = () => {
-        try {
-          map.resize()
-          map.setStatus({
-            dragEnable: true,
-            zoomEnable: true,
-            doubleClickZoom: true,
-            keyboardEnable: true,
-            jogEnable: true,
-            scrollWheel: true,
-          })
-          const center = map.getCenter()
-          if (!center || Number.isNaN(center.getLng()) || Number.isNaN(center.getLat()) ||
-              !Number.isFinite(center.getLng()) || !Number.isFinite(center.getLat())) {
-            console.warn('[AMap] Recovering NaN center after overlay close...')
-            map.setCenter([116.397428, 39.90923])
-            map.setZoom(10)
-          }
-          const zoom = map.getZoom()
-          if (Number.isNaN(zoom) || !Number.isFinite(zoom)) {
-            map.setZoom(10)
-          }
-        } catch {}
-      }
-
-      recover()
-      setTimeout(recover, 100)
-      setTimeout(recover, 300)
-      setTimeout(recover, 600)
-      setTimeout(recover, 1000)
+    const resize = () => {
+      try { map.resize() } catch {}
     }
+
+    // Immediate + delayed resizes to handle animation timing
+    resize()
+    const t1 = setTimeout(resize, 100)
+    const t2 = setTimeout(resize, 300)
+    const t3 = setTimeout(resize, 600)
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
   }, [hasDayDetail, hasInspector, dayDetailId])
 
   // ── Marker reconciliation ────────────────────────────────────────────
@@ -1404,13 +1354,6 @@ export const MapViewAMap = memo(function MapViewAMap({
     <>
       <div className="w-full h-full relative">
         <div ref={containerRef} className="w-full h-full" />
-        {/* Transparent event-blocking overlay — shown when DayDetailPanel/PlaceInspector is open */}
-        <div
-          ref={blockerRef}
-          className="absolute inset-0 z-10"
-          style={{ display: 'none' }}
-          aria-hidden="true"
-        />
         {isMobile && (
           <LocationButton
             mode={trackingMode}

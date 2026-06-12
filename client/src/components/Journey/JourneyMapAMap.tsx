@@ -386,19 +386,14 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
   }, [highlightMarker])
 
   const invalidateSize = useCallback(() => {
-    // AMap doesn't have a direct resize method — it auto-resizes.
-    // Trigger a re-layout by calling setFitView with no arguments if map exists.
+    // AMap's equivalent of Leaflet's invalidateSize() — call map.resize()
     try {
       if (mapRef.current) {
-        // Force recalculation by briefly toggling display
-        const container = containerRef.current
-        if (container) {
-          const prev = container.style.display
-          container.style.display = 'none'
-          // Force reflow
-          void container.offsetHeight
-          container.style.display = prev
-        }
+        mapRef.current.resize()
+        // Delayed resize to handle animation timing (same pattern as main branch)
+        setTimeout(() => {
+          try { mapRef.current?.resize() } catch {}
+        }, 200)
       }
     } catch { /* noop */ }
   }, [])
@@ -648,6 +643,20 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
       AMapRef.current = null
     }
   }, [entries, stableTrail, amapKey, amapSecurityCode, fullScreen, paddingBottom])
+
+  // ── ResizeObserver: keep map coordinate system consistent ───────────
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const observer = new ResizeObserver(() => {
+      const map = mapRef.current
+      if (map) {
+        try { map.resize() } catch {}
+      }
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
 
   // ── Dark mode toggle ──────────────────────────────────────────────────
   useEffect(() => {
