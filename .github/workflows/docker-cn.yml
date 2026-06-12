@@ -72,13 +72,12 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bug1: 旅行计划页面地图交互锁死** (点击天气弹窗后地图不能缩放/点击):" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: 天气弹窗(DayDetailPanel)出现/消失后，AMap SDK内部坐标系统变得不一致，导致LngLat(NaN,NaN)错误" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复1: 添加ResizeObserver监听地图容器尺寸变化，自动调用map.resize()" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复2: 监听hasDayDetail/hasInspector变化，弹窗出现/消失后调用map.resize()+map.setStatus()重置交互状态" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复3: moveend/zoomend事件中添加健康检查，检测NaN center/zoom并自动恢复" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复4: 增强模块级错误抑制器，同时拦截error和unhandledrejection事件" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bug2: 旅程编辑条目地点搜索不工作** (JourneyDetailPage + PlaceFormModal):" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: AMap Web Service API使用JS API Key时返回USERKEY_PLAT_NOMATCH，后端静默返回空数组，前端不fallback" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复1: 前端搜索逻辑增加空结果fallback — AMap返回空结果时自动尝试Google/OSM搜索" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复2: 后端searchAmap增加API错误日志(console.warn)，便于排查Key配置问题" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bug1: 旅行计划页面地图交互锁死** (点击天气弹窗后地图不能缩放/点击，F12控制台大量报错):" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: DayDetailPanel出现后AMap SDK内部坐标系统变得不一致，map.resize()调用时机不对导致NaN错误级联" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复1: overlay变化时立即调用map.resize()+setStatus()（不再延迟350ms），并在150/400/800ms后再次调用确保布局稳定" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复2: 每次resize后验证center/zoom是否为NaN，若为NaN则重置" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复3: 添加mousemove事件防抖健康检查，检测到NaN坐标时立即调用map.resize()" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复4: 增强模块级错误抑制器，覆盖console.error过滤AMap NaN噪音，保持控制台可用" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bug2: 旅程页面编辑条目地点搜索不工作** (JourneyDetailPage EntryEditor):" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: EntryEditor是模块级函数组件，但引用了JourneyDetailPage组件内的局部变量searchProviderSetting，导致ReferenceError被try-catch捕获后搜索始终返回空结果" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: 在EntryEditor中添加useSettingsStore获取search_provider/amap_key/amap_web_service_key设置" >> $GITHUB_STEP_SUMMARY

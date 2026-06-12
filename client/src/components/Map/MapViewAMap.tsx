@@ -24,10 +24,19 @@ import type { GeoPosition, TrackingMode } from '../../hooks/useGeolocation'
   if ((window as any).__amapErrorSuppressed) return
   ;(window as any).__amapErrorSuppressed = true
 
+  function isAmapNaNError(msg: string): boolean {
+    if (!msg) return false
+    // Match "Invalid Object: LngLat(NaN, NaN)" or "Invalid Object: Pixel(NaN, NaN)"
+    if (msg.includes('Invalid Object') && (msg.includes('LngLat') || msg.includes('Pixel'))) return true
+    // Match other NaN-related errors from AMap internals
+    if (msg.includes('NaN') && (msg.includes('LngLat') || msg.includes('Pixel') || msg.includes('containerToLngLat') || msg.includes('lngLatToContainer'))) return true
+    return false
+  }
+
   // Capture-phase error listener — runs before any other handler
   window.addEventListener('error', function(event) {
     const msg = String(event.message ?? '')
-    if (msg.includes('Invalid Object') && (msg.includes('LngLat') || msg.includes('Pixel'))) {
+    if (isAmapNaNError(msg)) {
       event.stopImmediatePropagation()
       event.preventDefault()
       return
@@ -37,10 +46,18 @@ import type { GeoPosition, TrackingMode } from '../../hooks/useGeolocation'
   // Also suppress unhandled promise rejections from AMap
   window.addEventListener('unhandledrejection', function(event) {
     const reason = String(event.reason?.message ?? event.reason ?? '')
-    if (reason.includes('Invalid Object') && (reason.includes('LngLat') || reason.includes('Pixel'))) {
+    if (isAmapNaNError(reason)) {
       event.preventDefault()
     }
   })
+
+  // Override console.error to filter out AMap NaN noise (keeps console usable)
+  const _origConsoleError = console.error
+  console.error = function(...args: any[]) {
+    const msg = args.map(a => typeof a === 'string' ? a : (a?.message ?? '')).join(' ')
+    if (isAmapNaNError(msg)) return // suppress
+    _origConsoleError.apply(console, args)
+  }
 })()
 
 // ── Safe coordinate helpers ───────────────────────────────────────────
@@ -580,7 +597,8 @@ export const MapViewAMap = memo(function MapViewAMap({
         try {
           const center = map.getCenter()
           if (center && (Number.isNaN(center.getLng()) || Number.isNaN(center.getLat()))) {
-            console.warn('[AMap] NaN center detected, resetting...')
+            console.warn('[AMap] NaN center detected on moveend, resetting...')
+            map.resize()
             map.setCenter([116.397428, 39.90923])
             map.setZoom(10)
           }
@@ -592,8 +610,24 @@ export const MapViewAMap = memo(function MapViewAMap({
         try {
           const zoom = map.getZoom()
           if (Number.isNaN(zoom) || !Number.isFinite(zoom)) {
-            console.warn('[AMap] NaN zoom detected, resetting...')
+            console.warn('[AMap] NaN zoom detected on zoomend, resetting...')
+            map.resize()
             map.setZoom(10)
+          }
+        } catch {}
+      })
+
+      // Debounced mousemove health check: detect NaN coordinates early
+      // and call resize() to prevent cascading errors
+      let mouseMoveRecoverTimer: ReturnType<typeof setTimeout> | null = null
+      map.on('mousemove', () => {
+        if (mouseMoveRecoverTimer) return // debounce: only check once per 500ms
+        mouseMoveRecoverTimer = setTimeout(() => { mouseMoveRecoverTimer = null }, 500)
+        try {
+          const center = map.getCenter()
+          if (center && (Number.isNaN(center.getLng()) || Number.isNaN(center.getLat()))) {
+            console.warn('[AMap] NaN center on mousemove, calling resize()...')
+            map.resize()
           }
         } catch {}
       })
@@ -641,11 +675,10 @@ export const MapViewAMap = memo(function MapViewAMap({
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    // Delay to allow the overlay animation to complete and the layout to settle
-    const timer = setTimeout(() => {
+
+    const recover = () => {
       try {
         map.resize()
-        // Re-enable all interactions explicitly (in case the SDK disabled them)
         map.setStatus({
           dragEnable: true,
           zoomEnable: true,
@@ -653,9 +686,28 @@ export const MapViewAMap = memo(function MapViewAMap({
           keyboardEnable: true,
           jogEnable: true,
         })
+        // Verify map state is healthy; reset if NaN detected
+        const center = map.getCenter()
+        if (center && (Number.isNaN(center.getLng()) || Number.isNaN(center.getLat()))) {
+          console.warn('[AMap] NaN center after overlay change, resetting...')
+          map.setCenter([116.397428, 39.90923])
+          map.setZoom(10)
+        }
+        const zoom = map.getZoom()
+        if (Number.isNaN(zoom) || !Number.isFinite(zoom)) {
+          console.warn('[AMap] NaN zoom after overlay change, resetting...')
+          map.setZoom(10)
+        }
       } catch {}
-    }, 350)
-    return () => clearTimeout(timer)
+    }
+
+    // Immediate resize to prevent the SDK from processing events with stale coordinates
+    recover()
+    // Additional delayed resizes to catch late layout changes and animations
+    const t1 = setTimeout(recover, 150)
+    const t2 = setTimeout(recover, 400)
+    const t3 = setTimeout(recover, 800)
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
   }, [hasDayDetail, hasInspector])
 
   // ── Marker reconciliation ────────────────────────────────────────────
