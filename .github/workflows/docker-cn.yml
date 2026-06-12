@@ -72,13 +72,12 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bug1: 旅行计划页面地图交互锁死** (点击天气弹窗后地图不能缩放/点击，F12控制台大量报错):" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: 高德天气API对不同日期返回不同格式数据（近3天简略/远期详细），导致DayDetailPanel面板大小差异大，触发AMap SDK坐标系统NaN错误级联" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 移除高德天气API，统一使用Open-Meteo天气数据（所有日期格式一致）" >> $GITHUB_STEP_SUMMARY
-          echo "  - 同时保留: dayDetailId prop触发resize + 地图实例级坐标转换包装 + 周期性健康监控 + 错误抑制器" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bug2: 旅程页面保存地点后地图不显示/大量NaN报错:**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: JourneyMapAMap加载了AMap.Scale插件（产生400+ NaN错误），且没有任何NaN防护（无monkey-patch、无错误抑制、无坐标包装）" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复1: 移除AMap.Scale插件（与MapViewAMap一致）" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复2: 添加完整的NaN防护体系（模块级错误抑制器 + LngLat/Pixel monkey-patch + 坐标转换包装 + 周期性健康监控）" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bug3: 旅程页面编辑条目地点搜索不工作** (已在上次提交修复):" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: EntryEditor中添加useSettingsStore获取搜索设置" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bug1: 旅行计划页面地图交互锁死** (点击天气弹窗后地图灰掉/无法缩放，F12大量报错):" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: AMap SDK有太多内部代码路径产生NaN，事后拦截方案(monkey-patch/错误抑制)无法覆盖所有场景" >> $GITHUB_STEP_SUMMARY
+          echo "  - 策略转变: 从'事后补救'改为'事前预防' — DayDetailPanel出现时在DOM层面用pointer-events:none阻断所有鼠标事件到达地图" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复1: overlay打开时设置container.style.pointerEvents='none'+禁用所有地图交互(scrollWheel/drag/zoom等)" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复2: overlay关闭时恢复pointer-events+多次延迟resize()恢复地图状态" >> $GITHUB_STEP_SUMMARY
+          echo "  - 同时保留: 高德天气已移除统一Open-Meteo + dayDetailId prop + 坐标转换包装 + 健康监控" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bug2: 旅程页面地图不显示(672个NaN报错):**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: JourneyMapAMap缺少NaN防护 + AMap.Scale插件产生大量错误" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: 移除AMap.Scale + 完整NaN防护体系(错误抑制器+monkey-patch+坐标包装+健康监控)" >> $GITHUB_STEP_SUMMARY

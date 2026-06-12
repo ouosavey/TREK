@@ -733,46 +733,70 @@ export const MapViewAMap = memo(function MapViewAMap({
     return () => observer.disconnect()
   }, [])
 
-  // ── Overlay visibility change: resize + re-enable interactions ──────
-  // When DayDetailPanel or PlaceInspector appears/disappears, the map's
-  // internal coordinate system may become inconsistent, causing NaN errors
-  // that lock up the map. Calling map.resize() resets the coordinate system.
+  // ── Overlay visibility change: DOM-level event blocking + map recovery ──
+  // ROOT CAUSE STRATEGY CHANGE:
+  // Instead of trying to intercept every NaN error after it occurs (impossible —
+  // AMap SDK has too many internal code paths), we prevent errors from happening
+  // in the first place by blocking mouse events at the DOM level when an overlay
+  // (DayDetailPanel/PlaceInspector) is visible over the map.
   useEffect(() => {
+    const container = containerRef.current
     const map = mapRef.current
-    if (!map) return
+    if (!container || !map) return
 
-    const recover = () => {
+    const hasOverlay = hasDayDetail || hasInspector
+
+    if (hasOverlay) {
+      // BLOCK all mouse events at DOM level — prevents AMap SDK from receiving
+      // any mousemove/click/wheel events while overlay is showing
+      container.style.pointerEvents = 'none'
+
       try {
-        map.resize()
         map.setStatus({
-          dragEnable: true,
-          zoomEnable: true,
-          doubleClickZoom: true,
-          keyboardEnable: true,
-          jogEnable: true,
+          dragEnable: false,
+          zoomEnable: false,
+          doubleClickZoom: false,
+          keyboardEnable: false,
+          jogEnable: false,
+          scrollWheel: false,
         })
-        // Verify map state is healthy; reset if NaN detected
-        const center = map.getCenter()
-        if (center && (Number.isNaN(center.getLng()) || Number.isNaN(center.getLat()))) {
-          console.warn('[AMap] NaN center after overlay change, resetting...')
-          map.setCenter([116.397428, 39.90923])
-          map.setZoom(10)
-        }
-        const zoom = map.getZoom()
-        if (Number.isNaN(zoom) || !Number.isFinite(zoom)) {
-          console.warn('[AMap] NaN zoom after overlay change, resetting...')
-          map.setZoom(10)
-        }
+        map.resize()
       } catch {}
-    }
+    } else {
+      // RESTORE map interaction after overlay closes
+      container.style.pointerEvents = ''
 
-    // Immediate resize to prevent the SDK from processing events with stale coordinates
-    recover()
-    // Additional delayed resizes to catch late layout changes and animations
-    const t1 = setTimeout(recover, 150)
-    const t2 = setTimeout(recover, 400)
-    const t3 = setTimeout(recover, 800)
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
+      const recover = () => {
+        try {
+          map.resize()
+          map.setStatus({
+            dragEnable: true,
+            zoomEnable: true,
+            doubleClickZoom: true,
+            keyboardEnable: true,
+            jogEnable: true,
+            scrollWheel: true,
+          })
+          const center = map.getCenter()
+          if (!center || Number.isNaN(center.getLng()) || Number.isNaN(center.getLat()) ||
+              !Number.isFinite(center.getLng()) || !Number.isFinite(center.getLat())) {
+            console.warn('[AMap] Recovering NaN center after overlay close...')
+            map.setCenter([116.397428, 39.90923])
+            map.setZoom(10)
+          }
+          const zoom = map.getZoom()
+          if (Number.isNaN(zoom) || !Number.isFinite(zoom)) {
+            map.setZoom(10)
+          }
+        } catch {}
+      }
+
+      recover()
+      setTimeout(recover, 100)
+      setTimeout(recover, 300)
+      setTimeout(recover, 600)
+      setTimeout(recover, 1000)
+    }
   }, [hasDayDetail, hasInspector, dayDetailId])
 
   // ── Marker reconciliation ────────────────────────────────────────────
