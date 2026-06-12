@@ -845,6 +845,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
               rightWidth={rightCollapsed ? 0 : rightWidth}
               hasInspector={!!selectedPlace}
               hasDayDetail={!!showDayDetail && !selectedPlace}
+              dayDetailId={showDayDetail?.id ?? null}
               reservations={reservations}
               showReservationStats={settings.route_calculation !== false}
               visibleConnectionIds={visibleConnections}

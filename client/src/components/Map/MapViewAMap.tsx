@@ -125,6 +125,7 @@ interface Props {
   rightWidth?: number
   hasInspector?: boolean
   hasDayDetail?: boolean
+  dayDetailId?: number | null
   reservations?: Reservation[]
   showReservationStats?: boolean
   visibleConnectionIds?: number[]
@@ -395,6 +396,7 @@ export const MapViewAMap = memo(function MapViewAMap({
   rightWidth = 0,
   hasInspector = false,
   hasDayDetail = false,
+  dayDetailId = null,
   reservations = [] as Reservation[],
   showReservationStats = false,
   visibleConnectionIds = [] as number[],
@@ -566,6 +568,65 @@ export const MapViewAMap = memo(function MapViewAMap({
       })
       mapRef.current = map
 
+      // ── Map-instance-level coordinate safety wrappers ───────────────
+      // Even though we patched AMap.LngLat/Pixel constructors above, the SDK
+      // has internal code paths that bypass constructors (e.g., Object.create,
+      // factory methods, inline object literals). These wrappers intercept
+      // coordinate conversions at the map level and guarantee no NaN leaks.
+      const SAFE_CENTER: [number, number] = [116.397428, 39.90923]
+      const _origContainerToLngLat = map.containerToLngLat.bind(map)
+      map.containerToLngLat = function(pixel: any): any {
+        try {
+          const result = _origContainerToLngLat(pixel)
+          if (!result) return new AMap.LngLat(...SAFE_CENTER)
+          const lng = result.getLng?.() ?? result.lng
+          const lat = result.getLat?.() ?? result.lat
+          if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+            return new AMap.LngLat(...SAFE_CENTER)
+          }
+          return result
+        } catch {
+          return new AMap.LngLat(...SAFE_CENTER)
+        }
+      }
+      const _origLngLatToContainer = map.lngLatToContainer.bind(map)
+      map.lngLatToContainer = function(lnglat: any): any {
+        try {
+          const result = _origLngLatToContainer(lnglat)
+          if (!result) return new AMap.Pixel(0, 0)
+          const x = result.getX?.() ?? result.x
+          const y = result.getY?.() ?? result.y
+          if (!Number.isFinite(x) || !Number.isFinite(y)) {
+            return new AMap.Pixel(0, 0)
+          }
+          return result
+        } catch {
+          return new AMap.Pixel(0, 0)
+        }
+      }
+
+      // ── Periodic health monitor ───────────────────────────────────────
+      // Runs every 2 seconds to detect and recover from silent state corruption.
+      // This catches NaN states that slip past event-based health checks.
+      const healthInterval = setInterval(() => {
+        try {
+          const c = map.getCenter()
+          if (!c || Number.isNaN(c.getLng()) || Number.isNaN(c.getLat()) || !Number.isFinite(c.getLng()) || !Number.isFinite(c.getLat())) {
+            console.warn('[AMap] Health check: NaN center detected, recovering...')
+            map.resize()
+            map.setCenter(SAFE_CENTER)
+            map.setZoom(10)
+          }
+          const z = map.getZoom()
+          if (Number.isNaN(z) || !Number.isFinite(z)) {
+            console.warn('[AMap] Health check: NaN zoom detected, recovering...')
+            map.setZoom(10)
+          }
+        } catch {}
+      }, 2000)
+      // Store interval ID for cleanup
+      ;(map as any).__healthInterval = healthInterval
+
       // Force resize after DOM layout to ensure correct dimensions
       setTimeout(() => { try { map.resize() } catch {} }, 200)
 
@@ -637,6 +698,10 @@ export const MapViewAMap = memo(function MapViewAMap({
 
     return () => {
       destroyed = true
+      // Clear periodic health monitor
+      if (mapRef.current && (mapRef.current as any).__healthInterval) {
+        clearInterval((mapRef.current as any).__healthInterval)
+      }
       // Clean up all markers and overlays
       markersRef.current.forEach(m => { try { m.setMap(null) } catch {} })
       markersRef.current.clear()
@@ -708,7 +773,7 @@ export const MapViewAMap = memo(function MapViewAMap({
     const t2 = setTimeout(recover, 400)
     const t3 = setTimeout(recover, 800)
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
-  }, [hasDayDetail, hasInspector])
+  }, [hasDayDetail, hasInspector, dayDetailId])
 
   // ── Marker reconciliation ────────────────────────────────────────────
   useEffect(() => {
