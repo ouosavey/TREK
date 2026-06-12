@@ -986,9 +986,58 @@ export const MapViewAMap = memo(function MapViewAMap({
         bounds.extend(new AMap.LngLat(lng, lat))
       }
 
-      map.setBounds(bounds, false, paddingOpts)
+      // Save current state before setBounds — AMap's setBounds can corrupt
+      // the map's internal coordinate system, producing NaN center/zoom
+      let prevCenter: [number, number] | null = null
+      let prevZoom: number | null = null
+      try {
+        const c = map.getCenter()
+        if (c && Number.isFinite(c.getLng()) && Number.isFinite(c.getLat())) {
+          prevCenter = [c.getLng(), c.getLat()]
+        }
+        const z = map.getZoom()
+        if (Number.isFinite(z)) prevZoom = z
+      } catch {}
+
+      try {
+        map.setBounds(bounds, false, paddingOpts)
+      } catch {
+        // setBounds itself may throw — ignore
+      }
+
+      // Validate: if setBounds corrupted the map state, restore previous state
+      try {
+        const newCenter = map.getCenter()
+        if (newCenter && (Number.isNaN(newCenter.getLng()) || Number.isNaN(newCenter.getLat()) ||
+            !Number.isFinite(newCenter.getLng()) || !Number.isFinite(newCenter.getLat()))) {
+          console.warn('[AMap] setBounds produced NaN center, restoring...')
+          if (prevCenter) map.setCenter(prevCenter)
+          if (prevZoom !== null) map.setZoom(prevZoom)
+          return // skip panBy — map state is corrupted
+        }
+        const newZoom = map.getZoom()
+        if (Number.isNaN(newZoom) || !Number.isFinite(newZoom)) {
+          console.warn('[AMap] setBounds produced NaN zoom, restoring...')
+          if (prevCenter) map.setCenter(prevCenter)
+          if (prevZoom !== null) map.setZoom(prevZoom)
+          return
+        }
+      } catch {
+        if (prevCenter) map.setCenter(prevCenter)
+        if (prevZoom !== null) map.setZoom(prevZoom)
+        return
+      }
+
       if (hasDayDetail) {
-        setTimeout(() => map.panBy(0, 150), 300)
+        setTimeout(() => {
+          try {
+            // Validate again before panBy
+            const c = map.getCenter()
+            if (c && Number.isFinite(c.getLng()) && Number.isFinite(c.getLat())) {
+              map.panBy(0, 150)
+            }
+          } catch {}
+        }, 300)
       }
     } catch { /* noop */ }
   }, [fitKey]) // eslint-disable-line react-hooks/exhaustive-deps
