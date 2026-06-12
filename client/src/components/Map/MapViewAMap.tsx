@@ -707,12 +707,17 @@ export const MapViewAMap = memo(function MapViewAMap({
       })
       map.on('zoomend', () => {
         updateReservationStatsRotation()
-        // Health check: detect NaN zoom and recover
+        // Health check: detect NaN zoom/center and recover
         // Do NOT call map.resize() here — it triggers more NaN errors!
         try {
           const zoom = map.getZoom()
-          if (Number.isNaN(zoom) || !Number.isFinite(zoom)) {
-            console.warn('[AMap] NaN zoom detected on zoomend, resetting...')
+          const center = map.getCenter()
+          const hasNaNZoom = Number.isNaN(zoom) || !Number.isFinite(zoom)
+          const hasNaNCenter = center && (Number.isNaN(center.getLng()) || Number.isNaN(center.getLat()) ||
+              !Number.isFinite(center.getLng()) || !Number.isFinite(center.getLat()))
+          if (hasNaNZoom || hasNaNCenter) {
+            console.warn('[AMap] NaN detected on zoomend, resetting...')
+            map.setCenter(SAFE_CENTER)
             map.setZoom(10)
           }
         } catch {}
@@ -1034,63 +1039,48 @@ export const MapViewAMap = memo(function MapViewAMap({
       }
       if (gcjCoords.length === 0) return
 
-      const bounds = new AMap.Bounds()
-      for (const [lng, lat] of gcjCoords) {
-        bounds.extend(new AMap.LngLat(lng, lat))
+      // ── Use setZoomAndCenter instead of setBounds ──────────────────
+      // AMap's setBounds() internally calculates zoom/center from bounds
+      // + padding, which can produce NaN values that corrupt the map's
+      // internal coordinate system permanently. setZoomAndCenter() sets
+      // values directly without the problematic calculation.
+      //
+      // Calculate center and zoom manually from the coordinates:
+      const avgLng = gcjCoords.reduce((s, c) => s + c[0], 0) / gcjCoords.length
+      const avgLat = gcjCoords.reduce((s, c) => s + c[1], 0) / gcjCoords.length
+
+      // Calculate appropriate zoom from the coordinate spread
+      const lngSpread = Math.max(...gcjCoords.map(c => c[0])) - Math.min(...gcjCoords.map(c => c[0]))
+      const latSpread = Math.max(...gcjCoords.map(c => c[1])) - Math.min(...gcjCoords.map(c => c[1]))
+      const maxSpread = Math.max(lngSpread, latSpread)
+
+      // Heuristic zoom from spread (roughly matches AMap's zoom levels)
+      let zoom: number
+      if (maxSpread > 50) zoom = 3
+      else if (maxSpread > 20) zoom = 4
+      else if (maxSpread > 10) zoom = 5
+      else if (maxSpread > 5) zoom = 6
+      else if (maxSpread > 2) zoom = 7
+      else if (maxSpread > 1) zoom = 8
+      else if (maxSpread > 0.5) zoom = 9
+      else if (maxSpread > 0.2) zoom = 10
+      else if (maxSpread > 0.1) zoom = 11
+      else if (maxSpread > 0.05) zoom = 12
+      else if (maxSpread > 0.02) zoom = 13
+      else if (maxSpread > 0.01) zoom = 14
+      else zoom = 15
+
+      // Don't zoom out further than current zoom if only one place
+      if (gcjCoords.length === 1) {
+        zoom = Math.max(map.getZoom() || 10, 12)
       }
 
-      // Save current state before setBounds — AMap's setBounds can corrupt
-      // the map's internal coordinate system, producing NaN center/zoom
-      let prevCenter: [number, number] | null = null
-      let prevZoom: number | null = null
-      try {
-        const c = map.getCenter()
-        if (c && Number.isFinite(c.getLng()) && Number.isFinite(c.getLat())) {
-          prevCenter = [c.getLng(), c.getLat()]
-        }
-        const z = map.getZoom()
-        if (Number.isFinite(z)) prevZoom = z
-      } catch {}
-
-      try {
-        map.setBounds(bounds, false, paddingOpts)
-      } catch {
-        // setBounds itself may throw — ignore
-      }
-
-      // Validate: if setBounds corrupted the map state, restore previous state
-      try {
-        const newCenter = map.getCenter()
-        if (newCenter && (Number.isNaN(newCenter.getLng()) || Number.isNaN(newCenter.getLat()) ||
-            !Number.isFinite(newCenter.getLng()) || !Number.isFinite(newCenter.getLat()))) {
-          console.warn('[AMap] setBounds produced NaN center, restoring...')
-          if (prevCenter) map.setCenter(prevCenter)
-          if (prevZoom !== null) map.setZoom(prevZoom)
-          return // skip panBy — map state is corrupted
-        }
-        const newZoom = map.getZoom()
-        if (Number.isNaN(newZoom) || !Number.isFinite(newZoom)) {
-          console.warn('[AMap] setBounds produced NaN zoom, restoring...')
-          if (prevCenter) map.setCenter(prevCenter)
-          if (prevZoom !== null) map.setZoom(prevZoom)
-          return
-        }
-      } catch {
-        if (prevCenter) map.setCenter(prevCenter)
-        if (prevZoom !== null) map.setZoom(prevZoom)
-        return
-      }
+      map.setZoomAndCenter(zoom, [avgLng, avgLat], false, 400)
 
       if (hasDayDetail) {
         setTimeout(() => {
-          try {
-            // Validate again before panBy
-            const c = map.getCenter()
-            if (c && Number.isFinite(c.getLng()) && Number.isFinite(c.getLat())) {
-              map.panBy(0, 150)
-            }
-          } catch {}
-        }, 300)
+          try { map.panBy(0, 150) } catch {}
+        }, 500)
       }
     } catch { /* noop */ }
   }, [fitKey]) // eslint-disable-line react-hooks/exhaustive-deps

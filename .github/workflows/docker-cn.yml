@@ -73,10 +73,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
           echo "- **Bug1: 旅行计划页面点击天气地图灰掉:**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: AMap SDK在requestAnimationFrame渲染循环中抛出LngLat(NaN,NaN)" >> $GITHUB_STEP_SUMMARY
-          echo "    错误，中断渲染循环导致地图灰掉。之前的monkey-patch无法拦截SDK内部" >> $GITHUB_STEP_SUMMARY
-          echo "    缓存的原始LngLat引用，window.onerror也无法拦截rAF中的错误" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 包装window.requestAnimationFrame，在回调中try-catch捕获" >> $GITHUB_STEP_SUMMARY
-          echo "    LngLat/Pixel NaN错误并静默吞掉，让渲染循环继续运行" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: zoomend/moveend事件中不再调用map.resize()恢复NaN" >> $GITHUB_STEP_SUMMARY
-          echo "    (resize本身触发更多NaN形成恶性循环)，改为直接setCenter/setZoom" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: AMap的setBounds()内部计算zoom/center时产生NaN" >> $GITHUB_STEP_SUMMARY
+          echo "    setBounds是异步的(动画)，NaN在动画完成后才出现" >> $GITHUB_STEP_SUMMARY
+          echo "    同步验证无法检测到，导致地图内部状态永久损坏" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: 用setZoomAndCenter替代setBounds，手动计算zoom/center" >> $GITHUB_STEP_SUMMARY
+          echo "    setZoomAndCenter直接设置值，不经过有问题的内部计算" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: zoomend事件同时检查center和zoom的NaN状态" >> $GITHUB_STEP_SUMMARY
