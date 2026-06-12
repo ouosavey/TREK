@@ -280,12 +280,11 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
     if (infoWindowRef.current) {
       infoWindowRef.current.setContent(html)
       infoWindowRef.current.open(mapRef.current, new AMap.LngLat(gcjLng, gcjLat))
-      const el = infoWindowRef.current.getDom()
-      if (el) {
-        const container = el.parentElement
-        if (container) {
-          container.classList.toggle('trek-dark', !!darkRef.current)
-        }
+      // Note: AMap 2.0 InfoWindow does NOT have getDom() method.
+      // Apply dark class via container query instead.
+      const popupEl = document.querySelector('.amap-info.trek-journey-popup')
+      if (popupEl) {
+        (popupEl as HTMLElement).classList.toggle('trek-dark', !!darkRef.current)
       }
     } else {
       infoWindowRef.current = new AMap.InfoWindow({
@@ -586,28 +585,46 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
         } catch { /* skip markers that fail */ }
       })
 
-      // ── Fit bounds ─────────────────────────────────────────────
+      // ── Fit bounds (use setZoomAndCenter to avoid setBounds NaN issue) ─
       const hasPoints = validItems.length > 0 || validTrail.length > 0
       if (hasPoints) {
-        const allCoords: any[] = []
+        const allCoords: [number, number][] = []
         validItems.forEach(i => {
           const [gcjLng, gcjLat] = wgs84ToGcj02(i.lng, i.lat)
-          if (isValidCoord(gcjLat, gcjLng)) allCoords.push(new AMap.LngLat(gcjLng, gcjLat))
+          if (isValidCoord(gcjLat, gcjLng)) allCoords.push([gcjLng, gcjLat])
         })
         validTrail.forEach(p => {
           const [gcjLng, gcjLat] = wgs84ToGcj02(p.lng, p.lat)
-          if (isValidCoord(gcjLat, gcjLng)) allCoords.push(new AMap.LngLat(gcjLng, gcjLat))
+          if (isValidCoord(gcjLat, gcjLng)) allCoords.push([gcjLng, gcjLat])
         })
 
         if (allCoords.length > 0) {
-          const bounds = new AMap.Bounds()
-          for (const lngLat of allCoords) {
-            bounds.extend(lngLat)
-          }
-          const pb = paddingBottom || 50
+          // Calculate center as average of all coordinates
+          const avgLng = allCoords.reduce((s, c) => s + c[0], 0) / allCoords.length
+          const avgLat = allCoords.reduce((s, c) => s + c[1], 0) / allCoords.length
+
+          // Calculate zoom from coordinate spread
+          const lngSpread = Math.max(...allCoords.map(c => c[0])) - Math.min(...allCoords.map(c => c[0]))
+          const latSpread = Math.max(...allCoords.map(c => c[1])) - Math.min(...allCoords.map(c => c[1]))
+          const maxSpread = Math.max(lngSpread, latSpread)
+
+          let zoom: number
+          if (maxSpread > 50) zoom = 4
+          else if (maxSpread > 20) zoom = 5
+          else if (maxSpread > 10) zoom = 6
+          else if (maxSpread > 5) zoom = 7
+          else if (maxSpread > 2) zoom = 8
+          else if (maxSpread > 1) zoom = 9
+          else if (maxSpread > 0.5) zoom = 10
+          else if (maxSpread > 0.2) zoom = 11
+          else if (maxSpread > 0.1) zoom = 12
+          else if (maxSpread > 0.05) zoom = 13
+          else if (maxSpread > 0.02) zoom = 14
+          else zoom = 15
+
           try {
-            map.setBounds(bounds, false, { top: 50, bottom: pb, left: 50, right: 50 })
-          } catch { /* empty bounds */ }
+            map.setZoomAndCenter(zoom, [avgLng, avgLat], false, 400)
+          } catch { /* noop */ }
         }
       }
     } catch { /* noop — AMap SDK internal errors suppressed */ }

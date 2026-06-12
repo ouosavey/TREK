@@ -72,10 +72,9 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bug1: 旅行计划页面点击天气地图灰掉:**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: AMap的setBounds()内部计算zoom/center时产生NaN" >> $GITHUB_STEP_SUMMARY
-          echo "    setBounds是异步的(动画)，NaN在动画完成后才出现" >> $GITHUB_STEP_SUMMARY
-          echo "    同步验证无法检测到，导致地图内部状态永久损坏" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 用setZoomAndCenter替代setBounds，手动计算zoom/center" >> $GITHUB_STEP_SUMMARY
-          echo "    setZoomAndCenter直接设置值，不经过有问题的内部计算" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: zoomend事件同时检查center和zoom的NaN状态" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bug1: 旅程页面地图缩放级别不合适(显示整个世界):**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: 地图初始化zoom=2，且fit bounds使用setBounds可能产生NaN" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: 用setZoomAndCenter替代setBounds，根据坐标跨度自动计算合适zoom" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bug2: 鼠标划入条目触发TypeError: getDom is not a function:**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: AMap 2.0的InfoWindow没有getDom()方法" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: 改用document.querySelector获取popup DOM元素" >> $GITHUB_STEP_SUMMARY
