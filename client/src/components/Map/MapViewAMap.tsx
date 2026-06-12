@@ -733,26 +733,14 @@ export const MapViewAMap = memo(function MapViewAMap({
     return () => observer.disconnect()
   }, [])
 
-  // ── Overlay visibility change: resize map (like Leaflet's invalidateSize) ──
-  // When DayDetailPanel or PlaceInspector appears/disappears, the visible
-  // area of the map changes. Call map.resize() to update the SDK's internal
-  // coordinate system — this is the AMap equivalent of Leaflet's invalidateSize().
-  // DO NOT disable interactions or block events — that makes the map unusable.
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map) return
-
-    const resize = () => {
-      try { map.resize() } catch {}
-    }
-
-    // Immediate + delayed resizes to handle animation timing
-    resize()
-    const t1 = setTimeout(resize, 100)
-    const t2 = setTimeout(resize, 300)
-    const t3 = setTimeout(resize, 600)
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
-  }, [hasDayDetail, hasInspector, dayDetailId])
+  // ── Overlay visibility change ────────────────────────────────────────
+  // NOTE: DayDetailPanel and PlaceInspector use position:fixed — they do NOT
+  // change the map container's dimensions. The main branch's Leaflet version
+  // also does NOT call invalidateSize() when overlays appear. Calling
+  // map.resize() here was causing AMap's internal coordinate system to
+  // recalculate and produce NaN errors, making the map go gray.
+  // Therefore: do NOT call map.resize() when overlays change.
+  // The ResizeObserver above handles actual container size changes.
 
   // ── Marker reconciliation ────────────────────────────────────────────
   useEffect(() => {
