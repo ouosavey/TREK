@@ -1,4 +1,4 @@
-import { useEffect, useRef, useImperativeHandle, forwardRef, useCallback } from 'react'
+import { useEffect, useRef, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react'
 import AMapLoader from '@amap/amap-jsapi-loader'
 import { useSettingsStore } from '../../store/settingsStore'
 import { wgs84ToGcj02, gcj02ToWgs84 } from '../../utils/coordTransform'
@@ -14,7 +14,6 @@ type AMapPolylineType = any
 // before they reach the console or break the SDK event loop.
 // ═══════════════════════════════════════════════════════════════════
 ;(function installAmapErrorSuppressor() {
-  // Always re-install to ensure it's active (idempotent)
   const FLAG = '__amapErrorSuppressorV2'
   if ((window as any)[FLAG]) return
   ;(window as any)[FLAG] = true
@@ -22,14 +21,13 @@ type AMapPolylineType = any
   function isAmapNaNError(msg: string): boolean {
     if (!msg) return false
     const s = String(msg)
-    // Match all known AMap NaN error patterns
     if (s.includes('Invalid Object') && (s.includes('LngLat') || s.includes('Pixel'))) return true
     if (s.includes('LngLat') && s.includes('NaN')) return true
     if (s.includes('Pixel') && s.includes('NaN')) return true
     return false
   }
 
-  // 1. Capture-phase error listener — runs before ANY other handler
+  // 1. Capture-phase error listener
   window.addEventListener('error', function(event: Event) {
     const e = event as ErrorEvent
     const msg = String(e.message ?? '')
@@ -39,9 +37,9 @@ type AMapPolylineType = any
       e.preventDefault()
       return false
     }
-  }, true) // CAPTURE phase — highest priority
+  }, true)
 
-  // 2. Bubbling-phase fallback — catches anything that slips through
+  // 2. Bubbling-phase fallback
   window.addEventListener('error', function(event: Event) {
     const e = event as ErrorEvent
     const msg = String(e.message ?? '')
@@ -60,7 +58,7 @@ type AMapPolylineType = any
     }
   })
 
-  // 4. Console.error override — last line of defense
+  // 4. Console.error override
   const _origConsoleError = console.error.bind(console)
   console.error = function(...args: any[]) {
     const msg = args.map(a => typeof a === 'string' ? a : (a?.message ?? '')).join(' ')
@@ -68,7 +66,7 @@ type AMapPolylineType = any
     _origConsoleError(...args)
   }
 
-  // 5. Console.warn override — some AMap errors come through warn
+  // 5. Console.warn override
   const _origConsoleWarn = console.warn.bind(console)
   console.warn = function(...args: any[]) {
     const msg = args.map(a => typeof a === 'string' ? a : (a?.message ?? '')).join(' ')
@@ -170,8 +168,7 @@ function formatEntryDate(iso: string): string {
   }
 }
 
-// Inject the popup styles once per document. Frosted-glass card matching
-// the JourneyMapGL style — title on top, location / date subtly below.
+// Inject the popup styles once per document.
 function ensureJourneyPopupStyle() {
   if (document.getElementById('trek-journey-amap-popup-style')) return
   const s = document.createElement('style')
@@ -286,6 +283,10 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
   const darkRef = useRef(dark)
   darkRef.current = dark
 
+  // Build items from entries (memoized for stable reference)
+  const items = useMemo(() => buildItems(entries), [entries])
+  itemsRef.current = items
+
   const showPopup = useCallback((id: string) => {
     const item = itemsRef.current.find(i => i.id === id)
     if (!item || !mapRef.current || !AMapRef.current) return
@@ -311,7 +312,6 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
       ${subline ? `<div class="trek-journey-popup-sub">${subline}</div>` : ''}
     `
 
-    // Convert WGS-84 → GCJ-02 for AMap
     const [gcjLng, gcjLat] = wgs84ToGcj02(item.lng, item.lat)
 
     if (infoWindowRef.current) {
@@ -373,7 +373,6 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
     highlightMarker(id)
     const item = itemsRef.current.find(i => i.id === id)
     if (!item || !mapRef.current) return
-    // Convert WGS-84 → GCJ-02
     const [gcjLng, gcjLat] = wgs84ToGcj02(item.lng, item.lat)
     try {
       mapRef.current.setZoomAndCenter(
@@ -386,11 +385,9 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
   }, [highlightMarker])
 
   const invalidateSize = useCallback(() => {
-    // AMap's equivalent of Leaflet's invalidateSize() — call map.resize()
     try {
       if (mapRef.current) {
         mapRef.current.resize()
-        // Delayed resize to handle animation timing (same pattern as main branch)
         setTimeout(() => {
           try { mapRef.current?.resize() } catch {}
         }, 200)
@@ -400,34 +397,29 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
 
   useImperativeHandle(ref, () => ({ highlightMarker, focusMarker, invalidateSize }), [highlightMarker, focusMarker, invalidateSize])
 
-  // Build map once per key change
+  // ═══════════════════════════════════════════════════════════════════
+  // Initialize AMap ONCE per key change (NOT per entries change!)
+  // This follows the same pattern as MapViewAMap — the map instance is
+  // created once and markers/polyline are updated in separate effects.
+  // ═══════════════════════════════════════════════════════════════════
   useEffect(() => {
     if (!containerRef.current || !amapKey) return
 
-    // Set security config before loading
     if (amapSecurityCode) {
       (window as any)._AMapSecurityConfig = { securityJsCode: amapSecurityCode }
     }
 
     let destroyed = false
 
-    const items = buildItems(entries)
-    itemsRef.current = items
-
     AMapLoader.load({
       key: amapKey,
       version: '2.0',
-      plugins: [
-        // Note: AMap.Scale removed — it internally produces LngLat(NaN)/Pixel(NaN)
-        // errors when map state is incomplete, causing 400+ uncaught errors that
-        // prevent the map from rendering properly.
-      ],
+      plugins: [],
     }).then((AMap: any) => {
       if (destroyed) return
       AMapRef.current = AMap
 
-      // ── Monkey-patch AMap.LngLat and AMap.Pixel ──────────────────────
-      // Same patch as MapViewAMap: replace constructors with NaN-safe wrappers.
+      // ── Monkey-patch AMap.LngLat and AMap.Pixel ──────────────────
       const _OrigLngLat = AMap.LngLat
       const _OrigPixel = AMap.Pixel
 
@@ -457,41 +449,16 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
         if (!(k in AMap.Pixel)) (AMap.Pixel as any)[k] = (_OrigPixel as any)[k]
       })
 
-      // Determine initial center & zoom (filter out invalid coordinates)
-      const validItems = items.filter(i => isValidCoord(i.lat, i.lng))
-      const validTrail = stableTrail.filter(p => isValidCoord(p.lat, p.lng))
-      const hasPoints = validItems.length > 0 || validTrail.length > 0
-      let initialCenter: [number, number]
-      let initialZoom: number
-
-      if (hasPoints) {
-        // Compute center from all VALID points (converted to GCJ-02)
-        let sumLng = 0, sumLat = 0, count = 0
-        for (const i of validItems) {
-          const [gcjLng, gcjLat] = wgs84ToGcj02(i.lng, i.lat)
-          if (isValidCoord(gcjLat, gcjLng)) { sumLng += gcjLng; sumLat += gcjLat; count++ }
-        }
-        for (const p of validTrail) {
-          const [gcjLng, gcjLat] = wgs84ToGcj02(p.lng, p.lat)
-          if (isValidCoord(gcjLat, gcjLng)) { sumLng += gcjLng; sumLat += gcjLat; count++ }
-        }
-        initialCenter = count > 0 ? [sumLng / count, sumLat / count] : [116.397428, 39.90923]
-        initialZoom = count > 0 ? 2 : 1
-      } else {
-        initialCenter = [116.397428, 39.90923] // Beijing default
-        initialZoom = 1
-      }
-
+      // Create map with default center — will be fitted to data in a separate effect
       const map = new AMap.Map(containerRef.current, {
-        center: initialCenter,
-        zoom: initialZoom,
+        center: [116.397428, 39.90923],
+        zoom: 2,
         resizeEnable: true,
-        mapStyle: dark ? 'amap://styles/dark' : 'amap://styles/normal',
+        mapStyle: darkRef.current ? 'amap://styles/dark' : 'amap://styles/normal',
       })
       mapRef.current = map
 
-      // ── Map-instance-level coordinate safety wrappers ───────────────
-      // Intercept coordinate conversions to guarantee no NaN leaks.
+      // ── Map-instance-level coordinate safety wrappers ───────────
       const SAFE_CENTER: [number, number] = [116.397428, 39.90923]
       const _origContainerToLngLat = map.containerToLngLat.bind(map)
       map.containerToLngLat = function(pixel: any): any {
@@ -518,7 +485,7 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
         } catch { return new AMap.Pixel(0, 0) }
       }
 
-      // Periodic health monitor — detect and recover silent NaN state
+      // Periodic health monitor
       const healthInterval = setInterval(() => {
         try {
           const c = map.getCenter()
@@ -533,16 +500,77 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
       }, 2000)
       ;(map as any).__healthInterval = healthInterval
 
-      // Force resize after DOM layout to ensure correct dimensions
+      // Force resize after DOM layout
       setTimeout(() => { try { map.resize() } catch {} }, 200)
+    }).catch((err: any) => {
+      console.error('AMap load failed:', err)
+    })
 
-      // ── Dashed trail line connecting entries in time order ──────────
+    return () => {
+      destroyed = true
+      if (mapRef.current && (mapRef.current as any).__healthInterval) {
+        clearInterval((mapRef.current as any).__healthInterval)
+      }
+      markersRef.current.forEach(m => { try { m.setMap(null) } catch {} })
+      markersRef.current.clear()
+      if (polylineRef.current) { try { polylineRef.current.setMap(null) } catch {} polylineRef.current = null }
+      if (infoWindowRef.current) { try { infoWindowRef.current.close() } catch {} infoWindowRef.current = null }
+      highlightedRef.current = null
+      if (mapRef.current) { try { mapRef.current.destroy() } catch {} mapRef.current = null }
+      AMapRef.current = null
+    }
+  }, [amapKey, amapSecurityCode]) // ONLY rebuild on key change, NOT on entries change!
+
+  // ── ResizeObserver ──────────────────────────────────────────────────
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const observer = new ResizeObserver(() => {
+      const map = mapRef.current
+      if (map) {
+        try { map.resize() } catch {}
+      }
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
+
+  // ── Marker + polyline reconciliation (runs when entries/trail change) ──
+  useEffect(() => {
+    const AMap = AMapRef.current
+    const map = mapRef.current
+    if (!AMap || !map) return
+
+    try {
+      // Guard: skip if map container has no valid size yet
+      const mapSize = map.getSize()
+      if (!mapSize || mapSize.getWidth() <= 0 || mapSize.getHeight() <= 0) return
+
+      // Clear existing markers
+      markersRef.current.forEach(m => { try { m.setMap(null) } catch {} })
+      markersRef.current.clear()
+
+      // Clear existing polyline
+      if (polylineRef.current) {
+        try { polylineRef.current.setMap(null) } catch {}
+        polylineRef.current = null
+      }
+
+      // Close popup
+      if (infoWindowRef.current) {
+        try { infoWindowRef.current.close() } catch {}
+      }
+      highlightedRef.current = null
+
+      const validItems = items.filter(i => isValidCoord(i.lat, i.lng))
+      const validTrail = stableTrail.filter(p => isValidCoord(p.lat, p.lng))
+
+      // ── Dashed trail line ──────────────────────────────────────
       if (validItems.length > 1) {
         const path = validItems.map(i => {
           const [gcjLng, gcjLat] = wgs84ToGcj02(i.lng, i.lat)
           return new AMap.LngLat(gcjLng, gcjLat)
         }).filter(p => {
-          // Filter out any LngLat that still ended up NaN despite validation
           try { return Number.isFinite(p.getLng()) && Number.isFinite(p.getLat()) }
           catch { return false }
         })
@@ -563,17 +591,15 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
         }
       }
 
-      // ── Markers (only for valid coordinates) ────────────────────────
+      // ── Markers ────────────────────────────────────────────────
       validItems.forEach((item) => {
         const el = markerHtml(item.dayColor, item.dayLabel, false)
 
-        // Click handler
         el.addEventListener('click', (ev: Event) => {
           ev.stopPropagation()
           onMarkerClickRef.current?.(item.id)
         })
 
-        // Hover handlers
         el.addEventListener('mouseenter', () => {
           highlightMarker(item.id)
         })
@@ -583,20 +609,22 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
           }
         })
 
-        // Convert WGS-84 → GCJ-02
         const [gcjLng, gcjLat] = wgs84ToGcj02(item.lng, item.lat)
 
-        const marker = new AMap.Marker({
-          position: new AMap.LngLat(gcjLng, gcjLat),
-          content: el,
-          offset: new AMap.Pixel(-MARKER_W / 2, -MARKER_H),
-          zIndex: 100,
-        })
-        marker.setMap(map)
-        markersRef.current.set(item.id, marker)
+        try {
+          const marker = new AMap.Marker({
+            position: new AMap.LngLat(gcjLng, gcjLat),
+            content: el,
+            offset: new AMap.Pixel(-MARKER_W / 2, -MARKER_H),
+            zIndex: 100,
+          })
+          marker.setMap(map)
+          markersRef.current.set(item.id, marker)
+        } catch { /* skip markers that fail */ }
       })
 
-      // ── Fit bounds to all VALID points ───────────────────────────────
+      // ── Fit bounds ─────────────────────────────────────────────
+      const hasPoints = validItems.length > 0 || validTrail.length > 0
       if (hasPoints) {
         const allCoords: any[] = []
         validItems.forEach(i => {
@@ -619,46 +647,10 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
           } catch { /* empty bounds */ }
         }
       }
+    } catch { /* noop — AMap SDK internal errors suppressed */ }
+  }, [items, stableTrail, paddingBottom, highlightMarker])
 
-      // Apply dark mode style if needed
-      if (darkRef.current) {
-        map.setMapStyle('amap://styles/dark')
-      }
-    }).catch((err: any) => {
-      console.error('AMap load failed:', err)
-    })
-
-    return () => {
-      destroyed = true
-      // Clear periodic health monitor
-      if (mapRef.current && (mapRef.current as any).__healthInterval) {
-        clearInterval((mapRef.current as any).__healthInterval)
-      }
-      markersRef.current.forEach(m => { try { m.setMap(null) } catch {} })
-      markersRef.current.clear()
-      if (polylineRef.current) { try { polylineRef.current.setMap(null) } catch {} polylineRef.current = null }
-      if (infoWindowRef.current) { try { infoWindowRef.current.close() } catch {} infoWindowRef.current = null }
-      highlightedRef.current = null
-      if (mapRef.current) { try { mapRef.current.destroy() } catch {} mapRef.current = null }
-      AMapRef.current = null
-    }
-  }, [entries, stableTrail, amapKey, amapSecurityCode, fullScreen, paddingBottom])
-
-  // ── ResizeObserver: keep map coordinate system consistent ───────────
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-    const observer = new ResizeObserver(() => {
-      const map = mapRef.current
-      if (map) {
-        try { map.resize() } catch {}
-      }
-    })
-    observer.observe(container)
-    return () => observer.disconnect()
-  }, [])
-
-  // ── Dark mode toggle ──────────────────────────────────────────────────
+  // ── Dark mode toggle ────────────────────────────────────────────────
   useEffect(() => {
     if (!mapRef.current) return
     try {
@@ -666,7 +658,7 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
     } catch { /* map not ready */ }
   }, [dark])
 
-  // ── External activeMarkerId → highlight + flyTo ───────────────────────
+  // ── External activeMarkerId → highlight + flyTo ─────────────────────
   useEffect(() => {
     if (!activeMarkerId || !mapRef.current) return
     const t = setTimeout(() => {
@@ -686,7 +678,7 @@ const JourneyMapAMap = forwardRef<JourneyMapAMapHandle, Props>(function JourneyM
     return () => clearTimeout(t)
   }, [activeMarkerId, highlightMarker])
 
-  // ── No AMap key placeholder ───────────────────────────────────────────
+  // ── No AMap key placeholder ─────────────────────────────────────────
   if (!amapKey) {
     return (
       <div

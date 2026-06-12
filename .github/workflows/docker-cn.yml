@@ -72,12 +72,13 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bug1: 旅行计划页面地图灰掉/交互锁死:**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 删除blocker div和pointer-events方案，改为仅调用map.resize()" >> $GITHUB_STEP_SUMMARY
-          echo "  - 参考main分支Leaflet逻辑：overlay变化时只做invalidateSize，不禁用交互" >> $GITHUB_STEP_SUMMARY
-          echo "  - 保留LngLat/Pixel NaN-safe monkey-patch防止SDK内部崩溃" >> $GITHUB_STEP_SUMMARY
-          echo "  - 保留周期性健康监控和mousemove NaN检测自动恢复" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bug2: 旅程页面地图不显示(NaN报错):**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复invalidateSize实现：从toggle display改为map.resize()" >> $GITHUB_STEP_SUMMARY
-          echo "  - 添加ResizeObserver监听容器尺寸变化自动resize" >> $GITHUB_STEP_SUMMARY
-          echo "  - 保留v2错误抑制器+LngLat/Pixel monkey-patch+坐标验证" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bug1: 旅行计划页面点击天气地图灰掉:**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根本原因: DayDetailPanel/PlaceInspector使用position:fixed，不改变地图容器尺寸" >> $GITHUB_STEP_SUMMARY
+          echo "  - 之前overlay变化时调用map.resize()导致AMap内部坐标系统重算产生NaN" >> $GITHUB_STEP_SUMMARY
+          echo "  - 参考main分支: Leaflet版本overlay变化时不调用invalidateSize()" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: 删除overlay resize effect，仅保留ResizeObserver处理真实容器尺寸变化" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bug2: 旅程页面地图不显示(大量NaN报错):**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根本原因: 地图初始化useEffect依赖entries，每次数据变化都销毁重建地图" >> $GITHUB_STEP_SUMMARY
+          echo "  - 参考MapViewAMap模式: 地图只初始化一次(依赖amapKey)，标记/折线/边界在单独effect更新" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: 分离地图初始化和标记渲染，避免频繁重建触发NaN" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复invalidateSize: 从toggle display改为map.resize()" >> $GITHUB_STEP_SUMMARY
