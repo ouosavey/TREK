@@ -1181,6 +1181,7 @@ export interface TransitSegment {
   distance: number;                        // 距离(米)
   duration: number;                        // 时间(秒)
   lineName?: string;                       // 公交/地铁线路名
+  lineColor?: string;                      // 线路颜色(地铁)
   departureStop?: string;                  // 上车站
   arrivalStop?: string;                    // 下车站
   viaStops?: number;                       // 途经站数
@@ -1191,6 +1192,7 @@ export interface TransitRouteOption {
   duration: number;                        // 总时间(秒)
   distance: number;                        // 总距离(米)
   walkingDistance: number;                 // 步行距离(米)
+  cost: number;                            // 费用(元)
   segments: TransitSegment[];              // 分段详情
   summary: string;                         // 摘要文字
 }
@@ -1333,6 +1335,7 @@ export async function calculateAmapTransitRoute(
             distance: parseInt(busline.distance || '0', 10),
             duration: parseInt(busline.duration || '0', 10),
             lineName,
+            lineColor: isSubway ? (typeof busline.color === 'string' ? busline.color : undefined) : undefined,
             departureStop: busline.departure_stop?.name,
             arrivalStop: busline.arrival_stop?.name,
             viaStops: parseInt(busline.via_num || '0', 10),
@@ -1342,20 +1345,26 @@ export async function calculateAmapTransitRoute(
       }
     }
 
-    // 生成摘要
+    // 生成摘要 + 费用
     const subwayCount = segments.filter(s => s.type === 'subway').length;
     const busCount = segments.filter(s => s.type === 'bus').length;
     const parts: string[] = [];
     if (subwayCount > 0) parts.push(`地铁${subwayCount}条`);
     if (busCount > 0) parts.push(`公交${busCount}条`);
+    // 费用计算
+    const railCost = parseFloat(transit.cost?.transit_rail || '0');
+    const busCost = parseFloat(transit.cost?.transit_bus || '0');
+    const totalCost = Math.round((railCost + busCost) * 100) / 100;
+
     const summary = parts.length > 0
-      ? `${formatRouteDuration(totalDuration)} | ${parts.join('，')}${totalWalking > 0 ? ` | 步行${formatRouteDistance(totalWalking)}` : ''}`
+      ? `${formatRouteDuration(totalDuration)} | ${parts.join('，')}${totalWalking > 0 ? ` | 步行${formatRouteDistance(totalWalking)}` : ''}${totalCost > 0 ? ` | ¥${totalCost}` : ''}`
       : formatRouteDuration(totalDuration);
 
     options.push({
       duration: totalDuration,
       distance: totalDistance,
       walkingDistance: totalWalking,
+      cost: totalCost,
       segments,
       summary,
     });

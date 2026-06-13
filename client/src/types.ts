@@ -261,6 +261,7 @@ export interface TransitSegment {
   distance: number
   duration: number
   lineName?: string
+  lineColor?: string
   departureStop?: string
   arrivalStop?: string
   viaStops?: number
@@ -271,6 +272,7 @@ export interface TransitRouteOption {
   duration: number
   distance: number
   walkingDistance: number
+  cost: number
   segments: TransitSegment[]
   summary: string
 }

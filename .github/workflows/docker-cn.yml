@@ -73,9 +73,11 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **新功能: 公交/地铁路线规划:**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 后端: mapsService.ts 新增 calculateAmapTransitRoute 函数，调用高德 direction/transit/integrated API" >> $GITHUB_STEP_SUMMARY
-          echo "  - 后端: 新增 /route-transit-amap 路由端点" >> $GITHUB_STEP_SUMMARY
-          echo "  - 前端: 新增 TransitRoutePanel 组件展示换乘方案(步行/公交/地铁分段详情)" >> $GITHUB_STEP_SUMMARY
-          echo "  - 前端: DayPlanSidebar 路线工具区添加\"公交\"按钮(仅高德地图模式下显示)" >> $GITHUB_STEP_SUMMARY
-          echo "  - 前端: 选择不同方案时自动在地图上绘制对应路线" >> $GITHUB_STEP_SUMMARY
+          echo "- **增强: 公交/地铁面板全面优化 (方案C):**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 按钮文字改为\"公交/地铁\"" >> $GITHUB_STEP_SUMMARY
+          echo "  - 后端: 返回费用信息(cost)和线路颜色(lineColor)" >> $GITHUB_STEP_SUMMARY
+          echo "  - 前端: 重构TransitRoutePanel - 折叠态只显示摘要,点击展开显示详细站点信息" >> $GITHUB_STEP_SUMMARY
+          echo "  - 前端: 方案卡片顶部指标条(时间/费用/步行距离/线路数)" >> $GITHUB_STEP_SUMMARY
+          echo "  - 前端: 地铁段用线路颜色标识(基于线路号生成HSL颜色)" >> $GITHUB_STEP_SUMMARY
+          echo "  - 前端: 新增换乘策略选择器(最快/最省钱/最少换乘/少步行),切换时自动重新查询" >> $GITHUB_STEP_SUMMARY
+          echo "  - 前端: 站点信息移入展开区域,带绿色起点/红色终点标记" >> $GITHUB_STEP_SUMMARY

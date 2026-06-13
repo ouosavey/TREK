@@ -255,6 +255,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
   const [routeInfo, setRouteInfo] = useState(null)
   const [transitResult, setTransitResult] = useState<TransitRouteResult | null>(null)
   const [transitSelectedIdx, setTransitSelectedIdx] = useState(0)
+  const [transitStrategy, setTransitStrategy] = useState(0)
   const [draggingId, setDraggingId] = useState(null)
   const [lockedIds, setLockedIds] = useState(new Set())
   const [lockHoverId, setLockHoverId] = useState(null)
@@ -860,6 +861,53 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
     const m = Math.floor((seconds % 3600) / 60)
     if (h > 0) return `${h} h ${m} min`
     return `${m} min`
+  }
+
+  // 切换乘乘策略时重新查询
+  const handleTransitStrategyChange = async (strategy: number) => {
+    setTransitStrategy(strategy)
+    if (!selectedDayId) return
+    const da = getDayAssignments(selectedDayId)
+    const placesWithCoords = da.map(a => a.place).filter(p => p?.lat && p?.lng)
+    if (placesWithCoords.length < 2) return
+
+    const origin = { lat: placesWithCoords[0].lat, lng: placesWithCoords[0].lng }
+    const dest = { lat: placesWithCoords[placesWithCoords.length - 1].lat, lng: placesWithCoords[placesWithCoords.length - 1].lng }
+    let city = ''
+    try {
+      const [gcjLng, gcjLat] = wgs84ToGcj02(origin.lng, origin.lat)
+      const regeo = await mapsApi.reverseAmap(gcjLat, gcjLng)
+      if (regeo.city) city = regeo.city
+    } catch {}
+    if (!city && placesWithCoords[0].address) {
+      const m = placesWithCoords[0].address.match(/([\u4e00-\u9fa5]+(?:自治州|盟|地区|市))/)
+      if (m) city = m[1]
+    }
+    if (!city) return
+
+    setIsCalculating(true)
+    try {
+      const result = await mapsApi.routeTransitAmap(origin, dest, city, strategy)
+      setTransitResult(result)
+      setTransitSelectedIdx(0)
+      if (result.options.length > 0) {
+        const opt = result.options[0]
+        const allCoords: [number, number][] = []
+        for (const seg of opt.segments) allCoords.push(...seg.coordinates)
+        if (allCoords.length > 0) {
+          onRouteCalculated?.({
+            coordinates: allCoords,
+            distance: opt.distance,
+            duration: opt.duration,
+            distanceText: formatTransitDistance(opt.distance),
+            durationText: formatTransitDuration(opt.duration),
+            walkingText: formatTransitDistance(opt.walkingDistance),
+            drivingText: '',
+          })
+        }
+      }
+    } catch {}
+    finally { setIsCalculating(false) }
   }
 
   const toggleLock = (assignmentId) => {
@@ -2059,7 +2107,9 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                         <TransitRoutePanel
                           result={transitResult}
                           selectedOptionIndex={transitSelectedIdx}
+                          selectedStrategy={transitStrategy}
                           onSelectOption={handleTransitSelectOption}
+                          onSelectStrategy={handleTransitStrategyChange}
                           onClose={() => setTransitResult(null)}
                         />
                       )}
@@ -2083,7 +2133,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                             opacity: isCalculating ? 0.5 : 1,
                           }}>
                             <Bus size={12} strokeWidth={2} />
-                            {isCalculating ? '...' : t('transit.button', { defaultValue: '公交' })}
+                            {isCalculating ? '...' : t('transit.button', { defaultValue: '公交/地铁' })}
                           </button>
                         )}
                         <button onClick={handleAmapNav} style={{

@@ -2430,7 +2430,11 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'transit.amapOnly': 'Transit routing requires AMap',
   'transit.needCity': 'Cannot determine city. Ensure place addresses include a city name',
   'transit.error': 'Transit route query failed',
-  'transit.noRoutes': 'No transit routes found',
+  'transit.noRoutes': 'No transit routes found. Try another strategy.',
+  'transit.strategy.fastest': 'Fastest',
+  'transit.strategy.cheapest': 'Cheapest',
+  'transit.strategy.leastTransfer': 'Least Transfer',
+  'transit.strategy.leastWalk': 'Less Walking',
 }
 
 export default en

@@ -2363,11 +2363,15 @@ const zh: Record<string, string> = {
   'transport.title': '交通',
   'transport.addManual': '手动添加交通',
   'transit.title': '公交/地铁路线',
-  'transit.button': '公交',
+  'transit.button': '公交/地铁',
   'transit.amapOnly': '公交路线仅支持高德地图',
   'transit.needCity': '无法识别城市，请确保地点地址包含城市名',
   'transit.error': '公交路线查询失败',
-  'transit.noRoutes': '未找到公交路线',
+  'transit.noRoutes': '未找到公交路线，请尝试其他策略或扩大搜索范围',
+  'transit.strategy.fastest': '最快',
+  'transit.strategy.cheapest': '最省钱',
+  'transit.strategy.leastTransfer': '最少换乘',
+  'transit.strategy.leastWalk': '少步行',
 }
 
 export default zh
