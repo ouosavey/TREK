@@ -2425,6 +2425,12 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'transport.modalTitle.edit': 'Edit transport',
   'transport.title': 'Transports',
   'transport.addManual': 'Manual Transport',
+  'transit.title': 'Transit / Subway',
+  'transit.button': 'Transit',
+  'transit.amapOnly': 'Transit routing requires AMap',
+  'transit.needCity': 'Cannot determine city. Ensure place addresses include a city name',
+  'transit.error': 'Transit route query failed',
+  'transit.noRoutes': 'No transit routes found',
 }
 
 export default en

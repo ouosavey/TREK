@@ -14,6 +14,7 @@ import {
   autocompleteAmap,
   calculateAmapRoute,
   calculateAmapSegments,
+  calculateAmapTransitRoute,
 } from '../services/mapsService';
 import { db } from '../db/database';
 import { serveFilePath } from '../services/placePhotoCache';
@@ -257,6 +258,40 @@ router.post('/segments-amap', authenticate, async (req: Request, res: Response) 
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'AMap segments calculation error';
     console.error('AMap segments error:', err);
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /route-transit-amap — 公交/地铁路线规划
+router.post('/route-transit-amap', authenticate, async (req: Request, res: Response) => {
+  const { origin, destination, city, strategy } = req.body as {
+    origin: { lat: number; lng: number };
+    destination: { lat: number; lng: number };
+    city: string;
+    strategy?: number;
+  };
+  const authReq = req as AuthRequest;
+
+  if (!origin || !destination || !city) {
+    return res.status(400).json({ error: 'origin, destination and city are required' });
+  }
+  if (!Number.isFinite(origin.lat) || !Number.isFinite(origin.lng) ||
+      !Number.isFinite(destination.lat) || !Number.isFinite(destination.lng)) {
+    return res.status(400).json({ error: 'Invalid coordinates' });
+  }
+
+  try {
+    const result = await calculateAmapTransitRoute(
+      origin,
+      destination,
+      city,
+      strategy ?? 0,
+      authReq.user.id,
+    );
+    res.json(result);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'AMap transit route error';
+    console.error('AMap transit route error:', err);
     res.status(500).json({ error: message });
   }
 });

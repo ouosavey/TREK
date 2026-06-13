@@ -1170,6 +1170,202 @@ export async function calculateAmapSegments(
   return results;
 }
 
+// ── AMap Transit Route (公交/地铁) ──────────────────────────────────────────
+
+export interface TransitSegment {
+  type: 'walk' | 'bus' | 'subway';       // 段落类型
+  instruction: string;                     // 段落描述
+  distance: number;                        // 距离(米)
+  duration: number;                        // 时间(秒)
+  lineName?: string;                       // 公交/地铁线路名
+  departureStop?: string;                  // 上车站
+  arrivalStop?: string;                    // 下车站
+  viaStops?: number;                       // 途经站数
+  coordinates: [number, number][];         // WGS-84 [lat, lng]
+}
+
+export interface TransitRouteOption {
+  duration: number;                        // 总时间(秒)
+  distance: number;                        // 总距离(米)
+  walkingDistance: number;                 // 步行距离(米)
+  segments: TransitSegment[];              // 分段详情
+  summary: string;                         // 摘要文字
+}
+
+export interface AmapTransitResult {
+  origin: [number, number];               // WGS-84 起点 [lat, lng]
+  destination: [number, number];           // WGS-84 终点 [lat, lng]
+  options: TransitRouteOption[];           // 换乘方案列表
+  source: 'amap';
+}
+
+export async function calculateAmapTransitRoute(
+  origin: { lat: number; lng: number },
+  destination: { lat: number; lng: number },
+  city: string,
+  strategy: number = 0,
+  userId?: number,
+): Promise<AmapTransitResult> {
+  const amapKey = getAmapKey(userId);
+  if (!amapKey) throw new Error('AMap web service key not configured');
+
+  // WGS-84 → GCJ-02
+  const [gcjOrigLng, gcjOrigLat] = routeWgs84ToGcj02(origin.lng, origin.lat);
+  const [gcjDestLng, gcjDestLat] = routeWgs84ToGcj02(destination.lng, destination.lat);
+
+  const params = new URLSearchParams({
+    key: amapKey,
+    origin: `${gcjOrigLng},${gcjOrigLat}`,
+    destination: `${gcjDestLng},${gcjDestLat}`,
+    city,
+    strategy: String(strategy),
+    extensions: 'all',
+    output: 'JSON',
+    nightflag: '0',
+  });
+
+  const response = await fetch(`https://restapi.amap.com/v3/direction/transit/integrated?${params}`);
+  if (!response.ok) throw new Error('AMap transit route API error');
+
+  const data = await response.json() as {
+    status: string;
+    info?: string;
+    route?: {
+      transits?: Array<{
+        duration?: string;
+        distance?: string;
+        walking_distance?: string;
+        cost?: { transit_rail?: string; transit_bus?: string };
+        segments?: Array<{
+          walking?: {
+            distance?: string;
+            duration?: string;
+            steps?: Array<{
+              instruction?: string;
+              road?: string;
+              distance?: string;
+              duration?: string;
+              polyline?: string;
+            }>;
+          };
+          bus?: {
+            buslines?: Array<{
+              name?: string;
+              departure_stop?: { name?: string };
+              arrival_stop?: { name?: string };
+              via_num?: string;
+              duration?: string;
+              distance?: string;
+              polyline?: string;
+            }>;
+          };
+        }>;
+      }>;
+    };
+  };
+
+  if (data.status !== '1' || !data.route?.transits?.length) {
+    throw new Error(data.info || 'No transit route found');
+  }
+
+  const options: TransitRouteOption[] = [];
+
+  for (const transit of data.route.transits.slice(0, 3)) {
+    const totalDuration = parseInt(transit.duration || '0', 10);
+    const totalDistance = parseInt(transit.distance || '0', 10);
+    const totalWalking = parseInt(transit.walking_distance || '0', 10);
+    const segments: TransitSegment[] = [];
+
+    if (transit.segments) {
+      for (const seg of transit.segments) {
+        // 步行段
+        if (seg.walking && seg.walking.steps?.length) {
+          const walkCoords: [number, number][] = [];
+          let walkDist = 0;
+          let walkDur = 0;
+          const walkInstructions: string[] = [];
+          for (const step of seg.walking.steps) {
+            walkDist += parseInt(step.distance || '0', 10);
+            walkDur += parseInt(step.duration || '0', 10);
+            if (step.instruction) walkInstructions.push(step.instruction);
+            if (step.polyline) {
+              for (const point of step.polyline.split(';')) {
+                const parts = point.split(',');
+                if (parts.length >= 2) {
+                  const [wgsLng, wgsLat] = routeGcj02ToWgs84(parseFloat(parts[0]), parseFloat(parts[1]));
+                  walkCoords.push([wgsLat, wgsLng]);
+                }
+              }
+            }
+          }
+          if (walkDist > 0) {
+            segments.push({
+              type: 'walk',
+              instruction: walkInstructions.join('，') || `步行${formatRouteDistance(walkDist)}`,
+              distance: walkDist,
+              duration: walkDur,
+              coordinates: walkCoords,
+            });
+          }
+        }
+
+        // 公交/地铁段
+        if (seg.bus?.buslines?.length) {
+          const busline = seg.bus.buslines[0]; // 取第一条线路
+          const lineName = busline.name || '';
+          const isSubway = /地铁|轻轨|磁悬浮|地铁线/.test(lineName);
+          const busCoords: [number, number][] = [];
+          if (busline.polyline) {
+            for (const point of busline.polyline.split(';')) {
+              const parts = point.split(',');
+              if (parts.length >= 2) {
+                const [wgsLng, wgsLat] = routeGcj02ToWgs84(parseFloat(parts[0]), parseFloat(parts[1]));
+                busCoords.push([wgsLat, wgsLng]);
+              }
+            }
+          }
+          segments.push({
+            type: isSubway ? 'subway' : 'bus',
+            instruction: `乘坐${lineName}`,
+            distance: parseInt(busline.distance || '0', 10),
+            duration: parseInt(busline.duration || '0', 10),
+            lineName,
+            departureStop: busline.departure_stop?.name,
+            arrivalStop: busline.arrival_stop?.name,
+            viaStops: parseInt(busline.via_num || '0', 10),
+            coordinates: busCoords,
+          });
+        }
+      }
+    }
+
+    // 生成摘要
+    const subwayCount = segments.filter(s => s.type === 'subway').length;
+    const busCount = segments.filter(s => s.type === 'bus').length;
+    const parts: string[] = [];
+    if (subwayCount > 0) parts.push(`地铁${subwayCount}条`);
+    if (busCount > 0) parts.push(`公交${busCount}条`);
+    const summary = parts.length > 0
+      ? `${formatRouteDuration(totalDuration)} | ${parts.join('，')}${totalWalking > 0 ? ` | 步行${formatRouteDistance(totalWalking)}` : ''}`
+      : formatRouteDuration(totalDuration);
+
+    options.push({
+      duration: totalDuration,
+      distance: totalDistance,
+      walkingDistance: totalWalking,
+      segments,
+      summary,
+    });
+  }
+
+  return {
+    origin: [origin.lat, origin.lng],
+    destination: [destination.lat, destination.lng],
+    options,
+    source: 'amap',
+  };
+}
+
 // ── Resolve Google Maps URL ──────────────────────────────────────────────────
 
 export async function resolveGoogleMapsUrl(url: string): Promise<{ lat: number; lng: number; name: string | null; address: string | null }> {

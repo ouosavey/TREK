@@ -255,6 +255,33 @@ export interface RouteResult {
   drivingText: string
 }
 
+export interface TransitSegment {
+  type: 'walk' | 'bus' | 'subway'
+  instruction: string
+  distance: number
+  duration: number
+  lineName?: string
+  departureStop?: string
+  arrivalStop?: string
+  viaStops?: number
+  coordinates: [number, number][]
+}
+
+export interface TransitRouteOption {
+  duration: number
+  distance: number
+  walkingDistance: number
+  segments: TransitSegment[]
+  summary: string
+}
+
+export interface TransitRouteResult {
+  origin: [number, number]
+  destination: [number, number]
+  options: TransitRouteOption[]
+  source: 'amap'
+}
+
 export interface Waypoint {
   lat: number
   lng: number

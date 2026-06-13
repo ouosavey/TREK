@@ -73,9 +73,9 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bug1: 版本更新误提醒:**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: cn-localized分支版本号与上游不同步，导致checkVersion()检测到假更新" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: adminService.ts中添加cn-localized检测，跳过上游版本比较；Dockerfile添加TREK_CN_LOCALIZED构建参数" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bug2: 地图右键/长按添加地点地址偏移(位置漂移):**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: MapViewAMap将GCJ-02→WGS-84传给handleMapContextMenu，但高德逆地理编码API期望GCJ-02坐标" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: TripPlannerPage中调用reverseAmap前将WGS-84坐标转回GCJ-02" >> $GITHUB_STEP_SUMMARY
+          echo "- **新功能: 公交/地铁路线规划:**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 后端: mapsService.ts 新增 calculateAmapTransitRoute 函数，调用高德 direction/transit/integrated API" >> $GITHUB_STEP_SUMMARY
+          echo "  - 后端: 新增 /route-transit-amap 路由端点" >> $GITHUB_STEP_SUMMARY
+          echo "  - 前端: 新增 TransitRoutePanel 组件展示换乘方案(步行/公交/地铁分段详情)" >> $GITHUB_STEP_SUMMARY
+          echo "  - 前端: DayPlanSidebar 路线工具区添加\"公交\"按钮(仅高德地图模式下显示)" >> $GITHUB_STEP_SUMMARY
+          echo "  - 前端: 选择不同方案时自动在地图上绘制对应路线" >> $GITHUB_STEP_SUMMARY

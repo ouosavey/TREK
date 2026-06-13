@@ -2362,6 +2362,12 @@ const zh: Record<string, string> = {
   'transport.modalTitle.edit': '编辑交通',
   'transport.title': '交通',
   'transport.addManual': '手动添加交通',
+  'transit.title': '公交/地铁路线',
+  'transit.button': '公交',
+  'transit.amapOnly': '公交路线仅支持高德地图',
+  'transit.needCity': '无法识别城市，请确保地点地址包含城市名',
+  'transit.error': '公交路线查询失败',
+  'transit.noRoutes': '未找到公交路线',
 }
 
 export default zh

@@ -7,7 +7,7 @@ import ReactDOM from 'react-dom'
 import { ChevronDown, ChevronRight, ChevronUp, ChevronsDownUp, ChevronsUpDown, Navigation, RotateCcw, ExternalLink, Clock, Pencil, GripVertical, Ticket, Plus, FileText, Check, Trash2, Info, MapPin, Star, Heart, Camera, Lightbulb, Flag, Bookmark, Train, Bus, Plane, Car, Ship, Coffee, ShoppingBag, AlertTriangle, FileDown, Lock, Hotel, Utensils, Users, Undo2, X, Route as RouteIcon } from 'lucide-react'
 
 const RES_ICONS = { flight: Plane, hotel: Hotel, restaurant: Utensils, train: Train, car: Car, cruise: Ship, event: Ticket, tour: Users, other: FileText }
-import { assignmentsApi, reservationsApi } from '../../api/client'
+import { assignmentsApi, reservationsApi, mapsApi } from '../../api/client'
 import { downloadTripPDF } from '../PDF/TripPDF'
 import { calculateRoute, generateGoogleMapsUrl, generateAmapUrl, optimizeRoute } from '../Map/RouteCalculator'
 import PlaceAvatar from '../shared/PlaceAvatar'
@@ -31,7 +31,8 @@ import {
 import { formatDate, formatTime, dayTotalCost, currencyDecimals, splitReservationDateTime } from '../../utils/formatters'
 import { useDayNotes } from '../../hooks/useDayNotes'
 import Tooltip from '../shared/Tooltip'
-import type { Trip, Day, Place, Category, Assignment, Reservation, AssignmentsMap, RouteResult } from '../../types'
+import TransitRoutePanel from './TransitRoutePanel'
+import type { Trip, Day, Place, Category, Assignment, Reservation, AssignmentsMap, RouteResult, TransitRouteResult } from '../../types'
 
 const NOTE_ICONS = [
   { id: 'FileText', Icon: FileText },
@@ -251,6 +252,8 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
   const [editTitle, setEditTitle] = useState('')
   const [isCalculating, setIsCalculating] = useState(false)
   const [routeInfo, setRouteInfo] = useState(null)
+  const [transitResult, setTransitResult] = useState<TransitRouteResult | null>(null)
+  const [transitSelectedIdx, setTransitSelectedIdx] = useState(0)
   const [draggingId, setDraggingId] = useState(null)
   const [lockedIds, setLockedIds] = useState(new Set())
   const [lockHoverId, setLockHoverId] = useState(null)
@@ -732,6 +735,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
     const waypoints = da.map(a => a.place).filter(p => p?.lat && p?.lng).map(p => ({ lat: p.lat, lng: p.lng }))
     if (waypoints.length < 2) { toast.error(t('dayplan.toast.needTwoPlaces')); return }
     setIsCalculating(true)
+    setTransitResult(null)
     try {
       const result = await calculateRoute(waypoints, 'walking')
       // Luftlinien zwischen Wegpunkten anzeigen
@@ -740,6 +744,96 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
       onRouteCalculated?.({ ...result, coordinates: lineCoords })
     } catch { toast.error(t('dayplan.toast.routeError')) }
     finally { setIsCalculating(false) }
+  }
+
+  const handleCalculateTransit = async () => {
+    if (!selectedDayId) return
+    const da = getDayAssignments(selectedDayId)
+    const placesWithCoords = da.map(a => a.place).filter(p => p?.lat && p?.lng)
+    if (placesWithCoords.length < 2) { toast.error(t('dayplan.toast.needTwoPlaces')); return }
+
+    const mapProvider = useSettingsStore.getState().settings.map_provider
+    if (mapProvider !== 'amap') {
+      toast.error(t('transit.amapOnly', { defaultValue: '公交路线仅支持高德地图' }))
+      return
+    }
+
+    setIsCalculating(true)
+    setTransitResult(null)
+    try {
+      const origin = { lat: placesWithCoords[0].lat, lng: placesWithCoords[0].lng }
+      const dest = { lat: placesWithCoords[placesWithCoords.length - 1].lat, lng: placesWithCoords[placesWithCoords.length - 1].lng }
+
+      // 尝试从第一个地点的地址中提取城市名
+      const firstPlace = placesWithCoords[0]
+      const city = firstPlace.address?.match(/^([\u4e00-\u9fa5]+[市省])/)?.[1] || firstPlace.name?.match(/^([\u4e00-\u9fa5]+[市省])/)?.[1] || ''
+
+      if (!city) {
+        toast.error(t('transit.needCity', { defaultValue: '无法识别城市，请确保地点地址包含城市名' }))
+        return
+      }
+
+      const result = await mapsApi.routeTransitAmap(origin, dest, city, 0)
+      setTransitResult(result)
+      setTransitSelectedIdx(0)
+
+      // 在地图上绘制第一个方案的路线
+      if (result.options.length > 0) {
+        const firstOption = result.options[0]
+        const allCoords: [number, number][] = []
+        for (const seg of firstOption.segments) {
+          allCoords.push(...seg.coordinates)
+        }
+        if (allCoords.length > 0) {
+          onRouteCalculated?.({
+            coordinates: allCoords,
+            distance: firstOption.distance,
+            duration: firstOption.duration,
+            distanceText: formatTransitDistance(firstOption.distance),
+            durationText: formatTransitDuration(firstOption.duration),
+            walkingText: formatTransitDistance(firstOption.walkingDistance),
+            drivingText: '',
+          })
+        }
+      }
+    } catch (err) {
+      console.error('[Transit] Error:', err)
+      toast.error(t('transit.error', { defaultValue: '公交路线查询失败' }))
+    } finally { setIsCalculating(false) }
+  }
+
+  const handleTransitSelectOption = (idx: number) => {
+    setTransitSelectedIdx(idx)
+    if (!transitResult) return
+    const option = transitResult.options[idx]
+    if (!option) return
+    const allCoords: [number, number][] = []
+    for (const seg of option.segments) {
+      allCoords.push(...seg.coordinates)
+    }
+    if (allCoords.length > 0) {
+      onRouteCalculated?.({
+        coordinates: allCoords,
+        distance: option.distance,
+        duration: option.duration,
+        distanceText: formatTransitDistance(option.distance),
+        durationText: formatTransitDuration(option.duration),
+        walkingText: formatTransitDistance(option.walkingDistance),
+        drivingText: '',
+      })
+    }
+  }
+
+  const formatTransitDistance = (meters: number): string => {
+    if (meters < 1000) return `${Math.round(meters)} m`
+    return `${(meters / 1000).toFixed(1)} km`
+  }
+
+  const formatTransitDuration = (seconds: number): string => {
+    const h = Math.floor(seconds / 3600)
+    const m = Math.floor((seconds % 3600) / 60)
+    if (h > 0) return `${h} h ${m} min`
+    return `${m} min`
   }
 
   const toggleLock = (assignmentId) => {
@@ -1926,12 +2020,22 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                   {/* Routen-Werkzeuge (ausgewählter Tag, 2+ Orte) */}
                   {isSelected && getDayAssignments(day.id).length >= 2 && (
                     <div style={{ padding: '10px 16px 12px', borderTop: '1px solid var(--border-faint)', display: 'flex', flexDirection: 'column', gap: 7 }}>
-                      {routeInfo && (
+                      {routeInfo && !transitResult && (
                         <div style={{ display: 'flex', justifyContent: 'center', gap: 12, fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg-hover)', borderRadius: 8, padding: '5px 10px' }}>
                           <span>{routeInfo.distance}</span>
                           <span style={{ color: 'var(--text-faint)' }}>·</span>
                           <span>{routeInfo.duration}</span>
                         </div>
+                      )}
+
+                      {/* 公交路线方案面板 */}
+                      {transitResult && (
+                        <TransitRoutePanel
+                          result={transitResult}
+                          selectedOptionIndex={transitSelectedIdx}
+                          onSelectOption={handleTransitSelectOption}
+                          onClose={() => setTransitResult(null)}
+                        />
                       )}
 
                       <div style={{ display: 'flex', gap: 6 }}>
@@ -1943,6 +2047,19 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                           <RotateCcw size={12} strokeWidth={2} />
                           {t('dayplan.optimize')}
                         </button>
+                        {useSettingsStore.getState().settings.map_provider === 'amap' && (
+                          <button onClick={handleCalculateTransit} disabled={isCalculating} style={{
+                            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                            padding: '6px 0', fontSize: 11, fontWeight: 500, borderRadius: 8, border: 'none',
+                            background: transitResult ? 'var(--text-primary)' : 'var(--bg-hover)',
+                            color: transitResult ? 'var(--bg-primary)' : 'var(--text-secondary)',
+                            cursor: isCalculating ? 'default' : 'pointer', fontFamily: 'inherit',
+                            opacity: isCalculating ? 0.5 : 1,
+                          }}>
+                            <Bus size={12} strokeWidth={2} />
+                            {isCalculating ? '...' : t('transit.button', { defaultValue: '公交' })}
+                          </button>
+                        )}
                         <button onClick={handleAmapNav} style={{
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           padding: '6px 10px', fontSize: 11, fontWeight: 500, borderRadius: 8,

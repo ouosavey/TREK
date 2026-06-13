@@ -464,6 +464,7 @@ export const mapsApi = {
   reverseAmap: (lat: number, lng: number) => apiClient.get('/maps/reverse-amap', { params: { lat, lng } }).then(r => r.data),
   routeAmap: (waypoints: { lat: number; lng: number }[], profile?: 'driving' | 'walking' | 'cycling') => apiClient.post('/maps/route-amap', { waypoints, profile }).then(r => r.data),
   segmentsAmap: (waypoints: { lat: number; lng: number }[]) => apiClient.post('/maps/segments-amap', { waypoints }).then(r => r.data),
+  routeTransitAmap: (origin: { lat: number; lng: number }, destination: { lat: number; lng: number }, city: string, strategy?: number) => apiClient.post('/maps/route-transit-amap', { origin, destination, city, strategy }).then(r => r.data),
 }
 
 export const airportsApi = {
