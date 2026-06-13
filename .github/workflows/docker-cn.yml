@@ -73,11 +73,10 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **增强: 公交/地铁面板全面优化 (方案C):**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 按钮文字改为\"公交/地铁\"" >> $GITHUB_STEP_SUMMARY
-          echo "  - 后端: 返回费用信息(cost)和线路颜色(lineColor)" >> $GITHUB_STEP_SUMMARY
-          echo "  - 前端: 重构TransitRoutePanel - 折叠态只显示摘要,点击展开显示详细站点信息" >> $GITHUB_STEP_SUMMARY
-          echo "  - 前端: 方案卡片顶部指标条(时间/费用/步行距离/线路数)" >> $GITHUB_STEP_SUMMARY
-          echo "  - 前端: 地铁段用线路颜色标识(基于线路号生成HSL颜色)" >> $GITHUB_STEP_SUMMARY
-          echo "  - 前端: 新增换乘策略选择器(最快/最省钱/最少换乘/少步行),切换时自动重新查询" >> $GITHUB_STEP_SUMMARY
-          echo "  - 前端: 站点信息移入展开区域,带绿色起点/红色终点标记" >> $GITHUB_STEP_SUMMARY
+          echo "- **重构: 公交/地铁改为多段逐点路线规划:**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 核心变更: 从\"首尾两点一次查询\"改为\"相邻地点对逐段查询\"" >> $GITHUB_STEP_SUMMARY
+          echo "  - 每段路线独立显示目的地标题(如: 惠园大酒店 → 汉口站)" >> $GITHUB_STEP_SUMMARY
+          echo "  - 跨城路段自动识别并提示(如: 汉口站→北京西站 显示\"跨城无法使用公交\")" >> $GITHUB_STEP_SUMMARY
+          echo "  - 图标改用带颜色的交通工具图标(地铁🚇/公交🚌/步行👣)替代纯色块" >> $GITHUB_STEP_SUMMARY
+          echo "  - 数据结构新增TransitLeg支持多段,每段可独立选择方案" >> $GITHUB_STEP_SUMMARY
+          echo "  - 标题栏显示汇总统计(总时间+总费用),切换策略时重新查询所有段" >> $GITHUB_STEP_SUMMARY

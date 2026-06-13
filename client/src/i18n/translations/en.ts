@@ -2435,6 +2435,9 @@ const en: Record<string, string | { name: string; category: string }[]> = {
   'transit.strategy.cheapest': 'Cheapest',
   'transit.strategy.leastTransfer': 'Least Transfer',
   'transit.strategy.leastWalk': 'Less Walking',
+  'transit.cannotDetectCity': 'Cannot detect city',
+  'transit.noRouteForLeg': 'Too short or no direct transit, try walking/taxi',
+  'transit.crossCity': 'Cross-city route unavailable for transit',
 }
 
 export default en

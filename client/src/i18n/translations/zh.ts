@@ -2372,6 +2372,9 @@ const zh: Record<string, string> = {
   'transit.strategy.cheapest': '最省钱',
   'transit.strategy.leastTransfer': '最少换乘',
   'transit.strategy.leastWalk': '少步行',
+  'transit.cannotDetectCity': '无法识别城市',
+  'transit.noRouteForLeg': '该段距离过短或无直达公交，建议步行/打车',
+  'transit.crossCity': '跨城路段无法使用公交，请使用其他交通方式',
 }
 
 export default zh

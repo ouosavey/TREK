@@ -277,10 +277,21 @@ export interface TransitRouteOption {
   summary: string
 }
 
-export interface TransitRouteResult {
-  origin: [number, number]
-  destination: [number, number]
+/** 单段路线(相邻两个地点之间) */
+export interface TransitLeg {
+  fromName: string          // 出发地名称
+  toName: string            // 目的地名称
+  fromCoords: [number, number]
+  toCoords: [number, number]
   options: TransitRouteOption[]
+  selectedOptionIndex: number
+  error?: string            // 查询失败原因(如跨城)
+}
+
+export interface TransitRouteResult {
+  legs: TransitLeg[]        // 多段路线
+  totalDuration: number     // 总时间
+  totalCost: number         // 总费用
   source: 'amap'
 }
 

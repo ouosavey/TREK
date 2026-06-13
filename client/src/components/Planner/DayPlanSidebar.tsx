@@ -33,7 +33,7 @@ import { useDayNotes } from '../../hooks/useDayNotes'
 import Tooltip from '../shared/Tooltip'
 import TransitRoutePanel from './TransitRoutePanel'
 import { wgs84ToGcj02 } from '../../utils/coordTransform'
-import type { Trip, Day, Place, Category, Assignment, Reservation, AssignmentsMap, RouteResult, TransitRouteResult } from '../../types'
+import type { Trip, Day, Place, Category, Assignment, Reservation, AssignmentsMap, RouteResult, TransitRouteResult, TransitLeg, TransitRouteOption } from '../../types'
 
 const NOTE_ICONS = [
   { id: 'FileText', Icon: FileText },
@@ -254,7 +254,6 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
   const [isCalculating, setIsCalculating] = useState(false)
   const [routeInfo, setRouteInfo] = useState(null)
   const [transitResult, setTransitResult] = useState<TransitRouteResult | null>(null)
-  const [transitSelectedIdx, setTransitSelectedIdx] = useState(0)
   const [transitStrategy, setTransitStrategy] = useState(0)
   const [draggingId, setDraggingId] = useState(null)
   const [lockedIds, setLockedIds] = useState(new Set())
@@ -748,6 +747,78 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
     finally { setIsCalculating(false) }
   }
 
+  // 获取城市名(用于公交查询)
+  const getCityForCoords = async (lat: number, lng: number): Promise<string> => {
+    try {
+      const [gcjLng, gcjLat] = wgs84ToGcj02(lng, lat)
+      const regeo = await mapsApi.reverseAmap(gcjLat, gcjLng)
+      if (regeo.city) return regeo.city
+    } catch {}
+    return ''
+  }
+
+  // 查询单段路线
+  const querySingleLeg = async (
+    fromPlace: { name?: string; lat: number; lng: number },
+    toPlace: { name?: string; lat: number; lng: number },
+    strategy: number,
+  ): Promise<{ leg: TransitLeg; routeData: TransitRouteOption | null }> => {
+    const city = await getCityForCoords(fromPlace.lat, fromPlace.lng)
+    if (!city) {
+      return {
+        leg: {
+          fromName: fromPlace.name || '起点',
+          toName: toPlace.name || '终点',
+          fromCoords: [fromPlace.lat, fromPlace.lng],
+          toCoords: [toPlace.lat, toPlace.lng],
+          options: [],
+          selectedOptionIndex: 0,
+          error: t('transit.cannotDetectCity', { defaultValue: '无法识别城市' }),
+        },
+        routeData: null,
+      }
+    }
+    try {
+      const result = await mapsApi.routeTransitAmap(
+        { lat: fromPlace.lat, lng: fromPlace.lng },
+        { lat: toPlace.lat, lng: toPlace.lng },
+        city,
+        strategy,
+      )
+      const leg: TransitLeg = {
+        fromName: fromPlace.name || '起点',
+        toName: toPlace.name || '终点',
+        fromCoords: [fromPlace.lat, fromPlace.lng],
+        toCoords: [toPlace.lat, toPlace.lng],
+        options: result.options || [],
+        selectedOptionIndex: 0,
+      }
+      return { leg, routeData: result.options?.[0] || null }
+    } catch (err: any) {
+      const msg = String(err?.message || err || '')
+      // 跨城或无路线的友好提示
+      let errorMsg = t('transit.error', { defaultValue: '查询失败' })
+      if (msg.includes('No transit') || msg.includes('未找到')) {
+        errorMsg = t('transit.noRouteForLeg', { defaultValue: '该段距离过短或无直达公交，建议步行/打车' })
+      } else if (msg.includes('跨城') || msg.includes('cross')) {
+        errorMsg = t('transit.crossCity', { defaultValue: '跨城路段无法使用公交，请使用其他交通方式' })
+      }
+      return {
+        leg: {
+          fromName: fromPlace.name || '起点',
+          toName: toPlace.name || '终点',
+          fromCoords: [fromPlace.lat, fromPlace.lng],
+          toCoords: [toPlace.lat, toPlace.lng],
+          options: [],
+          selectedOptionIndex: 0,
+          error: errorMsg,
+        },
+        routeData: null,
+      }
+    }
+  }
+
+  // 按相邻地点对逐段查询公交路线
   const handleCalculateTransit = async () => {
     if (!selectedDayId) return
     const da = getDayAssignments(selectedDayId)
@@ -762,66 +833,45 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
 
     setIsCalculating(true)
     setTransitResult(null)
+
     try {
-      const origin = { lat: placesWithCoords[0].lat, lng: placesWithCoords[0].lng }
-      const dest = { lat: placesWithCoords[placesWithCoords.length - 1].lat, lng: placesWithCoords[placesWithCoords.length - 1].lng }
+      const legs: TransitLeg[] = []
+      let totalDuration = 0
+      let totalCost = 0
+      let allCoords: [number, number][] = []
 
-      // 通过逆地理编码获取城市名（最可靠的方式）
-      let city = ''
-      try {
-        const [gcjLng, gcjLat] = wgs84ToGcj02(origin.lng, origin.lat)
-        const regeo = await mapsApi.reverseAmap(gcjLat, gcjLng)
-        if (regeo.city) city = regeo.city
-      } catch {}
-
-      // 回退：从地址中提取城市名
-      if (!city) {
-        const firstPlace = placesWithCoords[0]
-        const addr = firstPlace.address || ''
-        // 匹配 "XX市" 或 "XX省XX市" 格式
-        const m = addr.match(/([\u4e00-\u9fa5]+(?:自治州|盟|地区|市))/)
-        if (m) city = m[1]
-      }
-
-      // 再回退：用省份（直辖市省份名即城市名）
-      if (!city) {
-        try {
-          const [gcjLng, gcjLat] = wgs84ToGcj02(origin.lng, origin.lat)
-          const regeo = await mapsApi.reverseAmap(gcjLat, gcjLng)
-          if (regeo.address) {
-            const provMatch = regeo.address.match(/^([\u4e00-\u9fa5]+(?:省|市|自治区))/)
-            if (provMatch) city = provMatch[1]
+      for (let i = 0; i < placesWithCoords.length - 1; i++) {
+        const fromPlace = placesWithCoords[i]
+        const toPlace = placesWithCoords[i + 1]
+        const { leg, routeData } = await querySingleLeg(fromPlace, toPlace, transitStrategy)
+        legs.push(leg)
+        if (routeData) {
+          totalDuration += routeData.duration
+          totalCost += routeData.cost
+          for (const seg of routeData.segments) {
+            allCoords.push(...seg.coordinates)
           }
-        } catch {}
+        } else {
+          // 无公交路线时用直线连接
+          allCoords.push([fromPlace.lat, fromPlace.lng])
+          allCoords.push([toPlace.lat, toPlace.lng])
+        }
       }
 
-      if (!city) {
-        toast.error(t('transit.needCity', { defaultValue: '无法识别城市，请确保地点地址包含城市名' }))
-        return
-      }
-
-      const result = await mapsApi.routeTransitAmap(origin, dest, city, 0)
+      const result: TransitRouteResult = { legs, totalDuration, totalCost, source: 'amap' }
       setTransitResult(result)
-      setTransitSelectedIdx(0)
 
-      // 在地图上绘制第一个方案的路线
-      if (result.options.length > 0) {
-        const firstOption = result.options[0]
-        const allCoords: [number, number][] = []
-        for (const seg of firstOption.segments) {
-          allCoords.push(...seg.coordinates)
-        }
-        if (allCoords.length > 0) {
-          onRouteCalculated?.({
-            coordinates: allCoords,
-            distance: firstOption.distance,
-            duration: firstOption.duration,
-            distanceText: formatTransitDistance(firstOption.distance),
-            durationText: formatTransitDuration(firstOption.duration),
-            walkingText: formatTransitDistance(firstOption.walkingDistance),
-            drivingText: '',
-          })
-        }
+      // 在地图上绘制所有段的路线
+      if (allCoords.length > 0) {
+        onRouteCalculated?.({
+          coordinates: allCoords,
+          distance: 0,
+          duration: totalDuration,
+          distanceText: '',
+          durationText: formatTransitDuration(totalDuration),
+          walkingText: '',
+          drivingText: '',
+        })
       }
     } catch (err) {
       console.error('[Transit] Error:', err)
@@ -829,23 +879,45 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
     } finally { setIsCalculating(false) }
   }
 
-  const handleTransitSelectOption = (idx: number) => {
-    setTransitSelectedIdx(idx)
+  // 选择某段路线的某个方案
+  const handleTransitSelectOption = (legIndex: number, optionIndex: number) => {
     if (!transitResult) return
-    const option = transitResult.options[idx]
+    const legs = [...transitResult.legs]
+    if (!legs[legIndex]) return
+
+    legs[legIndex] = { ...legs[legIndex], selectedOptionIndex: optionIndex }
+    setTransitResult({ ...transitResult, legs })
+
+    // 重绘该段的路线
+    const option = legs[legIndex].options[optionIndex]
     if (!option) return
+
+    // 收集所有选中方案的坐标
     const allCoords: [number, number][] = []
-    for (const seg of option.segments) {
-      allCoords.push(...seg.coordinates)
+    let totalDur = 0
+    let totalCostVal = 0
+    for (const l of legs) {
+      const opt = l.options[l.selectedOptionIndex]
+      if (opt) {
+        totalDur += opt.duration
+        totalCostVal += opt.cost
+        for (const seg of opt.segments) allCoords.push(...seg.coordinates)
+      } else {
+        // 错误段用直线
+        allCoords.push(l.fromCoords)
+        allCoords.push(l.toCoords)
+      }
     }
+    setTransitResult(prev => prev ? { ...prev, totalDuration: totalDur, totalCost: totalCostVal } : prev)
+
     if (allCoords.length > 0) {
       onRouteCalculated?.({
         coordinates: allCoords,
-        distance: option.distance,
-        duration: option.duration,
-        distanceText: formatTransitDistance(option.distance),
-        durationText: formatTransitDuration(option.duration),
-        walkingText: formatTransitDistance(option.walkingDistance),
+        distance: 0,
+        duration: totalDur,
+        distanceText: '',
+        durationText: formatTransitDuration(totalDur),
+        walkingText: '',
         drivingText: '',
       })
     }
@@ -863,7 +935,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
     return `${m} min`
   }
 
-  // 切换乘乘策略时重新查询
+  // 切换乘乘策略时重新查询所有段
   const handleTransitStrategyChange = async (strategy: number) => {
     setTransitStrategy(strategy)
     if (!selectedDayId) return
@@ -871,40 +943,39 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
     const placesWithCoords = da.map(a => a.place).filter(p => p?.lat && p?.lng)
     if (placesWithCoords.length < 2) return
 
-    const origin = { lat: placesWithCoords[0].lat, lng: placesWithCoords[0].lng }
-    const dest = { lat: placesWithCoords[placesWithCoords.length - 1].lat, lng: placesWithCoords[placesWithCoords.length - 1].lng }
-    let city = ''
-    try {
-      const [gcjLng, gcjLat] = wgs84ToGcj02(origin.lng, origin.lat)
-      const regeo = await mapsApi.reverseAmap(gcjLat, gcjLng)
-      if (regeo.city) city = regeo.city
-    } catch {}
-    if (!city && placesWithCoords[0].address) {
-      const m = placesWithCoords[0].address.match(/([\u4e00-\u9fa5]+(?:自治州|盟|地区|市))/)
-      if (m) city = m[1]
-    }
-    if (!city) return
-
     setIsCalculating(true)
     try {
-      const result = await mapsApi.routeTransitAmap(origin, dest, city, strategy)
-      setTransitResult(result)
-      setTransitSelectedIdx(0)
-      if (result.options.length > 0) {
-        const opt = result.options[0]
-        const allCoords: [number, number][] = []
-        for (const seg of opt.segments) allCoords.push(...seg.coordinates)
-        if (allCoords.length > 0) {
-          onRouteCalculated?.({
-            coordinates: allCoords,
-            distance: opt.distance,
-            duration: opt.duration,
-            distanceText: formatTransitDistance(opt.distance),
-            durationText: formatTransitDuration(opt.duration),
-            walkingText: formatTransitDistance(opt.walkingDistance),
-            drivingText: '',
-          })
+      const legs: TransitLeg[] = []
+      let totalDuration = 0
+      let totalCost = 0
+      let allCoords: [number, number][] = []
+
+      for (let i = 0; i < placesWithCoords.length - 1; i++) {
+        const { leg, routeData } = await querySingleLeg(placesWithCoords[i], placesWithCoords[i + 1], strategy)
+        legs.push(leg)
+        if (routeData) {
+          totalDuration += routeData.duration
+          totalCost += routeData.cost
+          for (const seg of routeData.segments) allCoords.push(...seg.coordinates)
+        } else {
+          allCoords.push([placesWithCoords[i].lat, placesWithCoords[i].lng])
+          allCoords.push([placesWithCoords[i + 1].lat, placesWithCoords[i + 1].lng])
         }
+      }
+
+      const result: TransitRouteResult = { legs, totalDuration, totalCost, source: 'amap' }
+      setTransitResult(result)
+
+      if (allCoords.length > 0) {
+        onRouteCalculated?.({
+          coordinates: allCoords,
+          distance: 0,
+          duration: totalDuration,
+          distanceText: '',
+          durationText: formatTransitDuration(totalDuration),
+          walkingText: '',
+          drivingText: '',
+        })
       }
     } catch {}
     finally { setIsCalculating(false) }
@@ -2106,9 +2177,8 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                       {transitResult && (
                         <TransitRoutePanel
                           result={transitResult}
-                          selectedOptionIndex={transitSelectedIdx}
                           selectedStrategy={transitStrategy}
-                          onSelectOption={handleTransitSelectOption}
+                          onSelectLegOption={handleTransitSelectOption}
                           onSelectStrategy={handleTransitStrategyChange}
                           onClose={() => setTransitResult(null)}
                         />
