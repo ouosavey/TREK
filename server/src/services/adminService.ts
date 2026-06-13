@@ -337,13 +337,19 @@ export function __clearVersionCacheForTests(): void {
 }
 
 export async function checkVersion(): Promise<VersionInfo> {
-  if (_versionCache && Date.now() < _versionCache.expiresAt) {
-    return _versionCache.data;
-  }
-
+  // cn-localized branch: skip upstream version check to avoid false update notices
   const currentVersion: string = process.env.APP_VERSION || require('../../package.json').version;
   const isPrerelease = currentVersion.includes('-pre.');
   const fallback: VersionInfo = { current: currentVersion, latest: currentVersion, update_available: false, is_docker: isDocker, is_prerelease: isPrerelease };
+
+  // If running the cn-localized build, never check for upstream updates
+  if (process.env.TREK_CN_LOCALIZED === '1' || currentVersion.startsWith('3.0.22-cn')) {
+    return fallback;
+  }
+
+  if (_versionCache && Date.now() < _versionCache.expiresAt) {
+    return _versionCache.data;
+  }
   let result: VersionInfo;
   try {
     if (isPrerelease) {

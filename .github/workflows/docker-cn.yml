@@ -56,6 +56,7 @@ jobs:
           no-cache: true
           build-args: |
             APP_VERSION=cn-latest
+            TREK_CN_LOCALIZED=1
           tags: |
             ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -72,9 +73,9 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bug1: 旅程页面地图缩放级别不合适(显示整个世界):**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: 地图初始化zoom=2，且fit bounds使用setBounds可能产生NaN" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 用setZoomAndCenter替代setBounds，根据坐标跨度自动计算合适zoom" >> $GITHUB_STEP_SUMMARY
-          echo "- **Bug2: 鼠标划入条目触发TypeError: getDom is not a function:**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: AMap 2.0的InfoWindow没有getDom()方法" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 改用document.querySelector获取popup DOM元素" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bug1: 版本更新误提醒:**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: cn-localized分支版本号与上游不同步，导致checkVersion()检测到假更新" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: adminService.ts中添加cn-localized检测，跳过上游版本比较；Dockerfile添加TREK_CN_LOCALIZED构建参数" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bug2: 地图右键/长按添加地点地址偏移(位置漂移):**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: MapViewAMap将GCJ-02→WGS-84传给handleMapContextMenu，但高德逆地理编码API期望GCJ-02坐标" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: TripPlannerPage中调用reverseAmap前将WGS-84坐标转回GCJ-02" >> $GITHUB_STEP_SUMMARY

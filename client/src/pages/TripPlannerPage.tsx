@@ -28,6 +28,7 @@ import Navbar from '../components/Layout/Navbar'
 import { useToast } from '../components/shared/Toast'
 import { Map, X, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Ticket, PackageCheck, Wallet, FolderOpen, Users, Train } from 'lucide-react'
 import { useTranslation } from '../i18n'
+import { wgs84ToGcj02 } from '../utils/coordTransform'
 import { addonsApi, accommodationsApi, authApi, tripsApi, assignmentsApi, mapsApi } from '../api/client'
 import { accommodationRepo } from '../repo/accommodationRepo'
 import { offlineDb } from '../db/offlineDb'
@@ -470,8 +471,10 @@ export default function TripPlannerPage(): React.ReactElement | null {
     setShowPlaceForm(true)
     try {
       const { mapsApi } = await import('../api/client')
-      const data = (mapProvider === 'amap' || hasAmapKey)
-        ? await mapsApi.reverseAmap(lat, lng)
+      // AMap reverse geocoding expects GCJ-02 coords, but we receive WGS-84 from MapViewAMap
+      const useAmap = mapProvider === 'amap' || hasAmapKey
+      const data = useAmap
+        ? (() => { const [gcjLng, gcjLat] = wgs84ToGcj02(lng, lat); return mapsApi.reverseAmap(gcjLat, gcjLng) })()
         : await mapsApi.reverse(lat, lng, language)
       if (data.name || data.address) {
         setPrefillCoords(prev => prev ? { ...prev, name: data.name || '', address: data.address || '' } : prev)
@@ -487,8 +490,9 @@ export default function TripPlannerPage(): React.ReactElement | null {
     if (data.lat && data.lng && !data.address) {
       try {
         const { mapsApi } = await import('../api/client')
-        const reverseData = (mapProvider === 'amap' || hasAmapKey)
-          ? await mapsApi.reverseAmap(data.lat, data.lng)
+        const useAmap = mapProvider === 'amap' || hasAmapKey
+        const reverseData = useAmap
+          ? (() => { const [gcjLng, gcjLat] = wgs84ToGcj02(data.lng, data.lat); return mapsApi.reverseAmap(gcjLat, gcjLng) })()
           : await mapsApi.reverse(data.lat, data.lng, language)
         if (reverseData.address) {
           data.address = reverseData.address
