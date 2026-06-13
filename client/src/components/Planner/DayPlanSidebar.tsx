@@ -32,6 +32,7 @@ import { formatDate, formatTime, dayTotalCost, currencyDecimals, splitReservatio
 import { useDayNotes } from '../../hooks/useDayNotes'
 import Tooltip from '../shared/Tooltip'
 import TransitRoutePanel from './TransitRoutePanel'
+import { wgs84ToGcj02 } from '../../utils/coordTransform'
 import type { Trip, Day, Place, Category, Assignment, Reservation, AssignmentsMap, RouteResult, TransitRouteResult } from '../../types'
 
 const NOTE_ICONS = [
@@ -764,9 +765,34 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
       const origin = { lat: placesWithCoords[0].lat, lng: placesWithCoords[0].lng }
       const dest = { lat: placesWithCoords[placesWithCoords.length - 1].lat, lng: placesWithCoords[placesWithCoords.length - 1].lng }
 
-      // 尝试从第一个地点的地址中提取城市名
-      const firstPlace = placesWithCoords[0]
-      const city = firstPlace.address?.match(/^([\u4e00-\u9fa5]+[市省])/)?.[1] || firstPlace.name?.match(/^([\u4e00-\u9fa5]+[市省])/)?.[1] || ''
+      // 通过逆地理编码获取城市名（最可靠的方式）
+      let city = ''
+      try {
+        const [gcjLng, gcjLat] = wgs84ToGcj02(origin.lng, origin.lat)
+        const regeo = await mapsApi.reverseAmap(gcjLat, gcjLng)
+        if (regeo.city) city = regeo.city
+      } catch {}
+
+      // 回退：从地址中提取城市名
+      if (!city) {
+        const firstPlace = placesWithCoords[0]
+        const addr = firstPlace.address || ''
+        // 匹配 "XX市" 或 "XX省XX市" 格式
+        const m = addr.match(/([\u4e00-\u9fa5]+(?:自治州|盟|地区|市))/)
+        if (m) city = m[1]
+      }
+
+      // 再回退：用省份（直辖市省份名即城市名）
+      if (!city) {
+        try {
+          const [gcjLng, gcjLat] = wgs84ToGcj02(origin.lng, origin.lat)
+          const regeo = await mapsApi.reverseAmap(gcjLat, gcjLng)
+          if (regeo.address) {
+            const provMatch = regeo.address.match(/^([\u4e00-\u9fa5]+(?:省|市|自治区))/)
+            if (provMatch) city = provMatch[1]
+          }
+        } catch {}
+      }
 
       if (!city) {
         toast.error(t('transit.needCity', { defaultValue: '无法识别城市，请确保地点地址包含城市名' }))

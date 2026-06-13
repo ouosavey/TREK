@@ -880,9 +880,9 @@ export async function searchAmap(query: string, city?: string, lang?: string, us
   return { places, source: 'amap' }
 }
 
-export async function reverseGeocodeAmap(lat: string, lng: string, userId?: number): Promise<{ name: string | null; address: string | null }> {
+export async function reverseGeocodeAmap(lat: string, lng: string, userId?: number): Promise<{ name: string | null; address: string | null; city: string | null }> {
   const amapKey = getAmapKey(userId)
-  if (!amapKey) return { name: null, address: null }
+  if (!amapKey) return { name: null, address: null, city: null }
 
   const params = new URLSearchParams({
     key: amapKey,
@@ -892,13 +892,16 @@ export async function reverseGeocodeAmap(lat: string, lng: string, userId?: numb
   })
   try {
     const response = await fetch(`https://restapi.amap.com/v3/geocode/regeo?${params}`)
-    if (!response.ok) return { name: null, address: null }
-    const data = await response.json() as { status: string; regeocode?: { formatted_address?: string; addressComponent?: { township?: string; neighborhood?: { name?: string } } } }
-    if (data.status !== '1') return { name: null, address: null }
+    if (!response.ok) return { name: null, address: null, city: null }
+    const data = await response.json() as { status: string; regeocode?: { formatted_address?: string; addressComponent?: { township?: string; neighborhood?: { name?: string }; city?: string | { name?: string }; province?: string } } }
+    if (data.status !== '1') return { name: null, address: null, city: null }
     const addr = data.regeocode
     const name = addr?.addressComponent?.neighborhood?.name || addr?.addressComponent?.township || null
-    return { name, address: addr?.formatted_address || null }
-  } catch { return { name: null, address: null } }
+    // city 可能是字符串或对象（高德 API 版本差异）
+    const cityRaw = addr?.addressComponent?.city
+    const city = typeof cityRaw === 'string' ? cityRaw : (cityRaw as any)?.name || null
+    return { name, address: addr?.formatted_address || null, city }
+  } catch { return { name: null, address: null, city: null } }
 }
 
 export async function autocompleteAmap(input: string, city?: string, userId?: number): Promise<{ suggestions: { placeId: string; mainText: string; secondaryText: string }[]; source: string }> {
