@@ -893,13 +893,25 @@ export async function reverseGeocodeAmap(lat: string, lng: string, userId?: numb
   try {
     const response = await fetch(`https://restapi.amap.com/v3/geocode/regeo?${params}`)
     if (!response.ok) return { name: null, address: null, city: null }
-    const data = await response.json() as { status: string; regeocode?: { formatted_address?: string; addressComponent?: { township?: string; neighborhood?: { name?: string }; city?: string | { name?: string }; province?: string } } }
+    const data = await response.json() as { status: string; regeocode?: { formatted_address?: string; addressComponent?: { township?: string; neighborhood?: { name?: string }; city?: string | string[] | { name?: string }; province?: string } } }
     if (data.status !== '1') return { name: null, address: null, city: null }
     const addr = data.regeocode
     const name = addr?.addressComponent?.neighborhood?.name || addr?.addressComponent?.township || null
-    // city 可能是字符串或对象（高德 API 版本差异）
+    // city 可能是字符串、对象或数组（高德 API 版本差异）
+    // ⚠️ 直辖市（北京/上海/天津/重庆）的 city 字段可能为空数组或空字符串，需回退到 province
     const cityRaw = addr?.addressComponent?.city
-    const city = typeof cityRaw === 'string' ? cityRaw : (cityRaw as any)?.name || null
+    let city: string | null = null
+    if (typeof cityRaw === 'string' && cityRaw) {
+      city = cityRaw
+    } else if (Array.isArray(cityRaw) && cityRaw.length > 0 && cityRaw[0]) {
+      city = String(cityRaw[0])
+    } else if (cityRaw && typeof cityRaw === 'object' && (cityRaw as any)?.name) {
+      city = (cityRaw as any).name
+    }
+    // 直辖市回退：city 为空时使用 province（北京/上海/天津/重庆）
+    if (!city && addr?.addressComponent?.province) {
+      city = addr.addressComponent.province.replace(/市$/, '') // 去掉"北京市"的"市"保持一致性
+    }
     return { name, address: addr?.formatted_address || null, city }
   } catch { return { name: null, address: null, city: null } }
 }

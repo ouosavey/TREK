@@ -747,14 +747,30 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
     finally { setIsCalculating(false) }
   }
 
-  // 获取城市名(用于公交查询)
+  // 获取城市名(用于公交查询) - 多级回退：city → address正则提取 → province（后端已处理）
   const getCityForCoords = async (lat: number, lng: number): Promise<string> => {
     try {
       const [gcjLng, gcjLat] = wgs84ToGcj02(lng, lat)
       const regeo = await mapsApi.reverseAmap(gcjLat, gcjLng)
       if (regeo.city) return regeo.city
+      // 额外回退：从完整地址中正则提取城市/省份名
+      if (regeo.address) {
+        const cityMatch = regeo.address.match(/^([\u4e00-\u9fa5]+(?:市|自治州|地区|盟))/)
+        if (cityMatch) return cityMatch[1].replace(/市$/, '')
+        const provMatch = regeo.address.match(/^([\u4e00-\u9fa5]+(?:省|自治区|特别行政区))/)
+        if (provMatch) return provMatch[1]
+      }
     } catch {}
     return ''
+  }
+
+  // 计算两点间距离(km)
+  const calcDistanceKm = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+    const R = 6371
+    const dLat = (lat2 - lat1) * Math.PI / 180
+    const dLng = (lng2 - lng1) * Math.PI / 180
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
   }
 
   // 查询单段路线
@@ -763,6 +779,22 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
     toPlace: { name?: string; lat: number; lng: number },
     strategy: number,
   ): Promise<{ leg: TransitLeg; routeData: TransitRouteOption | null }> => {
+    // 跨城检测：距离超过 300km 视为跨城，不调用公交 API
+    const distKm = calcDistanceKm(fromPlace.lat, fromPlace.lng, toPlace.lat, toPlace.lng)
+    if (distKm > 300) {
+      return {
+        leg: {
+          fromName: fromPlace.name || '起点',
+          toName: toPlace.name || '终点',
+          fromCoords: [fromPlace.lat, fromPlace.lng],
+          toCoords: [toPlace.lat, toPlace.lng],
+          options: [],
+          selectedOptionIndex: 0,
+          error: t('transit.crossCity', { defaultValue: `跨城路段（约${Math.round(distKm)}km），无法使用公交/地铁，请使用高铁/飞机等交通方式` }),
+        },
+        routeData: null,
+      }
+    }
     const city = await getCityForCoords(fromPlace.lat, fromPlace.lng)
     if (!city) {
       return {
