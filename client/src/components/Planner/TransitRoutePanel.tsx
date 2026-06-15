@@ -499,78 +499,121 @@ export default function TransitRoutePanel({
   const successLegs = result.legs.filter(l => !l.error).length
 
   return (
-    <div style={{
-      position: 'fixed',
-      bottom: 16, left: 16,
-      width: Math.min(420, window.innerWidth - 32),
-      maxHeight: '60vh',
-      display: 'flex', flexDirection: 'column',
-      padding: '12px 14px', background: 'var(--bg-secondary)', borderRadius: 14,
-      boxShadow: '0 8px 32px rgba(0,0,0,0.15), 0 2px 8px rgba(0,0,0,0.08)',
-      zIndex: 9999, overflowY: 'auto',
-      border: '1px solid var(--border-faint)',
-    }}>
-      {/* 标题栏 + 汇总 */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
-            {t('transit.title', { defaultValue: '公交/地铁' })}
-          </span>
-          {successLegs > 0 && (
-            <span style={{ fontSize: 10, color: 'var(--text-faint)', background: 'var(--bg-tertiary)', padding: '1px 6px', borderRadius: 4 }}>
-              {formatDuration(totalDur)} · ¥{totalCost.toFixed(0)}
+    <>
+      {/* 遮罩层 */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(0,0,0,0.35)',
+          zIndex: 9998,
+          WebkitTapHighlightColor: 'transparent',
+        }}
+      />
+      {/* 面板主体 - 桌面居中 / 手机底部抽屉 */}
+      <div style={{
+        position: 'fixed',
+        // 桌面端：居中弹窗
+        ...(window.innerWidth > 768 ? {
+          top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+          width: 'min(480px, calc(100vw - 32px))',
+          maxHeight: '80vh',
+          borderRadius: 16,
+        } : {
+          // 移动端：底部抽屉式全屏弹窗
+          bottom: 0, left: 0, right: 0,
+          height: '85vh', maxHeight: '85vh',
+          borderRadius: '16px 16px 0 0',
+        }),
+        display: 'flex', flexDirection: 'column',
+        background: 'var(--bg-secondary)',
+        boxShadow: '0 -4px 32px rgba(0,0,0,0.12), 0 8px 40px rgba(0,0,0,0.15)',
+        zIndex: 9999,
+        overflowY: 'auto',
+        border: '1px solid var(--border-faint)',
+        overscrollBehavior: 'contain',
+        WebkitOverflowScrolling: 'touch',
+      }}>
+        {/* 移动端拖拽指示条 */}
+        {window.innerWidth <= 768 && (
+          <div style={{
+            display: 'flex', justifyContent: 'center', paddingTop: 8, paddingBottom: 4,
+            flexShrink: 0,
+          }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border-primary)' }} />
+          </div>
+        )}
+        {/* 标题栏 + 汇总 + 关闭 */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          flexShrink: 0, paddingBottom: 10, borderBottom: '1px solid var(--border-faint)',
+          paddingLeft: 2, paddingRight: 2,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: window.innerWidth > 768 ? 13 : 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+              {t('transit.title', { defaultValue: '公交/地铁路线' })}
             </span>
+            {successLegs > 0 && (
+              <span style={{ fontSize: 10.5, color: '#fff', background: 'linear-gradient(135deg,#3b82f6,#6366f1)', padding: '2px 8px', borderRadius: 10, fontWeight: 600 }}>
+                {formatDuration(totalDur)} · ¥{totalCost.toFixed(0)}
+              </span>
+            )}
+          </div>
+          <button onClick={onClose} style={{
+            background: 'var(--bg-tertiary)', border: 'none', borderRadius: '50%',
+            cursor: 'pointer', color: 'var(--text-faint)', width: 28, height: 28,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* 换乘策略选择器 */}
+        <div style={{
+          display: 'flex', gap: 4, flexWrap: 'wrap',
+          paddingTop: 10, paddingBottom: 8, borderBottom: '1px solid var(--border-faint)', flexShrink: 0,
+          paddingLeft: 2, paddingRight: 2,
+        }}>
+          {STRATEGIES.map(s => (
+            <button
+              key={s.value}
+              onClick={() => onSelectStrategy(s.value)}
+              style={{
+                padding: window.innerWidth > 768 ? '4px 9px' : '5px 11px',
+                fontSize: window.innerWidth > 768 ? 11 : 12, borderRadius: 8,
+                border: selectedStrategy === s.value
+                  ? '1.5px solid var(--text-primary)'
+                  : '1px solid var(--border-faint)',
+                background: selectedStrategy === s.value ? 'var(--bg-hover)' : 'transparent',
+                color: selectedStrategy === s.value ? 'var(--text-primary)' : 'var(--text-faint)',
+                cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s',
+              }}
+            >
+              <span style={{ marginRight: 3 }}>{s.icon}</span>
+              {t(s.labelKey, { defaultValue: s.defaultLabel })}
+            </button>
+          ))}
+        </div>
+
+        {/* 各段路线（可滚动区域） */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 8, flex: 1, minHeight: 0, paddingLeft: 2, paddingRight: 2, paddingBottom: 16 }}>
+          {result.legs.map((leg, li) => (
+            <LegSection
+              key={li}
+              leg={leg}
+              legIndex={li}
+              onSelectOption={(oi) => onSelectLegOption(li, oi)}
+            />
+          ))}
+
+          {result.legs.length === 0 && (
+            <div style={{ fontSize: 13, color: 'var(--text-faint)', textAlign: 'center', padding: '24px 0' }}>
+              {t('transit.noRoutes', { defaultValue: '未找到公交路线' })}
+            </div>
           )}
         </div>
-        <button onClick={onClose} style={{
-          background: 'var(--bg-tertiary)', border: 'none', borderRadius: '50%',
-          cursor: 'pointer', color: 'var(--text-faint)', width: 22, height: 22,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <X size={12} />
-        </button>
       </div>
-
-      {/* 换乘策略选择器 */}
-      <div style={{
-        display: 'flex', gap: 4, flexWrap: 'wrap',
-        paddingBottom: 6, borderBottom: '1px solid var(--border-faint)',
-      }}>
-        {STRATEGIES.map(s => (
-          <button
-            key={s.value}
-            onClick={() => onSelectStrategy(s.value)}
-            style={{
-              padding: '3px 8px', fontSize: 11, borderRadius: 6,
-              border: selectedStrategy === s.value
-                ? '1.5px solid var(--text-primary)'
-                : '1px solid var(--border-faint)',
-              background: selectedStrategy === s.value ? 'var(--bg-hover)' : 'transparent',
-              color: selectedStrategy === s.value ? 'var(--text-primary)' : 'var(--text-faint)',
-              cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s',
-            }}
-          >
-            <span style={{ marginRight: 3 }}>{s.icon}</span>
-            {t(s.labelKey, { defaultValue: s.defaultLabel })}
-          </button>
-        ))}
-      </div>
-
-      {/* 各段路线 */}
-      {result.legs.map((leg, li) => (
-        <LegSection
-          key={li}
-          leg={leg}
-          legIndex={li}
-          onSelectOption={(oi) => onSelectLegOption(li, oi)}
-        />
-      ))}
-
-      {result.legs.length === 0 && (
-        <div style={{ fontSize: 12, color: 'var(--text-faint)', textAlign: 'center', padding: '16px 0' }}>
-          {t('transit.noRoutes', { defaultValue: '未找到公交路线' })}
-        </div>
-      )}
-    </div>
+    </>
   )
 }
