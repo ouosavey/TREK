@@ -24,6 +24,8 @@ interface PlaceFormData {
   notes: string
   transport_mode: string
   website: string
+  google_place_id: string
+  image_url: string
 }
 
 function isGoogleMapsUrl(input: string): boolean {
@@ -57,6 +59,8 @@ const DEFAULT_FORM: PlaceFormData = {
   notes: '',
   transport_mode: 'walking',
   website: '',
+  google_place_id: '',
+  image_url: '',
 }
 
 interface PlaceFormModalProps {
@@ -64,7 +68,7 @@ interface PlaceFormModalProps {
   onClose: () => void
   onSave: (data: PlaceFormData, files?: File[]) => Promise<void> | void
   place: Place | null
-  prefillCoords?: { lat: number; lng: number; name?: string; address?: string } | null
+  prefillCoords?: { lat: number; lng: number; name?: string; address?: string; google_place_id?: string; image_url?: string } | null
   tripId: number
   categories: Category[]
   onCategoryCreated: (category: Category) => void
@@ -123,6 +127,8 @@ export default function PlaceFormModal({
         notes: place.notes || '',
         transport_mode: place.transport_mode || 'walking',
         website: place.website || '',
+        google_place_id: place.google_place_id || '',
+        image_url: place.image_url || '',
       })
     } else if (prefillCoords) {
       setForm(prev => ({
@@ -132,6 +138,9 @@ export default function PlaceFormModal({
         // 只在用户还没输入时才填充逆地理编码结果
         name: prev?.name || prefillCoords.name || '',
         address: prev?.address || prefillCoords.address || '',
+        // AMap 逆地理编码返回的 POI 信息
+        google_place_id: prefillCoords.google_place_id || '',
+        image_url: prefillCoords.image_url || '',
       }))
     } else {
       setForm(DEFAULT_FORM)

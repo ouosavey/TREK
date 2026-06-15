@@ -264,7 +264,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
   const [dayDetailCollapsed, setDayDetailCollapsed] = useState(false)
   const [showPlaceForm, setShowPlaceForm] = useState<boolean>(false)
   const [editingPlace, setEditingPlace] = useState<Place | null>(null)
-  const [prefillCoords, setPrefillCoords] = useState<{ lat: number; lng: number; name?: string; address?: string } | null>(null)
+  const [prefillCoords, setPrefillCoords] = useState<{ lat: number; lng: number; name?: string; address?: string; google_place_id?: string; image_url?: string } | null>(null)
   const [editingAssignmentId, setEditingAssignmentId] = useState<number | null>(null)
   const [showTripForm, setShowTripForm] = useState<boolean>(false)
   const [showMembersModal, setShowMembersModal] = useState<boolean>(false)
@@ -468,7 +468,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
     setEditingPlace(null)
     setEditingAssignmentId(null)
 
-    // 先用经纬度立即打开弹窗，再异步获取名称和地址
+    // 先用经纬度立即打开弹窗
     setPrefillCoords({ lat, lng })
     setShowPlaceForm(true)
 
@@ -480,7 +480,14 @@ export default function TripPlannerPage(): React.ReactElement | null {
         ? (() => { const [gcjLng, gcjLat] = wgs84ToGcj02(lng, lat); return mapsApi.reverseAmap(gcjLat, gcjLng) })()
         : await mapsApi.reverse(lat, lng, language)
       if (data.name || data.address) {
-        setPrefillCoords(prev => prev ? { ...prev, name: data.name || '', address: data.address || '' } : prev)
+        setPrefillCoords(prev => prev ? {
+          ...prev,
+          name: data.name || prev.name || '',
+          address: data.address || prev.address || '',
+          // AMap 逆地理编码 extensions=all 返回最近 POI 信息
+          google_place_id: data.poiId || prev.google_place_id || '',
+          image_url: data.photoUrl || prev.image_url || '',
+        } : prev)
       }
     } catch { /* best effort */ }
   }, [language])

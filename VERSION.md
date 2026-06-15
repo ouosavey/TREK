@@ -1,5 +1,26 @@
 # VERSION
 
+## v3.0.22-cn.11 - 2026-06-15
+
+### 变更
+- AMap逆地理编码改用extensions=all，返回附近POI信息（id/name/photos）
+- 右键添加地点现在能获取到POI的google_place_id和image_url
+- 导出图片内联computed style到每个元素
+- AMap地点图片优先通过POI详情API获取
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `server/src/services/mapsService.ts`
+- `client/src/pages/TripPlannerPage.tsx`
+- `client/src/components/Planner/PlaceFormModal.tsx`
+- `client/src/components/Planner/TransitRoutePanel.tsx`
+- `AGENTS.md` (新增 AMap API 参考信息)
+
+---
+
 ## v3.0.22-cn.10 - 2026-06-15
 
 ### 变更

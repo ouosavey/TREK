@@ -38,3 +38,33 @@
 3. 只构建GHCR (ghcr.io)的amd64镜像
 4.每次都要将根目录下的VERSION.md、CHANGELOG.md、AGENTS.md文件一起推送
 ```
+
+### 5. AMap API 参考信息
+
+#### 地图 JS API 2.0
+- 开发指南: https://lbs.amap.com/api/javascript-api-v2
+- 教程: https://lbs.amap.com/api/jsapi-v2/guide/abc/prepare
+- 参考手册: https://lbs.amap.com/api/jsapi-v2/documentation
+- 示例中心: https://lbs.amap.com/demo-center/jsapi-v2
+- DTS 类型声明: https://www.npmjs.com/package/@amap/amap-jsapi-types
+- 坐标转换: JS API 提供 `AMap.convertFrom()` 方法，支持 GPS(WGS84)→高德(GCJ02)、百度→高德
+- 右键菜单: `AMap.ContextMenu`
+- 搜索服务: `AMap.Autocomplete`(输入提示)、`AMap.PlaceSearch`(POI搜索)
+- 路线规划: `AMap.Driving`/`AMap.Walking`/`AMap.Riding`/`AMap.Transfer`(公交)
+- 地理编码: `AMap.Geocoder`
+
+#### Web 服务 API
+- 开发指南: https://lbs.amap.com/api/webservice
+- 搜索POI: https://lbs.amap.com/api/webservice/guide/api-advanced/search
+  - 关键字搜索: `GET /v3/place/text?keywords=xxx&key=xxx`
+  - 周边搜索: `GET /v3/place/around?location=lng,lat&keywords=xxx&key=xxx`
+  - ID查询: `GET /v3/place/detail?id=xxx&key=xxx` (extensions=all 返回 photos)
+- 输入提示: `GET /v3/assistant/inputtips?keywords=xxx&key=xxx`
+- 地理/逆地理编码: https://lbs.amap.com/api/webservice/guide/api/georegeo
+  - 逆地理编码: `GET /v3/geocode/regeo?location=lng,lat&key=xxx&extensions=all`
+  - **重要**: `extensions=all` 返回附近 POI 列表（含 id、name、photos），`extensions=base` 只返回基础地址
+- 路径规划: `GET /v3/direction/driving` / `/transit/integrated` / `/walking` / `/riding`
+- 坐标转换: `GET /v3/assistant/coordinate/convert?locations=lng,lat&coordsys=gps`
+- 坐标系: AMap 使用 GCJ-02（火星坐标系），前端地图返回 WGS-84 需要转换
+- Key 类型: 需要【Web服务API】密钥（不是JS API的Key）
+- 调用量限制: 个人认证 3000次/日，企业认证 30000次/日
