@@ -1,5 +1,22 @@
 # VERSION
 
+## v3.0.22-cn.6 - 2026-06-15
+
+### 变更
+- 修复公交地铁路线导出图片几乎全白问题（position:fixed 导致 html2canvas 无法渲染）
+- 导出图片现在包含完整面板（标题栏+策略标签+内容区）
+- 修复手机端图片拖动时控制台大量 passive event listener 报错
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Planner/TransitRoutePanel.tsx`
+- `client/src/components/Files/FileManager.tsx`
+
+---
+
 ## v3.0.22-cn.5 - 2026-06-15
 
 ### 变更

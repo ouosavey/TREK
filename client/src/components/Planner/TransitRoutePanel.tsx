@@ -577,46 +577,25 @@ export default function TransitRoutePanel({
   const [showExportMenu, setShowExportMenu] = React.useState(false)
   const contentRef = React.useRef<HTMLDivElement>(null)
 
-  // 生成截图 canvas：onclone 中内联所有 CSS 变量，解决 html2canvas 不解析 var() 的问题
+  // 生成截图 canvas：onclone 中修复定位 + 内联CSS变量
   const captureCanvas = React.useCallback(async () => {
     if (!contentRef.current) return null
 
     // 收集需要解析的 CSS 变量名
     const cssVarNames: string[] = []
     const collectVars = (el: HTMLElement) => {
-      const cs = getComputedStyle(el)
-      for (const prop of ['color', 'background', 'backgroundColor', 'borderColor',
-        'borderTopColor', 'borderBottomColor', 'borderLeftColor', 'borderRightColor',
-        'backgroundImage']) {
-        const val = cs.getPropertyValue(prop).trim()
-        if (val.includes('var(')) {
-          const matches = val.match(/var\(--[\w-]+\)/g)
-          if (matches) {
-            for (const m of matches) {
-              const name = m.slice(4, -1) // 去掉 var( 和 )
-              if (!cssVarNames.includes(name)) cssVarNames.push(name)
-            }
-          }
-        }
-      }
-      // 也检查 inline style
-      if (el.style) {
-        for (let i = 0; i < el.style.length; i++) {
-          const val = el.style.getPropertyValue(el.style[i])
-          if (val.includes('var(')) {
-            const matches = val.match(/var\(--[\w-]+\)/g)
-            if (matches) {
-              for (const m of matches) {
-                const name = m.slice(4, -1)
-                if (!cssVarNames.includes(name)) cssVarNames.push(name)
-              }
-            }
+      if (!el.getAttribute) return
+      const styleAttr = el.getAttribute('style') || ''
+      if (styleAttr.includes('var(')) {
+        const matches = styleAttr.match(/var\(--[\w-]+\)/g)
+        if (matches) {
+          for (const m of matches) {
+            const name = m.slice(4, -1)
+            if (!cssVarNames.includes(name)) cssVarNames.push(name)
           }
         }
       }
     }
-
-    // 先遍历一次收集用到的变量名
     const walker = document.createTreeWalker(contentRef.current, NodeFilter.SHOW_ELEMENT)
     while (walker.nextNode()) { collectVars(walker.currentNode as HTMLElement) }
 
@@ -633,56 +612,36 @@ export default function TransitRoutePanel({
       useCORS: true,
       logging: false,
       onclone: (clonedDoc) => {
-        const clonedEl = clonedDoc.body.querySelector('[ref]') as HTMLElement
-          || clonedDoc.body.firstChild?.firstChild as HTMLElement
+        // 通过 data 属性找到克隆的面板元素
+        const target = clonedDoc.querySelector('[data-transit-export]') as HTMLElement | null
+        if (!target) return
 
-        // 替换克隆文档中所有 CSS 变量为实际值
-        const replaceVars = (el: Element | null) => {
-          if (!el || !(el instanceof HTMLElement)) return
-          replaceVars(el.firstChild as HTMLElement)
-
-          // 处理 inline style 中的 var()
-          if (el.style) {
-            for (let i = 0; i < el.style.length; i++) {
-              const prop = el.style[i]
-              let val = el.style.getPropertyValue(prop)
-              if (val.includes('var(')) {
-                for (const [name, resolved] of Object.entries(varValues)) {
-                  val = val.replaceAll(`var(${name})`, resolved)
-                }
-                el.style.setProperty(prop, val)
-              }
-            }
-          }
-          // 处理 attribute 中的 var()（如 style attribute）
-          if (el.getAttribute && el.getAttribute('style')) {
-            let attrVal = el.getAttribute('style') || ''
-            if (attrVal.includes('var(')) {
-              for (const [name, resolved] of Object.entries(varValues)) {
-                attrVal = attrVal.replaceAll(`var(${name})`, resolved)
-              }
-              el.setAttribute('style', attrVal)
-            }
-          }
+        // 1. 隐藏遮罩层（fixed overlay）
+        const overlay = clonedDoc.body.firstChild as HTMLElement
+        if (overlay && overlay.style && overlay.style.position === 'fixed' && overlay.style.background?.includes('0,0,0')) {
+          overlay.style.display = 'none'
         }
 
-        // 遍历克隆文档中所有元素
-        const cloneWalker = clonedDoc.createTreeWalker(
-          clonedEl || clonedDoc.body,
-          NodeFilter.SHOW_ELEMENT
-        )
+        // 2. 把面板从 position:fixed 改为 relative，让 html2canvas 能正确渲染
+        target.style.position = 'relative'
+        target.style.top = ''
+        target.style.left = ''
+        target.style.right = ''
+        target.style.bottom = ''
+        target.style.transform = ''
+        target.style.zIndex = ''
+
+        // 3. 遍历所有子元素，内联 CSS 变量
+        const cloneWalker = clonedDoc.createTreeWalker(target, NodeFilter.SHOW_ELEMENT)
         while (cloneWalker.nextNode()) {
           const node = cloneWalker.currentNode as HTMLElement
-          // 处理 style 属性中的 CSS 变量
-          if (node.getAttribute) {
-            const styleAttr = node.getAttribute('style')
-            if (styleAttr && styleAttr.includes('var(')) {
-              let newStyle = styleAttr
-              for (const [name, resolved] of Object.entries(varValues)) {
-                newStyle = newStyle.replaceAll(`var(${name})`, resolved)
-              }
-              node.setAttribute('style', newStyle)
+          const styleAttr = node.getAttribute('style')
+          if (styleAttr && styleAttr.includes('var(')) {
+            let newStyle = styleAttr
+            for (const [name, resolved] of Object.entries(varValues)) {
+              newStyle = newStyle.replaceAll(`var(${name})`, resolved)
             }
+            node.setAttribute('style', newStyle)
           }
         }
       },
@@ -764,7 +723,7 @@ export default function TransitRoutePanel({
       />
 
       {/* 面板主体 — contentRef 放在这里以导出完整面板（含标题栏+策略标签） */}
-      <div ref={contentRef} style={{
+      <div ref={contentRef} data-transit-export style={{
         position: 'fixed',
         ...(!isMobile ? {
           top: '50%', left: '50%', transform: 'translate(-50%, -50%)',

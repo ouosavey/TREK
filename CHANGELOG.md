@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 2026-06-15 修复导出图片全白问题
+
+### Bug修复
+
+#### 1. 公交地铁路线导出图片几乎全白
+- **问题**: 导出图片几乎全白，只有右下角露出一小块内容
+- **根因**: 面板使用 `position: fixed`，html2canvas 无法正确渲染固定定位元素（元素被定位到视口坐标，超出克隆文档范围）
+- **修复**: 在 html2canvas 的 `onclone` 回调中：
+  - 通过 `data-transit-export` 属性找到克隆的面板元素
+  - 将 `position: fixed` 改为 `position: relative`
+  - 清除 top/left/right/bottom/transform/zIndex 等定位属性
+  - 隐藏遮罩层避免干扰截图
+  - 内联所有 CSS 变量为实际值
+- **涉及文件**: `TransitRoutePanel.tsx`
+
 ## 2026-06-15 修复导出图片缺少标题栏和策略标签
 
 ### Bug修复
