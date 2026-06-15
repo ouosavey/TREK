@@ -35,6 +35,40 @@ function getLineColor(lineName?: string, lineColor?: string): string {
   return '#ef4444'
 }
 
+// ── 错误边界：防止渲染崩溃导致白屏 ────────────────────────────────────
+
+class TransitErrorBoundary extends React.Component<any, any> {
+  constructor(props: any) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+  static getDerivedStateFromError(error: Error): any {
+    return { hasError: true, error }
+  }
+  render(): React.ReactNode {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          position: 'fixed', inset: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.4)', zIndex: 9998,
+        }} onClick={() => this.setState({ hasError: false, error: null })}>
+          <div style={{
+            background: 'var(--bg-secondary)', borderRadius: 12, padding: '20px 24px',
+            textAlign: 'center', maxWidth: 320,
+          }}>
+            <p style={{ fontSize: 13, color: 'var(--text-primary)', marginBottom: 8 }}>
+              {this.state.error?.message || '渲染错误'}
+            </p>
+            <p style={{ fontSize: 11, color: 'var(--text-faint)' }}>点击关闭</p>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 // ── 图标组件：带颜色的交通工具图标 ──────────────────────────────────────
 
 function WalkIcon() {
@@ -192,8 +226,9 @@ function SegmentDetail({ segment }: { segment: TransitSegment }) {
 // ── 指标条 ───────────────────────────────────────────────────────────────
 
 function MetricBar({ option }: { option: TransitRouteOption }) {
-  const subwayCount = option.segments.filter(s => s.type === 'subway').length
-  const busCount = option.segments.filter(s => s.type === 'bus').length
+  const segs = Array.isArray(option.segments) ? option.segments : []
+  const subwayCount = segs.filter(s => s.type === 'subway').length
+  const busCount = segs.filter(s => s.type === 'bus').length
   return (
     <div style={{
       display: 'flex', gap: 10, padding: '5px 8px',
@@ -265,7 +300,7 @@ function RouteOptionCard({ option, index, isSelected, onSelect }: {
         <div style={{ padding: '0 9px 8px', borderTop: '1px solid var(--border-faint)' }}>
           <MetricBar option={option} />
           <div style={{ marginTop: 4 }}>
-            {option.segments.map((seg, si) => (
+            {Array.isArray(option.segments) && option.segments.map((seg, si) => (
               <SegmentDetail key={si} segment={seg} />
             ))}
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -470,7 +505,7 @@ function LegSection({ leg, legIndex, onSelectOption }: {
 
       {/* 方案列表 */}
       <div style={{ padding: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
-        {leg.options.map((option, i) => (
+        {Array.isArray(leg.options) && leg.options.map((option, i) => (
           <RouteOptionCard
             key={i}
             option={option}
@@ -611,7 +646,7 @@ export default function TransitRoutePanel({
 
         {/* 各段路线（自然流式布局，由外层overflowY:auto控制滚动） */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: isMobile ? 24 : 12 }}>
-          {result.legs.map((leg, li) => (
+          {Array.isArray(result.legs) && result.legs.map((leg, li) => (
             <LegSection
               key={li}
               leg={leg}
@@ -620,7 +655,7 @@ export default function TransitRoutePanel({
             />
           ))}
 
-          {result.legs.length === 0 && (
+          {(!result.legs || result.legs.length === 0) && (
             <div style={{ fontSize: 13, color: 'var(--text-faint)', textAlign: 'center', padding: '24px 0' }}>
               {t('transit.noRoutes', { defaultValue: '未找到公交路线' })}
             </div>
@@ -631,5 +666,8 @@ export default function TransitRoutePanel({
   )
 
   // Portal渲染到document.body,绕过父容器overflow/transform限制
-  return ReactDOM.createPortal(panel, document.body)
+  return ReactDOM.createPortal(
+    <TransitErrorBoundary>{panel}</TransitErrorBoundary>,
+    document.body
+  )
 }
