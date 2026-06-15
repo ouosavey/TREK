@@ -280,6 +280,63 @@ function RouteOptionCard({ option, index, isSelected, onSelect }: {
   )
 }
 
+// ── 12306 购票链接生成 ────────────────────────────────────────────────
+
+/** 常用火车站代码映射 (12306 station_code) */
+const STATION_CODES: Record<string, string> = {
+  // 直辖市
+  '北京西': 'BXP', '北京南': 'VNP', '北京': 'BJP', '北京丰台': 'FTP',
+  '上海': 'SHH', '上海虹桥': 'AOH', '上海南站': 'SXH',
+  '广州南': 'IZQ', '广州': 'GZQ', '深圳北': 'IOQ', '深圳': 'SZQ',
+  '天津西': 'TXP', '天津': 'TJP', '天津南': 'TIP',
+  '重庆北': 'CUW', '重庆': 'CQW', '重庆西': 'CXW',
+  // 湖北
+  '汉口': 'HK', '武汉': 'WHN', '武昌': 'WCN', '武汉站': 'WKN',
+  // 河南
+  '郑州东': 'ZAF', '郑州': 'ZZF',
+  // 江苏
+  '南京南': 'NKH', '南京': 'NJH',
+  // 浙江
+  '杭州东': 'HGH', '杭州': 'HZH',
+  // 四川
+  '成都东': 'ICW', '成都': 'CDW',
+  // 陕西
+  '西安北': 'EAY', '西安': 'XAY',
+  // 湖南
+  '长沙南': 'CSQ', '长沙': 'CSQ',
+  // 其他常见
+  '合肥南': 'UEH', '济南西': 'JGK', '沈阳北': 'SYT', '长春': 'CCT',
+  '哈尔滨西': 'HBB', '福州南': 'XKS', '南昌西': 'NKG', '南宁东': 'NNZ',
+  '贵阳北': 'KIW', '昆明南': 'KMM', '兰州西': 'LZH', '乌鲁木齐': 'WMR',
+  '太原南': 'TAV', '石家庄': 'SJP', '厦门北': 'XMS', '青岛北': 'QDK',
+  '大连北': 'DLT', '宁波': 'NGH', '苏州北': 'RKH', '无锡': 'UXH',
+  '合肥': 'HFH', '徐州东': 'EUH', '洛阳龙门': 'LYF',
+}
+
+function getStationCode(name: string): string {
+  // 精确匹配
+  if (STATION_CODES[name]) return STATION_CODES[name]
+  // 模糊匹配（名称包含）
+  for (const [stationName, code] of Object.entries(STATION_CODES)) {
+    if (name.includes(stationName) || stationName.includes(name)) return code
+  }
+  return ''
+}
+
+function get12306Url(fromName: string, toName: string): string {
+  const fromCode = getStationCode(fromName)
+  const toCode = getStationCode(toName)
+  const today = new Date()
+  const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  // 有车站代码时生成精确查询URL，否则跳转12306首页
+  if (fromCode && toCode) {
+    const fs = encodeURIComponent(`${fromName},${fromCode}`)
+    const ts = encodeURIComponent(`${toName},${toCode}`)
+    return `https://kyfw.12306.cn/otn/leftTicket/init?linktypeid=dc&fs=${fs}&ts=${ts}&date=${dateStr}&flag=N,N,Y`
+  }
+  return 'https://kyfw.12306.cn/otn/leftTicket/init'
+}
+
 // ── 单段路线区块（带目的地标题） ─────────────────────────────────────────
 
 function LegSection({ leg, legIndex, onSelectOption }: {
@@ -341,9 +398,30 @@ function LegSection({ leg, legIndex, onSelectOption }: {
                 </div>
               )}
             </div>
-            {/* 提示文字 */}
-            <div style={{ fontSize: 10, color: '#a16207', textAlign: 'center', marginTop: 8 }}>
-              建议使用 12306 或各旅行App查询购票
+            {/* 提示文字 + 购票按钮 */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, marginTop: 8 }}>
+              <a
+                href={get12306Url(leg.fromName, leg.toName)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  padding: '5px 14px', borderRadius: 8,
+                  background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                  color: 'white', fontSize: 11, fontWeight: 600,
+                  textDecoration: 'none', fontFamily: 'inherit',
+                  boxShadow: '0 2px 8px rgba(59,130,246,0.3)',
+                  transition: 'transform 0.15s, box-shadow 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(59,130,246,0.4)' }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(59,130,246,0.3)' }}
+              >
+                <TrainIcon size={13} />
+                12306 查询购票
+              </a>
+              <span style={{ fontSize: 9.5, color: '#b8860b' }}>
+                票价以12306实际查询为准
+              </span>
             </div>
           </div>
         </div>
@@ -422,9 +500,15 @@ export default function TransitRoutePanel({
 
   return (
     <div style={{
-      display: 'flex', flexDirection: 'column', gap: 6,
-      padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 12,
-      maxHeight: '70vh', overflowY: 'auto',
+      position: 'fixed',
+      bottom: 16, left: 16,
+      width: Math.min(420, window.innerWidth - 32),
+      maxHeight: '60vh',
+      display: 'flex', flexDirection: 'column',
+      padding: '12px 14px', background: 'var(--bg-secondary)', borderRadius: 14,
+      boxShadow: '0 8px 32px rgba(0,0,0,0.15), 0 2px 8px rgba(0,0,0,0.08)',
+      zIndex: 9999, overflowY: 'auto',
+      border: '1px solid var(--border-faint)',
     }}>
       {/* 标题栏 + 汇总 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
