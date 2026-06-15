@@ -490,6 +490,13 @@ export default function TransitRoutePanel({
   onSelectLegOption, onSelectStrategy, onClose,
 }: TransitRoutePanelProps) {
   const { t } = useTranslation()
+  // 响应式检测屏幕宽度
+  const [isMobile, setIsMobile] = React.useState(() => typeof window !== 'undefined' && window.innerWidth <= 768)
+  React.useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 768)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   // 汇总统计
   const totalDur = result.legs.reduce((s, l) =>
@@ -505,7 +512,7 @@ export default function TransitRoutePanel({
         onClick={onClose}
         style={{
           position: 'fixed', inset: 0,
-          background: 'rgba(0,0,0,0.35)',
+          background: 'rgba(0,0,0,0.4)',
           zIndex: 9998,
           WebkitTapHighlightColor: 'transparent',
         }}
@@ -514,7 +521,7 @@ export default function TransitRoutePanel({
       <div style={{
         position: 'fixed',
         // 桌面端：居中弹窗
-        ...(window.innerWidth > 768 ? {
+        ...(!isMobile ? {
           top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
           width: 'min(480px, calc(100vw - 32px))',
           maxHeight: '80vh',
@@ -522,12 +529,14 @@ export default function TransitRoutePanel({
         } : {
           // 移动端：底部抽屉式全屏弹窗
           bottom: 0, left: 0, right: 0,
-          height: '85vh', maxHeight: '85vh',
+          height: '90vh', maxHeight: '90vh',
           borderRadius: '16px 16px 0 0',
         }),
         display: 'flex', flexDirection: 'column',
         background: 'var(--bg-secondary)',
-        boxShadow: '0 -4px 32px rgba(0,0,0,0.12), 0 8px 40px rgba(0,0,0,0.15)',
+        boxShadow: isMobile
+          ? '0 -4px 24px rgba(0,0,0,0.2)'
+          : '0 8px 40px rgba(0,0,0,0.2)',
         zIndex: 9999,
         overflowY: 'auto',
         border: '1px solid var(--border-faint)',
@@ -535,7 +544,7 @@ export default function TransitRoutePanel({
         WebkitOverflowScrolling: 'touch',
       }}>
         {/* 移动端拖拽指示条 */}
-        {window.innerWidth <= 768 && (
+        {isMobile && (
           <div style={{
             display: 'flex', justifyContent: 'center', paddingTop: 8, paddingBottom: 4,
             flexShrink: 0,
@@ -550,22 +559,22 @@ export default function TransitRoutePanel({
           paddingLeft: 2, paddingRight: 2,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: window.innerWidth > 768 ? 13 : 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+            <span style={{ fontSize: isMobile ? 15 : 13, fontWeight: 700, color: 'var(--text-primary)' }}>
               {t('transit.title', { defaultValue: '公交/地铁路线' })}
             </span>
             {successLegs > 0 && (
-              <span style={{ fontSize: 10.5, color: '#fff', background: 'linear-gradient(135deg,#3b82f6,#6366f1)', padding: '2px 8px', borderRadius: 10, fontWeight: 600 }}>
+              <span style={{ fontSize: isMobile ? 11 : 10.5, color: '#fff', background: 'linear-gradient(135deg,#3b82f6,#6366f1)', padding: '2px 8px', borderRadius: 10, fontWeight: 600 }}>
                 {formatDuration(totalDur)} · ¥{totalCost.toFixed(0)}
               </span>
             )}
           </div>
           <button onClick={onClose} style={{
             background: 'var(--bg-tertiary)', border: 'none', borderRadius: '50%',
-            cursor: 'pointer', color: 'var(--text-faint)', width: 28, height: 28,
+            cursor: 'pointer', color: 'var(--text-faint)', width: isMobile ? 32 : 28, height: isMobile ? 32 : 28,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
           }}>
-            <X size={14} />
+            <X size={isMobile ? 16 : 14} />
           </button>
         </div>
 
@@ -580,8 +589,8 @@ export default function TransitRoutePanel({
               key={s.value}
               onClick={() => onSelectStrategy(s.value)}
               style={{
-                padding: window.innerWidth > 768 ? '4px 9px' : '5px 11px',
-                fontSize: window.innerWidth > 768 ? 11 : 12, borderRadius: 8,
+                padding: isMobile ? '6px 12px' : '4px 9px',
+                fontSize: isMobile ? 12 : 11, borderRadius: 8,
                 border: selectedStrategy === s.value
                   ? '1.5px solid var(--text-primary)'
                   : '1px solid var(--border-faint)',
@@ -597,7 +606,7 @@ export default function TransitRoutePanel({
         </div>
 
         {/* 各段路线（可滚动区域） */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 8, flex: 1, minHeight: 0, paddingLeft: 2, paddingRight: 2, paddingBottom: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 8, flex: 1, minHeight: 0, paddingLeft: 2, paddingRight: 2, paddingBottom: isMobile ? 24 : 16 }}>
           {result.legs.map((leg, li) => (
             <LegSection
               key={li}
