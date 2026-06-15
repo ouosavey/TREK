@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-06-15 修复导出图片含菜单弹窗 + 搜索超时
+
+### Bug修复
+
+#### 1. 导出图片包含导出菜单弹窗
+- **问题**: 截图中出现了"保存图片到本地"/"添加到旅行文件"的菜单弹窗
+- **根因**: `setShowExportMenu(false)` 是 React 异步状态更新，html2canvas 在 DOM 实际更新前就执行了截图
+- **修复**: 在隐藏菜单后增加双帧 `requestAnimationFrame` 等待，确保 DOM 更新完成后再截图
+- **涉及文件**: `TransitRoutePanel.tsx`
+
+#### 2. 地点搜索经常超时失败
+- **问题**: 搜索"北京火神殿"等地点时，AMap autocomplete 反复报 `timeout of 8000ms exceeded`
+- **根因**: AMap 接口需要经服务器代理到高德 API（中国服务器），8 秒超时在网络波动时不够
+- **修复**: 将所有 AMap 相关接口的超时从 8000ms 提升到 15000ms
+- **涉及文件**: `client.ts`, `TransitRoutePanel.tsx`
+
 ## 2026-06-15 修复导出图片全白问题
 
 ### Bug修复

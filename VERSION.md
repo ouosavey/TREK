@@ -1,5 +1,24 @@
 # VERSION
 
+## v3.0.22-cn.7 - 2026-06-15
+
+### 变更
+- 修复导出图片包含导出菜单弹窗（等待 DOM 更新后再截图）
+- AMap 搜索接口超时从 8 秒提升到 15 秒，减少搜索失败
+- 修复导出图片全白问题（position:fixed → relative）
+- 修复手机端图片拖动 passive 报错
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/api/client.ts`
+- `client/src/components/Planner/TransitRoutePanel.tsx`
+- `client/src/components/Files/FileManager.tsx`
+
+---
+
 ## v3.0.22-cn.6 - 2026-06-15
 
 ### 变更

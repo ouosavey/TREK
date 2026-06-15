@@ -651,6 +651,8 @@ export default function TransitRoutePanel({
   // 保存图片到本地
   const handleSaveLocal = React.useCallback(async () => {
     setShowExportMenu(false)
+    // 等待 React 将 showExportMenu=false 渲染到 DOM，避免截到导出菜单
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
     if (exporting) return
     setExporting(true)
     try {
@@ -673,6 +675,8 @@ export default function TransitRoutePanel({
   // 添加到旅行文件
   const handleSaveToTrip = React.useCallback(async () => {
     setShowExportMenu(false)
+    // 等待 React 将 showExportMenu=false 渲染到 DOM，避免截到导出菜单
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
     if (!tripId || exporting) return
     setExporting(true)
     try {

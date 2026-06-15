@@ -458,13 +458,13 @@ export const mapsApi = {
   placePhoto: (placeId: string, lat?: number, lng?: number, name?: string) => apiClient.get(`/maps/place-photo/${encodeURIComponent(placeId)}`, { params: { lat, lng, name } }).then(r => r.data),
   reverse: (lat: number, lng: number, lang?: string) => apiClient.get('/maps/reverse', { params: { lat, lng, lang } }).then(r => r.data),
   resolveUrl: (url: string) => apiClient.post('/maps/resolve-url', { url }).then(r => r.data),
-  // 高德地图搜索接口
-  searchAmap: (query: string, city?: string, lang?: string) => apiClient.post(`/maps/search-amap?lang=${lang || 'zh'}`, { query, city }).then(r => r.data),
-  autocompleteAmap: (input: string, city?: string) => apiClient.post('/maps/autocomplete-amap', { input, city }).then(r => r.data),
-  reverseAmap: (lat: number, lng: number) => apiClient.get('/maps/reverse-amap', { params: { lat, lng } }).then(r => r.data),
-  routeAmap: (waypoints: { lat: number; lng: number }[], profile?: 'driving' | 'walking' | 'cycling') => apiClient.post('/maps/route-amap', { waypoints, profile }).then(r => r.data),
-  segmentsAmap: (waypoints: { lat: number; lng: number }[]) => apiClient.post('/maps/segments-amap', { waypoints }).then(r => r.data),
-  routeTransitAmap: (origin: { lat: number; lng: number }, destination: { lat: number; lng: number }, city: string, strategy?: number) => apiClient.post('/maps/route-transit-amap', { origin, destination, city, strategy }).then(r => r.data),
+  // 高德地图搜索接口（超时设为15秒，因为需要经服务器代理到高德API）
+  searchAmap: (query: string, city?: string, lang?: string) => apiClient.post(`/maps/search-amap?lang=${lang || 'zh'}`, { query, city }, { timeout: 15000 }).then(r => r.data),
+  autocompleteAmap: (input: string, city?: string) => apiClient.post('/maps/autocomplete-amap', { input, city }, { timeout: 15000 }).then(r => r.data),
+  reverseAmap: (lat: number, lng: number) => apiClient.get('/maps/reverse-amap', { params: { lat, lng }, timeout: 15000 }).then(r => r.data),
+  routeAmap: (waypoints: { lat: number; lng: number }[], profile?: 'driving' | 'walking' | 'cycling') => apiClient.post('/maps/route-amap', { waypoints, profile }, { timeout: 15000 }).then(r => r.data),
+  segmentsAmap: (waypoints: { lat: number; lng: number }[]) => apiClient.post('/maps/segments-amap', { waypoints }, { timeout: 15000 }).then(r => r.data),
+  routeTransitAmap: (origin: { lat: number; lng: number }, destination: { lat: number; lng: number }, city: string, strategy?: number) => apiClient.post('/maps/route-transit-amap', { origin, destination, city, strategy }, { timeout: 15000 }).then(r => r.data),
 }
 
 export const airportsApi = {
