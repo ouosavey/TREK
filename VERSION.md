@@ -1,5 +1,26 @@
 # VERSION
 
+## v3.0.22-cn.9 - 2026-06-15
+
+### 变更
+- 修复导出图片文字错位（onclone中注入:root CSS变量定义）
+- Google Fonts 替换为国内 CDN fonts.loli.net，解决国内打开慢
+- AMap 地点图片优先查中文维基百科，解决 404 问题
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Planner/TransitRoutePanel.tsx`
+- `client/index.html`
+- `client/src/components/PDF/TripPDF.tsx`
+- `client/src/components/PDF/JourneyBookPDF.tsx`
+- `server/src/app.ts`
+- `server/src/services/mapsService.ts`
+
+---
+
 ## v3.0.22-cn.8 - 2026-06-15
 
 ### 变更

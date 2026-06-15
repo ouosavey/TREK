@@ -577,38 +577,44 @@ export default function TransitRoutePanel({
   const [showExportMenu, setShowExportMenu] = React.useState(false)
   const contentRef = React.useRef<HTMLDivElement>(null)
 
-  // 生成截图 canvas：onclone 中修复定位 + 内联CSS变量
+  // 生成截图 canvas：onclone 中修复定位 + 注入CSS变量到:root
   const captureCanvas = React.useCallback(async () => {
     if (!contentRef.current) return null
 
-    // 收集需要解析的 CSS 变量名
-    const cssVarNames: string[] = []
-    const collectVars = (el: HTMLElement) => {
-      if (!el.getAttribute) return
-      const styleAttr = el.getAttribute('style') || ''
-      if (styleAttr.includes('var(')) {
-        const matches = styleAttr.match(/var\(--[\w-]+\)/g)
-        if (matches) {
-          for (const m of matches) {
-            const name = m.slice(4, -1)
-            if (!cssVarNames.includes(name)) cssVarNames.push(name)
+    // 从 root 获取所有 CSS 变量值
+    const rootStyle = getComputedStyle(document.documentElement)
+    const allCssVars: string[] = []
+    // 遍历所有样式表，收集 :root 上的自定义属性
+    for (const sheet of document.styleSheets) {
+      try {
+        for (const rule of sheet.cssRules) {
+          if (rule instanceof CSSStyleRule && (rule.selectorText === ':root' || rule.selectorText === 'html')) {
+            const style = rule.style
+            for (let i = 0; i < style.length; i++) {
+              const prop = style[i]
+              if (prop.startsWith('--')) {
+                const val = rootStyle.getPropertyValue(prop).trim()
+                if (val) allCssVars.push(`${prop}: ${val}`)
+              }
+            }
           }
         }
+      } catch { /* cross-origin stylesheet */ }
+    }
+    // 也从 rootStyle 收集（覆盖 computed values）
+    const rootCsVars: Record<string, string> = {}
+    const pseudoEl = rootStyle
+    for (let i = 0; i < pseudoEl.length; i++) {
+      const prop = pseudoEl[i]
+      if (prop.startsWith('--')) {
+        rootCsVars[prop] = pseudoEl.getPropertyValue(prop).trim()
       }
     }
-    const walker = document.createTreeWalker(contentRef.current, NodeFilter.SHOW_ELEMENT)
-    while (walker.nextNode()) { collectVars(walker.currentNode as HTMLElement) }
-
-    // 从 root 获取变量实际值
-    const rootStyle = getComputedStyle(document.documentElement)
-    const varValues: Record<string, string> = {}
-    for (const name of cssVarNames) {
-      varValues[name] = rootStyle.getPropertyValue(name).trim()
-    }
+    const rootVarsCss = Object.entries(rootCsVars).map(([k, v]) => `${k}: ${v}`).join('; ')
 
     return html2canvas(contentRef.current, {
       scale: 2,
-      backgroundColor: varValues['--bg-secondary'] || '#ffffff',
+      backgroundColor: rootCsVars['--bg-secondary'] || '#ffffff',
       useCORS: true,
       logging: false,
       onclone: (clonedDoc) => {
@@ -635,19 +641,10 @@ export default function TransitRoutePanel({
         target.style.height = 'auto'
         target.style.overflow = 'visible'
 
-        // 3. 遍历所有子元素，内联 CSS 变量
-        const cloneWalker = clonedDoc.createTreeWalker(target, NodeFilter.SHOW_ELEMENT)
-        while (cloneWalker.nextNode()) {
-          const node = cloneWalker.currentNode as HTMLElement
-          const styleAttr = node.getAttribute('style')
-          if (styleAttr && styleAttr.includes('var(')) {
-            let newStyle = styleAttr
-            for (const [name, resolved] of Object.entries(varValues)) {
-              newStyle = newStyle.replaceAll(`var(${name})`, resolved)
-            }
-            node.setAttribute('style', newStyle)
-          }
-        }
+        // 3. 注入 :root CSS 变量定义到克隆文档，让 html2canvas 能解析 var()
+        const styleEl = clonedDoc.createElement('style')
+        styleEl.textContent = `:root { ${rootVarsCss} }`
+        clonedDoc.head.appendChild(styleEl)
       },
     })
   }, [])

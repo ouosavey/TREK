@@ -1,5 +1,30 @@
 # CHANGELOG
 
+## 2026-06-15 修复导出图片样式 + Google Fonts 国内可访问 + AMap 地点图片
+
+### Bug修复
+
+#### 1. 导出图片文字错位
+- **问题**: html2canvas 导出的图片中文字位置偏移，与实际面板显示不一致
+- **根因**: 之前只替换 inline style 中的 CSS 变量，但大部分样式来自 Tailwind class 中的 CSS 变量引用，html2canvas 解析 class 时无法解析 `var()`
+- **修复**: 改用在 `onclone` 中向克隆文档注入 `:root { --var: value }` 样式块，让 html2canvas 在解析 class 时能正确解析所有 CSS 变量
+- **涉及文件**: `TransitRoutePanel.tsx`
+
+#### 2. 网页在国内打开很慢
+- **问题**: Google Fonts (`fonts.googleapis.com`) 在国内被墙，导致页面加载超时
+- **修复**: 将所有 Google Fonts 引用替换为国内 CDN `fonts.loli.net`：
+  - `index.html` (MuseoModerno 字体)
+  - `TripPDF.tsx` (Poppins 字体)
+  - `JourneyBookPDF.tsx` (Inter 字体)
+  - 服务端 CSP 头添加 `fonts.loli.net` 和 `gstatic.loli.net`
+- **涉及文件**: `index.html`, `TripPDF.tsx`, `JourneyBookPDF.tsx`, `app.ts`
+
+#### 3. AMap 地点图片获取失败 (404)
+- **问题**: `place-photo/amap:xxx` 和 `place-photo/coords:xxx` 返回 404
+- **根因**: `getPlacePhoto` 对 `amap:` 前缀走 Wikimedia 路径，但 `fetchWikimediaPhoto` 只查英文维基百科，对中国地名效果极差
+- **修复**: AMap 地点优先查中文维基百科 (`zh.wikipedia.org`)，再 fallback 到英文维基和 Wikimedia Commons
+- **涉及文件**: `mapsService.ts`
+
 ## 2026-06-15 修复导出图片截断 + 地图右键地点详情丢失
 
 ### Bug修复

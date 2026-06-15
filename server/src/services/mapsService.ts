@@ -724,6 +724,41 @@ export async function getPlacePhoto(
     // No Google key, coordinate-only, or AMap lookup → try Wikimedia (URL-based, not byte-cached)
     if (!apiKey || isCoordLookup || isAmapLookup) {
       if (!isNaN(lat) && !isNaN(lng)) {
+        // AMap 地点：优先尝试中文维基百科（比英文维基对中国地名效果好得多）
+        if (isAmapLookup && name) {
+          try {
+            const searchParams = new URLSearchParams({
+              action: 'query', format: 'json',
+              titles: name,
+              prop: 'pageimages',
+              piprop: 'thumbnail',
+              pithumbsize: '400',
+              pilimit: '1',
+              redirects: '1',
+            });
+            const res = await fetch(`https://zh.wikipedia.org/w/api.php?${searchParams}`, { headers: { 'User-Agent': UA } });
+            if (res.ok) {
+              const data = await res.json() as { query?: { pages?: Record<string, { thumbnail?: { source?: string } }> } };
+              const pages = data.query?.pages;
+              if (pages) {
+                for (const page of Object.values(pages)) {
+                  if (page.thumbnail?.source) {
+                    const ssrf = await checkSsrf(page.thumbnail.source, true);
+                    if (ssrf.allowed) {
+                      const imgRes = await fetch(page.thumbnail.source);
+                      if (imgRes.ok) {
+                        const bytes = Buffer.from(await imgRes.arrayBuffer());
+                        const cached = await placePhotoCache.put(placeId, bytes, 'Wikipedia中文');
+                        return { filePath: cached.filePath, attribution: cached.attribution };
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          } catch { /* fall through to English Wikipedia */ }
+        }
+
         try {
           const wiki = await fetchWikimediaPhoto(lat, lng, name);
           if (wiki) {
