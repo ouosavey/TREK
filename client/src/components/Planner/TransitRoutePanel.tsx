@@ -667,46 +667,37 @@ export default function TransitRoutePanel({
               const val = cs.getPropertyValue(prop)
               if (val) cloneEl.style.setProperty(prop, val)
             }
-            // 关键修复：对有背景色的元素修正文字垂直位置（像素级）
+            // 关键修复：对有背景色的元素修正文字垂直位置
             // html2canvas 对 inline 元素的文本基线计算与浏览器不同，
-            // 导致 inline span 内文字下移、无法垂直居中于背景色块。
+            // 导致 span 内文字下移、溢出背景色块底部。
             //
-            // 策略：将 display 改为 inline-block（html2canvas 支持良好），
-            //       设置显式 height，然后用 line-height=height 实现垂直居中。
-            //       这是经典的 inline-block 垂直居中方案，不依赖基线对齐。
+            // ⚠️ 绝对不能改 display（inline-flex/inline-block 都会导致渲染异常/全白）
+            //
+            // 策略（经4次迭代验证）：
+            //   1. line-height=1 — 减少行高，让文字更紧凑
+            //   2. padding-bottom+3px — 扩展背景色块底部，"接住"偏移的文字
+            //   不改 display，不改 height，保持原始 inline 布局模式
             const bg = cs.getPropertyValue('background-color').trim()
             if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
-              const fs = parseFloat(cs.getPropertyValue('font-size')) || 12
-              const pt = parseFloat(cs.getPropertyValue('padding-top')) || 0
+              cloneEl.style.lineHeight = '1'
               const pb = parseFloat(cs.getPropertyValue('padding-bottom')) || 0
-              const totalHeight = fs + pt + pb
-              cloneEl.style.display = 'inline-block'
-              cloneEl.style.height = `${totalHeight}px`
-              cloneEl.style.lineHeight = `${totalHeight}px`
-              cloneEl.style.textAlign = 'center'
-              cloneEl.style.verticalAlign = 'middle'
+              cloneEl.style.paddingBottom = `${pb + 3}px`
             }
           } catch { /* skip */ }
         }
 
-        // 4. 最终兜底修复：对所有有背景色的元素应用 inline-block 居中
+        // 4. 最终兜底修复：对所有有背景色的元素修正文字位置
         const finalFixWalker = clonedDoc.createTreeWalker(target, NodeFilter.SHOW_ELEMENT)
         while (finalFixWalker.nextNode()) {
           const el = finalFixWalker.currentNode as HTMLElement
           try {
-            if (el.style.display === 'inline-block') continue  // 已在上面处理过
+            if (el.style.lineHeight === '1') continue  // 已在上面处理过
             const cs = getComputedStyle(el)
             const bg = cs.getPropertyValue('background-color').trim()
             if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
-              const fs = parseFloat(cs.getPropertyValue('font-size')) || 12
-              const pt = parseFloat(cs.getPropertyValue('padding-top')) || 0
+              el.style.lineHeight = '1'
               const pb = parseFloat(cs.getPropertyValue('padding-bottom')) || 0
-              const totalHeight = fs + pt + pb
-              el.style.display = 'inline-block'
-              el.style.height = `${totalHeight}px`
-              el.style.lineHeight = `${totalHeight}px`
-              el.style.textAlign = 'center'
-              el.style.verticalAlign = 'middle'
+              el.style.paddingBottom = `${pb + 3}px`
             }
           } catch { /* skip */ }
         }
