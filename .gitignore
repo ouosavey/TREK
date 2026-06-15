@@ -1,9 +1,5 @@
 # Debug logs
 log.txt
 
-# Project docs (local only)
-CHANGELOG.md
-VERSION.md
-
 # Dependencies
 node_modules/
