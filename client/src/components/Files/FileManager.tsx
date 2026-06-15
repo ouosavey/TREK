@@ -55,380 +55,234 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
   const [imgSrc, setImgSrc] = useState('')
   const file = files[index]
 
-  // ── 所有缩放状态用 ref，绝不触发 React 重渲染 ──
-  const fitScaleRef = useRef(1)       // 图片适配视口的初始 scale
-  const userScaleRef = useRef(1)      // 用户缩放倍率（相对于 fitScale）
-  const translateRef = useRef({ x: 0, y: 0 })
-  const imgRef = useRef<HTMLImageElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const hintRef = useRef<HTMLDivElement>(null)
-  const scaleLabelRef = useRef<HTMLSpanElement>(null)
-  const resetBtnRef = useRef<HTMLButtonElement>(null)
-  const isDragging = useRef(false)
-  const dragStart = useRef({ x: 0, y: 0, tx: 0, ty: 0 })
-  const lastPinchDist = useRef<number | null>(null)
-  const lastPinchCenter = useRef({ x: 0, y: 0 })
-  const isAnimating = useRef(false)
-  const rafId = useRef<number | null>(null)
-  const pendingTransform = useRef<{ x: number; y: number; scale: number } | null>(null)
+  // ── 缩放状态：纯 ref，零 React 重渲染 ──
+  const scale = useRef(1)          // 总 scale（fitScale * userScale）
+  const tx = useRef(0)             // translate x
+  const ty = useRef(0)             // translate y
+  const fitScale = useRef(1)       // 图片适配视口的初始 scale
+  const imgEl = useRef<HTMLImageElement>(null)
+  const boxEl = useRef<HTMLDivElement>(null)
+  const hintEl = useRef<HTMLDivElement>(null)
+  const labelEl = useRef<HTMLSpanElement>(null)
+  const resetEl = useRef<HTMLButtonElement>(null)
+  const dragging = useRef(false)
+  const dragOrigin = useRef({ x: 0, y: 0, tx: 0, ty: 0 })
+  const pinchDist = useRef<number | null>(null)
+  const pinchCenter = useRef({ x: 0, y: 0 })
+  const swipeX = useRef<number | null>(null)
+  const animating = useRef(false)
 
-  // 当前总 scale
-  const getTotalScale = useCallback(() => fitScaleRef.current * userScaleRef.current, [])
-
-  // 刷新 DOM（不触发 React 重渲染）
-  const flushTransform = useCallback(() => {
-    const img = imgRef.current
+  // 直接写 DOM，无节流，无 React 重渲染
+  const writeDOM = () => {
+    const img = imgEl.current
     if (!img) return
-    const totalScale = getTotalScale()
-    const { x, y } = translateRef.current
-    img.style.transform = `translate(${x}px, ${y}px) scale(${totalScale})`
+    img.style.transform = `translate(${tx.current}px,${ty.current}px) scale(${scale.current})`
+    const zoomed = scale.current > fitScale.current * 1.02
+    img.style.cursor = zoomed ? (dragging.current ? 'grabbing' : 'grab') : 'default'
+    const label = labelEl.current; if (label) { label.textContent = `${Math.round(scale.current / fitScale.current * 100)}%`; label.style.display = zoomed ? '' : 'none' }
+    const btn = resetEl.current; if (btn) btn.style.display = zoomed ? '' : 'none'
+    const hint = hintEl.current; if (hint) hint.style.display = zoomed ? 'none' : ''
+  }
 
-    // 更新 cursor
-    img.style.cursor = userScaleRef.current > 1.02 ? (isDragging.current ? 'grabbing' : 'grab') : 'default'
+  // 带动画的写 DOM（双击/键盘用）
+  const writeDOMAnimated = (targetScale: number, targetTx: number, targetTy: number) => {
+    const img = imgEl.current
+    if (!img || animating.current) return
+    animating.current = true
+    scale.current = targetScale; tx.current = targetTx; ty.current = targetTy
+    img.style.transition = 'transform 0.25s cubic-bezier(0.22,1,0.36,1)'
+    img.style.transform = `translate(${targetTx}px,${targetTy}px) scale(${targetScale})`
+    setTimeout(() => { img.style.transition = 'none'; animating.current = false; writeDOM() }, 260)
+  }
 
-    // 更新缩放比例标签
-    const label = scaleLabelRef.current
-    if (label) {
-      if (userScaleRef.current > 1.02) {
-        label.textContent = `${Math.round(userScaleRef.current * 100)}%`
-        label.style.display = ''
-      } else {
-        label.style.display = 'none'
-      }
-    }
-    // 更新重置按钮
-    const btn = resetBtnRef.current
-    if (btn) btn.style.display = userScaleRef.current > 1.02 ? '' : 'none'
-    // 更新底部提示
-    const hint = hintRef.current
-    if (hint) hint.style.display = userScaleRef.current > 1.02 ? 'none' : ''
-  }, [getTotalScale])
+  const resetZoom = (animate = true) => {
+    scale.current = fitScale.current; tx.current = 0; ty.current = 0
+    if (animate) writeDOMAnimated(fitScale.current, 0, 0)
+    else writeDOM()
+  }
 
-  // RAF 节流：一帧只刷新一次
-  const scheduleFlush = useCallback(() => {
-    if (rafId.current !== null) return
-    rafId.current = requestAnimationFrame(() => {
-      rafId.current = null
-      flushTransform()
-    })
-  }, [flushTransform])
-
-  // 带动画的 transform 更新（双击/键盘等离散操作用）
-  const applyTransformAnimated = useCallback((targetX: number, targetY: number, targetUserScale: number) => {
-    const img = imgRef.current
-    if (!img) return
-    if (isAnimating.current) return
-    isAnimating.current = true
-    translateRef.current = { x: targetX, y: targetY }
-    userScaleRef.current = targetUserScale
-    const totalScale = getTotalScale()
-    img.style.transition = 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)'
-    img.style.transform = `translate(${targetX}px, ${targetY}px) scale(${totalScale})`
-    setTimeout(() => {
-      img.style.transition = 'none'
-      isAnimating.current = false
-      flushTransform()
-    }, 260)
-  }, [getTotalScale, flushTransform])
-
-  const resetZoom = useCallback((animate: boolean = true) => {
-    userScaleRef.current = 1
-    translateRef.current = { x: 0, y: 0 }
-    if (animate) {
-      applyTransformAnimated(0, 0, 1)
-    } else {
-      flushTransform()
-    }
-  }, [applyTransformAnimated, flushTransform])
-
-  // 图片加载后计算 fitScale
-  const handleImgLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+  // 图片加载 → 计算 fitScale
+  const onImgLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget
-    const container = containerRef.current
-    if (!container) return
-    const cw = container.clientWidth
-    const ch = container.clientHeight
-    const iw = img.naturalWidth
-    const ih = img.naturalHeight
-    if (iw === 0 || ih === 0) return
-    // 计算让图片适配容器的 scale（留一点边距）
-    fitScaleRef.current = Math.min(cw * 0.88 / iw, ch * 0.88 / ih, 1)
-    userScaleRef.current = 1
-    translateRef.current = { x: 0, y: 0 }
-    flushTransform()
-  }, [flushTransform])
+    const box = boxEl.current
+    if (!box) return
+    const cw = box.clientWidth, ch = box.clientHeight
+    const iw = img.naturalWidth, ih = img.naturalHeight
+    if (!iw || !ih) return
+    fitScale.current = Math.min(cw * 0.88 / iw, ch * 0.88 / ih, 1)
+    scale.current = fitScale.current; tx.current = 0; ty.current = 0
+    writeDOM()
+  }
 
-  // 切换图片时重置
-  useEffect(() => { resetZoom(false) }, [index, resetZoom])
-  useEffect(() => {
-    setImgSrc('')
-    if (file) getAuthUrl(file.url, 'download').then(setImgSrc)
-  }, [file?.url])
+  useEffect(() => { resetZoom(false) }, [index])
+  useEffect(() => { setImgSrc(''); if (file) getAuthUrl(file.url, 'download').then(setImgSrc) }, [file?.url])
 
   const goPrev = () => setIndex(i => Math.max(0, i - 1))
   const goNext = () => setIndex(i => Math.min(files.length - 1, i + 1))
 
-  // ── 以指定屏幕点为中心缩放 ──
-  const zoomAtPoint = useCallback((clientX: number, clientY: number, factor: number) => {
-    const container = containerRef.current
-    if (!container) return
-    const rect = container.getBoundingClientRect()
-    const mx = clientX - rect.left - rect.width / 2
-    const my = clientY - rect.top - rect.height / 2
+  // ── 以屏幕点为中心缩放 ──
+  const zoomAt = (cx: number, cy: number, factor: number) => {
+    const box = boxEl.current; if (!box) return
+    const r = box.getBoundingClientRect()
+    const mx = cx - r.left - r.width / 2
+    const my = cy - r.top - r.height / 2
+    const oldS = scale.current
+    const newS = Math.min(fitScale.current * 10, Math.max(fitScale.current * 0.2, oldS * factor))
+    const ratio = newS / oldS
+    tx.current = mx - (mx - tx.current) * ratio
+    ty.current = my - (my - ty.current) * ratio
+    scale.current = newS
+    writeDOM()  // 直接写，无节流
+  }
 
-    const oldUserScale = userScaleRef.current
-    const newUserScale = Math.min(10, Math.max(0.2, oldUserScale * factor))
-    const ratio = newUserScale / oldUserScale
-
-    translateRef.current.x = mx - (mx - translateRef.current.x) * ratio
-    translateRef.current.y = my - (my - translateRef.current.y) * ratio
-    userScaleRef.current = newUserScale
-
-    scheduleFlush()
-  }, [scheduleFlush])
-
-  // ── 鼠标滚轮缩放（deltaY 比例因子，trackpad 丝滑） ──
-  const handleWheel = useCallback((e: WheelEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    // 使用 deltaY 的绝对值做比例因子，trackpad 小 deltaY = 小步缩放
-    const absDelta = Math.abs(e.deltaY)
-    const step = Math.min(absDelta * 0.002, 0.15) // 限制单步最大 15%
-    const factor = e.deltaY > 0 ? (1 - step) : (1 + step)
-    zoomAtPoint(e.clientX, e.clientY, factor)
-  }, [zoomAtPoint])
-
+  // ── 滚轮缩放 ──
   useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-    container.addEventListener('wheel', handleWheel, { passive: false })
-    return () => container.removeEventListener('wheel', handleWheel)
-  }, [handleWheel])
+    const box = boxEl.current; if (!box) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault(); e.stopPropagation()
+      const d = Math.abs(e.deltaY)
+      const step = Math.min(d * 0.0015, 0.12)
+      zoomAt(e.clientX, e.clientY, e.deltaY > 0 ? 1 - step : 1 + step)
+    }
+    box.addEventListener('wheel', onWheel, { passive: false })
+    return () => box.removeEventListener('wheel', onWheel)
+  }, [imgSrc]) // 只在图片变化时重建
 
   // ── 鼠标拖拽 ──
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (userScaleRef.current > 1.02) {
-      isDragging.current = true
-      dragStart.current = { x: e.clientX, y: e.clientY, tx: translateRef.current.x, ty: translateRef.current.y }
+  const onMD = (e: React.MouseEvent) => {
+    if (scale.current > fitScale.current * 1.02) {
+      dragging.current = true
+      dragOrigin.current = { x: e.clientX, y: e.clientY, tx: tx.current, ty: ty.current }
       e.preventDefault()
     }
-  }, [])
+  }
+  const onMM = (e: React.MouseEvent) => {
+    if (!dragging.current) return
+    tx.current = dragOrigin.current.tx + (e.clientX - dragOrigin.current.x)
+    ty.current = dragOrigin.current.ty + (e.clientY - dragOrigin.current.y)
+    writeDOM()
+  }
+  const onMU = () => { dragging.current = false; writeDOM() }
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging.current) return
-    translateRef.current.x = dragStart.current.tx + (e.clientX - dragStart.current.x)
-    translateRef.current.y = dragStart.current.ty + (e.clientY - dragStart.current.y)
-    scheduleFlush()
-  }, [scheduleFlush])
-
-  const handleMouseUp = useCallback(() => { isDragging.current = false; flushTransform() }, [flushTransform])
-
-  // ── 双击切换缩放 ──
-  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+  // ── 双击 ──
+  const onDblClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (userScaleRef.current > 1.02) {
-      resetZoom(true)
-    } else {
-      const container = containerRef.current
-      if (!container) return
-      const rect = container.getBoundingClientRect()
-      const mx = e.clientX - rect.left - rect.width / 2
-      const my = e.clientY - rect.top - rect.height / 2
-      const targetUserScale = 2.5
-      const ratio = targetUserScale / userScaleRef.current
-      const tx = mx - (mx - translateRef.current.x) * ratio
-      const ty = my - (my - translateRef.current.y) * ratio
-      applyTransformAnimated(tx, ty, targetUserScale)
-    }
-  }, [resetZoom, applyTransformAnimated])
+    if (scale.current > fitScale.current * 1.02) { resetZoom(true); return }
+    const box = boxEl.current; if (!box) return
+    const r = box.getBoundingClientRect()
+    const mx = e.clientX - r.left - r.width / 2
+    const my = e.clientY - r.top - r.height / 2
+    const target = fitScale.current * 2.5
+    const ratio = target / scale.current
+    const ntx = mx - (mx - tx.current) * ratio
+    const nty = my - (my - ty.current) * ratio
+    writeDOMAnimated(target, ntx, nty)
+  }
 
-  // ── 手机端触摸 ──
-  const swipeStart = useRef<number | null>(null)
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+  // ── 触摸 ──
+  const onTS = (e: React.TouchEvent) => {
     if (e.touches.length === 2) {
       const dx = e.touches[0].clientX - e.touches[1].clientX
       const dy = e.touches[0].clientY - e.touches[1].clientY
-      lastPinchDist.current = Math.sqrt(dx * dx + dy * dy)
-      lastPinchCenter.current = {
-        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
-        y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
-      }
-      isDragging.current = false
-      swipeStart.current = null
+      pinchDist.current = Math.sqrt(dx * dx + dy * dy)
+      pinchCenter.current = { x: (e.touches[0].clientX + e.touches[1].clientX) / 2, y: (e.touches[0].clientY + e.touches[1].clientY) / 2 }
+      dragging.current = false; swipeX.current = null
     } else if (e.touches.length === 1) {
-      if (userScaleRef.current > 1.02) {
-        isDragging.current = true
-        dragStart.current = {
-          x: e.touches[0].clientX, y: e.touches[0].clientY,
-          tx: translateRef.current.x, ty: translateRef.current.y,
-        }
-      } else {
-        swipeStart.current = e.touches[0].clientX
-      }
+      if (scale.current > fitScale.current * 1.02) {
+        dragging.current = true
+        dragOrigin.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, tx: tx.current, ty: ty.current }
+      } else { swipeX.current = e.touches[0].clientX }
     }
-  }, [])
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length === 2 && lastPinchDist.current !== null) {
-      e.preventDefault()
-      e.stopPropagation()
+  }
+  const onTM = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && pinchDist.current != null) {
+      e.preventDefault(); e.stopPropagation()
       const dx = e.touches[0].clientX - e.touches[1].clientX
       const dy = e.touches[0].clientY - e.touches[1].clientY
       const dist = Math.sqrt(dx * dx + dy * dy)
-      const ratio = dist / lastPinchDist.current
-      lastPinchDist.current = dist
-
-      const newCenter = {
-        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
-        y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+      const ratio = dist / pinchDist.current
+      pinchDist.current = dist
+      const nc = { x: (e.touches[0].clientX + e.touches[1].clientX) / 2, y: (e.touches[0].clientY + e.touches[1].clientY) / 2 }
+      const box = boxEl.current; if (box) {
+        const r = box.getBoundingClientRect()
+        const mx = nc.x - r.left - r.width / 2, my = nc.y - r.top - r.height / 2
+        const oldS = scale.current, newS = Math.min(fitScale.current * 10, Math.max(fitScale.current * 0.2, oldS * ratio))
+        const sr = newS / oldS
+        tx.current = mx - (mx - tx.current) * sr + (nc.x - pinchCenter.current.x)
+        ty.current = my - (my - ty.current) * sr + (nc.y - pinchCenter.current.y)
+        scale.current = newS
+        pinchCenter.current = nc
       }
-      const container = containerRef.current
-      if (container) {
-        const rect = container.getBoundingClientRect()
-        const mx = newCenter.x - rect.left - rect.width / 2
-        const my = newCenter.y - rect.top - rect.height / 2
-        const oldUserScale = userScaleRef.current
-        const newUserScale = Math.min(10, Math.max(0.2, oldUserScale * ratio))
-        const scaleRatio = newUserScale / oldUserScale
-        translateRef.current.x = mx - (mx - translateRef.current.x) * scaleRatio
-        translateRef.current.y = my - (my - translateRef.current.y) * scaleRatio
-        translateRef.current.x += newCenter.x - lastPinchCenter.current.x
-        translateRef.current.y += newCenter.y - lastPinchCenter.current.y
-        userScaleRef.current = newUserScale
-        lastPinchCenter.current = newCenter
-      }
-      scheduleFlush()
-    } else if (e.touches.length === 1 && isDragging.current) {
+      writeDOM()
+    } else if (e.touches.length === 1 && dragging.current) {
       e.preventDefault()
-      translateRef.current.x = dragStart.current.tx + (e.touches[0].clientX - dragStart.current.x)
-      translateRef.current.y = dragStart.current.ty + (e.touches[0].clientY - dragStart.current.y)
-      scheduleFlush()
+      tx.current = dragOrigin.current.tx + (e.touches[0].clientX - dragOrigin.current.x)
+      ty.current = dragOrigin.current.ty + (e.touches[0].clientY - dragOrigin.current.y)
+      writeDOM()
     }
-  }, [scheduleFlush])
-
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length < 2) lastPinchDist.current = null
+  }
+  const onTE = (e: React.TouchEvent) => {
+    if (e.touches.length < 2) pinchDist.current = null
     if (e.touches.length === 0) {
-      isDragging.current = false
-      flushTransform()
-      if (swipeStart.current !== null && userScaleRef.current <= 1.02) {
-        const diff = e.changedTouches[0].clientX - swipeStart.current
-        if (diff > 60) goPrev()
-        else if (diff < -60) goNext()
+      dragging.current = false; writeDOM()
+      if (swipeX.current != null && scale.current <= fitScale.current * 1.02) {
+        const diff = e.changedTouches[0].clientX - swipeX.current
+        if (diff > 60) goPrev(); else if (diff < -60) goNext()
       }
-      swipeStart.current = null
+      swipeX.current = null
     }
-  }, [flushTransform])
+  }
 
-  // ── 键盘快捷键 ──
+  // ── 键盘 ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
       if (e.key === 'ArrowLeft') goPrev()
       if (e.key === 'ArrowRight') goNext()
-      if (e.key === '+' || e.key === '=') { userScaleRef.current = Math.min(10, userScaleRef.current * 1.2); flushTransform() }
-      if (e.key === '-') { userScaleRef.current = Math.max(0.2, userScaleRef.current / 1.2); flushTransform() }
+      if (e.key === '+' || e.key === '=') { scale.current = Math.min(fitScale.current * 10, scale.current * 1.2); writeDOM() }
+      if (e.key === '-') { scale.current = Math.max(fitScale.current * 0.2, scale.current / 1.2); writeDOM() }
       if (e.key === '0') resetZoom(true)
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [flushTransform, resetZoom])
+  }, [])
 
   if (!file) return null
-
-  const hasPrev = index > 0
-  const hasNext = index < files.length - 1
-  const navBtn = (side: 'left' | 'right', onClick: () => void, show: boolean): React.ReactNode => show ? (
-    <button onClick={e => { e.stopPropagation(); onClick() }}
-      style={{
-        position: 'absolute', top: '50%', [side]: 12, transform: 'translateY(-50%)', zIndex: 10,
-        background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 40, height: 40,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-        color: 'rgba(255,255,255,0.8)', transition: 'background 0.15s',
-      }}
-      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.75)')}
-      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.5)')}>
+  const hasPrev = index > 0, hasNext = index < files.length - 1
+  const navBtn = (side: 'left' | 'right', onClick: () => void, show: boolean) => show ? (
+    <button onClick={e => { e.stopPropagation(); onClick() }} style={{ position: 'absolute', top: '50%', [side]: 12, transform: 'translateY(-50%)', zIndex: 10, background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,0.8)' }}>
       {side === 'left' ? <ChevronLeft size={22} /> : <ChevronRight size={22} />}
     </button>
   ) : null
 
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 2000, display: 'flex', flexDirection: 'column', paddingBottom: 'var(--bottom-nav-h)', userSelect: 'none', touchAction: 'none' }}
-      onClick={onClose}
-    >
-      {/* Header */}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 2000, display: 'flex', flexDirection: 'column', paddingBottom: 'var(--bottom-nav-h)', userSelect: 'none', touchAction: 'none' }} onClick={onClose}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
         <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-          {file.original_name}
-          <span style={{ marginLeft: 8, color: 'rgba(255,255,255,0.4)' }}>{index + 1} / {files.length}</span>
+          {file.original_name}<span style={{ marginLeft: 8, color: 'rgba(255,255,255,0.4)' }}>{index + 1} / {files.length}</span>
         </span>
         <div style={{ display: 'flex', gap: 8, flexShrink: 0, alignItems: 'center' }}>
-          <span ref={scaleLabelRef} style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', minWidth: 40, textAlign: 'center', display: 'none' }} />
-          <button
-            ref={resetBtnRef}
-            onClick={() => resetZoom(true)}
-            style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 6, cursor: 'pointer', color: 'rgba(255,255,255,0.8)', display: 'none', padding: '3px 8px', fontSize: 11, fontFamily: 'inherit' }}
-          >
-            1:1
-          </button>
-          <button onClick={() => openFileUrl(file.url, file.original_name).catch(() => {})} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', display: 'flex', padding: 4 }} title={t('files.openTab')}>
-            <ExternalLink size={16} />
-          </button>
-          <button onClick={() => triggerDownload(file.url, file.original_name)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', display: 'flex', padding: 4 }} title={t('files.download') || 'Download'}>
-            <Download size={16} />
-          </button>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', display: 'flex', padding: 4 }}>
-            <X size={18} />
-          </button>
+          <span ref={labelEl} style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', minWidth: 40, textAlign: 'center', display: 'none' }} />
+          <button ref={resetEl} onClick={() => resetZoom(true)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 6, cursor: 'pointer', color: 'rgba(255,255,255,0.8)', display: 'none', padding: '3px 8px', fontSize: 11, fontFamily: 'inherit' }}>1:1</button>
+          <button onClick={() => openFileUrl(file.url, file.original_name).catch(() => {})} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', display: 'flex', padding: 4 }}><ExternalLink size={16} /></button>
+          <button onClick={() => triggerDownload(file.url, file.original_name)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', display: 'flex', padding: 4 }}><Download size={16} /></button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', display: 'flex', padding: 4 }}><X size={18} /></button>
         </div>
       </div>
-
-      {/* Main image + nav */}
-      <div
-        ref={containerRef}
-        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: 0, overflow: 'hidden', touchAction: 'none' }}
-        onClick={e => { if (e.target === e.currentTarget && userScaleRef.current <= 1.02) onClose() }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      >
+      <div ref={boxEl} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: 0, overflow: 'hidden', touchAction: 'none' }}
+        onClick={e => { if (e.target === e.currentTarget && scale.current <= fitScale.current * 1.02) onClose() }}
+        onMouseDown={onMD} onMouseMove={onMM} onMouseUp={onMU} onMouseLeave={onMU}
+        onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE}>
         {navBtn('left', goPrev, hasPrev)}
-        {imgSrc && <img
-          ref={imgRef}
-          src={imgSrc}
-          alt={file.original_name}
-          onLoad={handleImgLoad}
-          style={{
-            // 图片始终以原始分辨率渲染，无 maxWidth/maxHeight
-            // 初始适配通过 fitScale * userScale 的 transform 实现
-            objectFit: 'contain', borderRadius: 8, display: 'block',
-            transformOrigin: 'center center',
-            willChange: 'transform',
-          }}
-          onClick={e => e.stopPropagation()}
-          onDoubleClick={e => { e.stopPropagation(); handleDoubleClick(e) }}
-          draggable={false}
-        />}
+        {imgSrc && <img ref={imgEl} src={imgSrc} alt={file.original_name} onLoad={onImgLoad}
+          style={{ objectFit: 'contain', borderRadius: 8, display: 'block', transformOrigin: 'center center', willChange: 'transform' }}
+          onClick={e => e.stopPropagation()} onDoubleClick={onDblClick} draggable={false} />}
         {navBtn('right', goNext, hasNext)}
       </div>
-
-      {/* 底部缩放提示 */}
-      <div ref={hintRef} style={{ textAlign: 'center', padding: '6px 0', fontSize: 11, color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>
-        滚轮/双指缩放 · 双击放大 · 键盘 +/- 缩放
-      </div>
-
-      {/* Thumbnail strip */}
+      <div ref={hintEl} style={{ textAlign: 'center', padding: '6px 0', fontSize: 11, color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>滚轮/双指缩放 · 双击放大 · 键盘 +/- 缩放</div>
       {files.length > 1 && (
         <div style={{ display: 'flex', gap: 4, justifyContent: 'center', padding: '10px 16px', flexShrink: 0, overflowX: 'auto' }} onClick={e => e.stopPropagation()}>
-          {files.map((f, i) => (
-            <ThumbImg key={f.id} file={f} active={i === index} onClick={() => setIndex(i)} />
-          ))}
+          {files.map((f, i) => <ThumbImg key={f.id} file={f} active={i === index} onClick={() => setIndex(i)} />)}
         </div>
       )}
     </div>
