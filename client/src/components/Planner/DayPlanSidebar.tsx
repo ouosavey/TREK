@@ -31,7 +31,7 @@ import {
 import { formatDate, formatTime, dayTotalCost, currencyDecimals, splitReservationDateTime } from '../../utils/formatters'
 import { useDayNotes } from '../../hooks/useDayNotes'
 import Tooltip from '../shared/Tooltip'
-import TransitRoutePanel from './TransitRoutePanel'
+import TransitRoutePanel, { TransitErrorBoundary } from './TransitRoutePanel'
 import { wgs84ToGcj02 } from '../../utils/coordTransform'
 import type { Trip, Day, Place, Category, Assignment, Reservation, AssignmentsMap, RouteResult, TransitRouteResult, TransitLeg, TransitRouteOption } from '../../types'
 
@@ -941,7 +941,9 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
       if (opt) {
         totalDur += opt.duration
         totalCostVal += opt.cost
-        for (const seg of opt.segments) allCoords.push(...seg.coordinates)
+        for (const seg of (opt.segments || [])) {
+          if (Array.isArray(seg.coordinates)) allCoords.push(...seg.coordinates)
+        }
       } else {
         // 错误段用直线
         allCoords.push(l.fromCoords)
@@ -996,7 +998,9 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
         if (routeData) {
           totalDuration += routeData.duration
           totalCost += routeData.cost
-          for (const seg of routeData.segments) allCoords.push(...seg.coordinates)
+          for (const seg of (routeData.segments || [])) {
+            if (Array.isArray(seg.coordinates)) allCoords.push(...seg.coordinates)
+          }
         } else {
           allCoords.push([placesWithCoords[i].lat, placesWithCoords[i].lng])
           allCoords.push([placesWithCoords[i + 1].lat, placesWithCoords[i + 1].lng])
@@ -2215,13 +2219,15 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
 
                       {/* 公交路线方案面板 */}
                       {transitResult && (
-                        <TransitRoutePanel
-                          result={transitResult}
-                          selectedStrategy={transitStrategy}
-                          onSelectLegOption={handleTransitSelectOption}
-                          onSelectStrategy={handleTransitStrategyChange}
-                          onClose={() => setTransitResult(null)}
-                        />
+                        <TransitErrorBoundary>
+                          <TransitRoutePanel
+                            result={transitResult}
+                            selectedStrategy={transitStrategy}
+                            onSelectLegOption={handleTransitSelectOption}
+                            onSelectStrategy={handleTransitStrategyChange}
+                            onClose={() => setTransitResult(null)}
+                          />
+                        </TransitErrorBoundary>
                       )}
 
                       <div style={{ display: 'flex', gap: 6 }}>

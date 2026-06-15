@@ -37,7 +37,7 @@ function getLineColor(lineName?: string, lineColor?: string): string {
 
 // ── 错误边界：防止渲染崩溃导致白屏 ────────────────────────────────────
 
-class TransitErrorBoundary extends React.Component<any, any> {
+export class TransitErrorBoundary extends React.Component<any, any> {
   constructor(props: any) {
     super(props)
     this.state = { hasError: false, error: null }
