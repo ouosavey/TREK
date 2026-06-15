@@ -1,5 +1,19 @@
 # VERSION
 
+## v3.0.22-cn.13 - 2026-06-15
+
+### 变更
+- 修复导出图片文字溢出背景色块（改用inline-flex+固定高度强制居中，绕过html2canvas的baseline计算bug）
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Planner/TransitRoutePanel.tsx`
+
+---
+
 ## v3.0.22-cn.12 - 2026-06-15
 
 ### 变更

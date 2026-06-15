@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 2026-06-15 修复导出图片文字溢出(inline-flex方案) v3.0.22-cn.13
+
+### Bug修复
+
+#### 1. 导出图片文字溢出背景色块（inline-flex 强制居中方案）
+- **问题**: `line-height: 1` 仍然不够，html2canvas 对 inline 元素的 baseline/行高计算与浏览器根本性不同
+- **根因**: html2canvas 内部使用自己的文本渲染引擎，不遵循浏览器 inline 元素的基线对齐规则
+- **修复**: 对有背景色的元素改用 `display: inline-flex` + `align-items: center` + `justify-content: center` + 固定 `height = fontSize + paddingTop + paddingBottom`，完全绕过 line-height / baseline 计算
+- **涉及文件**: `TransitRoutePanel.tsx`
+
 ## 2026-06-15 修复导出图片文字溢出(line-height:1) + 右键添加地点await缺失bug
 
 ### Bug修复
