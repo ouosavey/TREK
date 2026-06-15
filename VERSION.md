@@ -1,5 +1,23 @@
 # VERSION
 
+## v3.0.22-cn.12 - 2026-06-15
+
+### 变更
+- 修复导出图片文字溢出背景色块（line-height改为1，彻底解决html2canvas行高计算差异）
+- 修复地图右键添加地点只能获取经纬度的关键bug（reverseAmap调用缺少await导致Promise未解析）
+- handleMapContextMenu依赖数组补充mapProvider和hasAmapKey
+- 逆地理编码结果优先使用poiName（POI名称比地址组件名更有意义）
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Planner/TransitRoutePanel.tsx`
+- `client/src/pages/TripPlannerPage.tsx`
+
+---
+
 ## v3.0.22-cn.11 - 2026-06-15
 
 ### 变更

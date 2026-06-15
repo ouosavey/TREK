@@ -667,6 +667,29 @@ export default function TransitRoutePanel({
               const val = cs.getPropertyValue(prop)
               if (val) cloneEl.style.setProperty(prop, val)
             }
+            // 关键修复：对有背景色的元素强制设置 line-height=1
+            // html2canvas 的 line-height 计算和浏览器不同，导致文字下移溢出背景色块
+            // 使用 line-height:1 让行高等于字体大小，配合已有的 padding 实现垂直居中
+            const bg = cs.getPropertyValue('background-color').trim()
+            if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+              cloneEl.style.lineHeight = '1'
+            }
+          } catch { /* skip */ }
+        }
+
+        // 4. 最终修复：对所有有背景色的 span/div，确保 line-height 紧凑
+        // html2canvas 对 line-height 的处理有 bug，需要显式修正为 1
+        const finalFixWalker = clonedDoc.createTreeWalker(target, NodeFilter.SHOW_ELEMENT)
+        while (finalFixWalker.nextNode()) {
+          const el = finalFixWalker.currentNode as HTMLElement
+          try {
+            const cs = getComputedStyle(el)
+            const bg = cs.getPropertyValue('background-color').trim()
+            if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+              if (!el.style.lineHeight) {
+                el.style.lineHeight = '1'
+              }
+            }
           } catch { /* skip */ }
         }
       },

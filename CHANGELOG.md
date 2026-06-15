@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## 2026-06-15 修复导出图片文字溢出(line-height:1) + 右键添加地点await缺失bug
+
+### Bug修复
+
+#### 1. 导出图片文字溢出背景色块（最终修复）
+- **问题**: 导出图片中有背景色块的文字（如线路名标签"地铁2号线"）下移溢出色块
+- **根因**: html2canvas 的 line-height 计算与浏览器不同，之前尝试 `lineHeight = fontSize + 'px'` 仍然偏大
+- **修复**: 对所有有 background-color 的元素强制设置 `line-height: 1`，让行高等于字体大小，配合已有 padding 实现垂直居中。两处修复：内联 computed style 循环 + finalFixWalker 兜底遍历
+- **涉及文件**: `TransitRoutePanel.tsx`
+
+#### 2. 地图右键添加地点只能获取经纬度（关键 bug 修复）
+- **问题**: 右键地图后弹窗只能填入经纬度，名称/地址/图片等均为空
+- **根因**: `handleMapContextMenu` 中 AMap 分支的 IIFE 缺少 `await`——`mapsApi.reverseAmap()` 返回 Promise 但未被 await，导致 `data` 是 Promise 对象而非解析结果，`data.name`/`data.address` 始终为 undefined
+- **修复**:
+  - IIFE 改为 async IIFE 并加上 `await`
+  - 条件判断增加 `data.poiName`（POI 名称比 addressComponent 更有意义）
+  - 依赖数组补充 `mapProvider` 和 `hasAmapKey`
+  - catch 中输出 warning 日志便于排查
+- **涉及文件**: `TripPlannerPage.tsx`
+
 ## 2026-06-15 修复导出图片文字溢出 + 右键添加地点 + AMap图片
 
 ### Bug修复

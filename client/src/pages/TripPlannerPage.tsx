@@ -477,20 +477,22 @@ export default function TripPlannerPage(): React.ReactElement | null {
       const { mapsApi } = await import('../api/client')
       const useAmap = mapProvider === 'amap' || hasAmapKey
       const data = useAmap
-        ? (() => { const [gcjLng, gcjLat] = wgs84ToGcj02(lng, lat); return mapsApi.reverseAmap(gcjLat, gcjLng) })()
+        ? await (async () => { const [gcjLng, gcjLat] = wgs84ToGcj02(lng, lat); return mapsApi.reverseAmap(gcjLat, gcjLng) })()
         : await mapsApi.reverse(lat, lng, language)
-      if (data.name || data.address) {
+      if (data.name || data.address || data.poiName) {
         setPrefillCoords(prev => prev ? {
           ...prev,
-          name: data.name || prev.name || '',
+          name: data.poiName || data.name || prev.name || '',
           address: data.address || prev.address || '',
           // AMap 逆地理编码 extensions=all 返回最近 POI 信息
           google_place_id: data.poiId || prev.google_place_id || '',
           image_url: data.photoUrl || prev.image_url || '',
         } : prev)
       }
-    } catch { /* best effort */ }
-  }, [language])
+    } catch (err) {
+      console.warn('[handleMapContextMenu] 逆地理编码失败（仅经纬度）:', err)
+    }
+  }, [language, mapProvider, hasAmapKey])
 
   const handleSavePlace = useCallback(async (data) => {
     const pendingFiles = data._pendingFiles
