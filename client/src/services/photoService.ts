@@ -121,6 +121,15 @@ export function fetchPhoto(
     return
   }
 
+  // Skip photo fetch for coords-only place IDs — they have no POI data and will always 404
+  if (photoId && photoId.startsWith('coords:')) {
+    const entry: PhotoEntry = { photoUrl: null, thumbDataUrl: null }
+    cache.set(cacheKey, entry)
+    callback?.(entry)
+    notify(cacheKey, entry)
+    return
+  }
+
   inFlight.add(cacheKey)
   acquireRequestSlot().then(() =>
     mapsApi.placePhoto(photoId, lat, lng, name)
