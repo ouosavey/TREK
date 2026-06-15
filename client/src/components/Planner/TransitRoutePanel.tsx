@@ -763,8 +763,8 @@ export default function TransitRoutePanel({
         }}
       />
 
-      {/* 面板主体 */}
-      <div style={{
+      {/* 面板主体 — contentRef 放在这里以导出完整面板（含标题栏+策略标签） */}
+      <div ref={contentRef} style={{
         position: 'fixed',
         ...(!isMobile ? {
           top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
@@ -926,7 +926,7 @@ export default function TransitRoutePanel({
           padding: '10px 14px',
           minHeight: 0,
         }}>
-          <div ref={contentRef} style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: isMobile ? 28 : 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: isMobile ? 28 : 14 }}>
             {Array.isArray(result.legs) && result.legs.map((leg, li) => (
               <LegSection
                 key={li}

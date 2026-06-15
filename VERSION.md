@@ -1,5 +1,22 @@
 # VERSION
 
+## v3.0.22-cn.5 - 2026-06-15
+
+### 变更
+- 修复公交地铁路线导出图片缺少标题栏和策略选择标签的问题
+- 修复手机端图片拖动时控制台大量 "Unable to preventDefault inside passive event listener" 报错
+- 修复公交地铁路线导出图片文字和背景色块错位问题（html2canvas CSS变量解析）
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Planner/TransitRoutePanel.tsx`
+- `client/src/components/Files/FileManager.tsx`
+
+---
+
 ## v3.0.22-cn.4 - 2026-06-15
 
 ### 变更
