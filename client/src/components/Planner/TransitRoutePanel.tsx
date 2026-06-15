@@ -93,8 +93,39 @@ function formatDistance(meters: number): string {
 }
 
 function estimateCalories(meters: number): number {
-  // 大约每米消耗 0.05 大卡（步行）
   return Math.round(meters * 0.05)
+}
+
+/** 根据当前时间估算下一班列车到达时间（模拟，非实时数据） */
+function estimateNextTrainArrival(): { minutes: number; crowding: '🧍' | '🧍🧍' | '🧍🧍🧍' | '🧍🧍🧍🧍' } {
+  const now = new Date()
+  const hour = now.getHours()
+  // 早高峰 7-9点、晚高峰 17-19点：拥挤
+  const isPeak = (hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19)
+  // 平峰时段：较空
+  const isOffPeak = (hour >= 10 && hour <= 16) || (hour >= 20 && hour <= 22)
+  if (isPeak) return { minutes: Math.floor(Math.random() * 3) + 2, crowding: isPeak && hour < 9 ? '🧍🧍🧍🧍' : '🧍🧍🧍' }
+  if (isOffPeak) return { minutes: Math.floor(Math.random() * 4) + 3, crowding: '🧍🧍' }
+  // 其他时段
+  return { minutes: Math.floor(Math.random() * 5) + 4, crowding: '🧍🧍🧍' }
+}
+
+/** 估算首末班车时间（基于典型地铁运营时间） */
+function estimateTrainSchedule(): { first: string; last: string } {
+  return { first: '05:30', last: '23:00' }
+}
+
+/** 估算票价（按距离+线路类型） */
+function estimateSegmentCost(segment: TransitSegment): number {
+  // 地铁起步价3元，每公里约0.2元；公交2元起
+  const distKm = segment.distance / 1000
+  if (segment.type === 'subway') {
+    return Math.max(3, Math.round(3 + distKm * 0.2))
+  }
+  if (segment.type === 'bus') {
+    return Math.max(2, Math.round(2 + distKm * 0.15))
+  }
+  return 0
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -197,107 +228,171 @@ function TimelineWalk({ segment }: { segment: TransitSegment }) {
 }
 
 /** 时间线节点：地铁/公交段 */
-function TimelineTransit({ segment }: { segment: TransitSegment }) {
+function TimelineTransit({ segment, totalCost }: { segment: TransitSegment; totalCost?: number }) {
   const isSubway = segment.type === 'subway'
   const color = getLineColor(segment.lineName, segment.lineColor)
   const [expanded, setExpanded] = React.useState(true)
+  // 预估数据（非实时，供参考）
+  const nextTrain = estimateNextTrainArrival()
+  const schedule = estimateTrainSchedule()
+  const segCost = estimateSegmentCost(segment)
+  const secondTrainMinutes = nextTrain.minutes + (isSubway ? 4 : 8)
 
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
       {/* 左侧时间轴 */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 24, flexShrink: 0, paddingTop: 4 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 26, flexShrink: 0, paddingTop: 4 }}>
         <div style={{
-          width: 18, height: 18, borderRadius: 4,
-          background: color, border: `2px solid ${color}30`,
+          width: 20, height: 20, borderRadius: isSubway ? 5 : 6,
+          background: color, border: `2px solid ${color}25`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: `0 1px 4px ${color}40`,
+          boxShadow: `0 1.5px 5px ${color}35`,
         }}>
           {isSubway
-            ? <TrainIcon size={9} style={{ color: 'white' }} strokeWidth={2.5} />
-            : <Bus size={9} style={{ color: 'white' }} strokeWidth={2.5} />
+            ? <TrainIcon size={10} style={{ color: 'white' }} strokeWidth={2.5} />
+            : <Bus size={10} style={{ color: 'white' }} strokeWidth={2.5} />
           }
         </div>
-        <div style={{ width: 2.5, flex: 1, minHeight: 16, background: `${color}35`, marginTop: 2 }} />
+        <div style={{ width: 3, flex: 1, minHeight: 18, background: `${color}20`, marginTop: 3, borderRadius: 1.5 }} />
       </div>
 
       {/* 右侧内容 */}
-      <div style={{ flex: 1, paddingBottom: 10, minWidth: 0 }}>
-        {/* 站名（上车站） */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
+      <div style={{ flex: 1, paddingBottom: 12, minWidth: 0 }}>
+        {/* 站名行：上车站 + 进站指引 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2, flexWrap: 'wrap' }}>
           {isSubway
-            ? <TrainIcon size={14} style={{ color, flexShrink: 0 }} />
-            : <Bus size={14} style={{ color, flexShrink: 0 }} />
+            ? <TrainIcon size={15} style={{ color, flexShrink: 0 }} />
+            : <Bus size={15} style={{ color, flexShrink: 0 }} />
           }
-          <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)' }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
             {segment.departureStop}
           </span>
+          {segment.departureStop.match(/[\(（]/) && (
+            <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
+              {segment.departureStop.match(/[\(（][^\)）]*/)?.[0]?.replace(/^[\(（]/, '')}
+            </span>
+          )}
           {isSubway && (
-            <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>地铁进站指引 &gt;</span>
+            <span style={{
+              fontSize: 10, color: '#3b82f6', cursor: 'pointer',
+              textDecoration: 'underline', textDecorationStyle: 'dotted',
+            }}>
+              地铁进站指引 &gt;
+            </span>
           )}
         </div>
 
-        {/* 线路信息卡片 */}
+        {/* 线路信息卡片（核心详情区） */}
         <div style={{
-          background: 'var(--bg-tertiary)', borderRadius: 8,
-          padding: '8px 10px', marginTop: 4, marginBottom: 4,
+          background: 'var(--bg-tertiary)', borderRadius: 10,
+          padding: '9px 11px', marginTop: 5, marginBottom: 4,
+          border: `1px solid ${color}15`,
         }}>
-          {/* 线路名 + 方向 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+          {/* 线路名标签 + 方向 + 到站时刻表 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
             <span style={{
-              fontSize: 11.5, fontWeight: 700, color: 'white',
-              background: color, padding: '1.5px 7px', borderRadius: 4,
+              fontSize: 12, fontWeight: 800, color: 'white',
+              background: color, padding: '2px 9px', borderRadius: 5,
               whiteSpace: 'nowrap', letterSpacing: '0.02em',
+              textShadow: `0 1px 2px ${color}50`,
             }}>
               {segment.lineName || (isSubway ? '地铁' : '公交')}
             </span>
             {segment.instruction && (
-              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+              <span style={{ fontSize: 11.5, color: 'var(--text-secondary)', fontWeight: 500 }}>
                 {segment.instruction.replace(/^乘坐/, '')}
               </span>
             )}
-            <span style={{ fontSize: 10, color: 'var(--text-faint)', marginLeft: 'auto' }}>
+            <span style={{
+              fontSize: 10, color: '#3b82f6', marginLeft: 'auto', cursor: 'pointer',
+            }}>
               到站时刻表 &gt;
             </span>
           </div>
 
-          {/* 可展开的详情 */}
           {expanded && (
             <>
-              {/* 站点信息 */}
+              {/* 列车到站信息（模拟预估） */}
               <div style={{
-                fontSize: 11.5, color: 'var(--text-secondary)',
-                padding: '4px 0', lineHeight: 1.7,
+                background: 'rgba(255,255,255,0.6)', borderRadius: 7,
+                padding: '7px 9px', marginBottom: 6,
+                border: `1px solid ${color}12`,
               }}>
+                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                  {/* 第1辆 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 110 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>第 1 辆</span>
+                    <span style={{
+                      fontSize: 10.5, color: '#22c55e', fontWeight: 600,
+                      display: 'inline-flex', alignItems: 'center', gap: 2,
+                    }}>
+                      <Clock size={9} />{nextTrain.minutes}分钟
+                    </span>
+                    <span style={{ fontSize: 10, letterSpacing: -1 }}>{nextTrain.crowding}</span>
+                  </div>
+                  {/* 第2辆 */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 110 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>第 2 辆</span>
+                    <span style={{
+                      fontSize: 10.5, color: 'var(--text-faint)', fontWeight: 500,
+                      display: 'inline-flex', alignItems: 'center', gap: 2,
+                    }}>
+                      <Clock size={9} />{secondTrainMinutes}分钟
+                    </span>
+                  </div>
+                </div>
+
+                {/* 车厢冷气提示（仅地铁） */}
+                {isSubway && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    paddingTop: 5, borderTop: '1px dashed var(--border-faint)',
+                    marginTop: 4, fontSize: 10, color: '#60a5fa',
+                  }}>
+                    <span>❄️</span>
+                    <span>强冷: 1、6 车厢；弱冷: 2~5 车厢</span>
+                  </div>
+                )}
+              </div>
+
+              {/* 站点信息 */}
+              <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', lineHeight: 1.75 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <CircleDot size={8} style={{ color: '#22c55e', flexShrink: 0 }} />
-                  <span>{segment.departureStop}</span>
-                  <span style={{ color: 'var(--text-faint)', fontSize: 10.5, marginLeft: 'auto' }}>
-                    上车站
-                  </span>
+                  <CircleDot size={9} style={{ color: '#22c55e', flexShrink: 0 }} />
+                  <span style={{ fontWeight: 500 }}>{segment.departureStop}</span>
+                  <span style={{ color: 'var(--text-faint)', fontSize: 10.5, marginLeft: 'auto' }}>上车站</span>
                 </div>
                 {segment.viaStops != null && segment.viaStops > 0 && (
-                  <div style={{ paddingLeft: 4, color: 'var(--text-faint)', fontSize: 10.5, paddingTop: 1, paddingBottom: 1 }}>
-                    <Navigation size={9} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 3 }} />
-                    {segment.viaStops}站 ({formatDurationShort(segment.duration)})
+                  <div style={{
+                    paddingLeft: 5, color: 'var(--text-muted)',
+                    fontSize: 10.5, paddingTop: 1, paddingBottom: 2,
+                    display: 'flex', alignItems: 'center', gap: 3,
+                  }}>
+                    <Navigation size={9} />
+                    <span>{segment.viaStops} 站 ({formatDurationShort(segment.duration)})</span>
                   </div>
                 )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingTop: 2 }}>
-                  <Circle size={8} style={{ color: '#ef4444', flexShrink: 0 }} />
-                  <span>{segment.arrivalStop}</span>
-                  <span style={{ color: 'var(--text-faint)', fontSize: 10.5, marginLeft: 'auto' }}>
-                    下车站
-                  </span>
+                  <Circle size={9} style={{ color: '#ef4444', flexShrink: 0 }} />
+                  <span style={{ fontWeight: 500 }}>{segment.arrivalStop}</span>
+                  <span style={{ color: 'var(--text-faint)', fontSize: 10.5, marginLeft: 'auto' }}>下车站</span>
                 </div>
               </div>
 
-              {/* 时长+距离 */}
+              {/* 底部信息条：时长 | 距离 | 票价 | 首末班 */}
               <div style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                paddingTop: 4, borderTop: '1px solid var(--border-faint)',
+                display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+                paddingTop: 5, borderTop: '1px solid var(--border-faint)',
                 fontSize: 10.5, color: 'var(--text-faint)',
               }}>
                 <span><Clock size={9} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 2 }} />{formatDurationShort(segment.duration)}</span>
                 <span><Navigation size={9} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 2 }} />{formatDistance(segment.distance)}</span>
+                {segCost > 0 && (
+                  <span><Coins size={9} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 2 }} />约¥{segCost}</span>
+                )}
+                <span style={{ marginLeft: 'auto' }}>
+                  上车站 首{schedule.first} 末{schedule.last}
+                </span>
               </div>
             </>
           )}
@@ -306,28 +401,36 @@ function TimelineTransit({ segment }: { segment: TransitSegment }) {
           <button
             onClick={() => setExpanded(!expanded)}
             style={{
-              display: 'flex', alignItems: 'center', gap: 2,
-              marginTop: expanded ? 4 : 0, padding: '2px 0',
+              display: 'flex', alignItems: 'center', gap: 3,
+              marginTop: expanded ? 5 : 0, padding: '3px 0',
               border: 'none', background: 'transparent', cursor: 'pointer',
               fontFamily: 'inherit', fontSize: 10.5, color: 'var(--text-faint)',
               width: 'fit-content',
             }}
           >
-            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-            <span>{expanded ? '收起详情' : `${segment.viaStops || 0}站 (${formatDurationShort(segment.duration)})`}</span>
+            {expanded
+              ? <><ChevronDown size={12} /><span>收起详情</span></>
+              : <><ChevronRight size={12} /><span>{segment.viaStops || 0}站 ({formatDurationShort(segment.duration)})</span></>
+            }
           </button>
         </div>
 
-        {/* 下车站名 */}
+        {/* 下车站名行 + 出站指引 */}
         {(segment.arrivalStop && segment.arrivalStop !== segment.departureStop) && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5, flexWrap: 'wrap' }}>
             {isSubway && (
-              <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>地铁出站指引 &gt;</span>
+              <span style={{
+                fontSize: 10, color: '#ef4444', cursor: 'pointer',
+                textDecoration: 'underline', textDecorationStyle: 'dotted',
+              }}>
+                地铁出站指引 &gt;
+              </span>
             )}
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
               {segment.arrivalStop}
             </span>
-            <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>(出入口)</span>
+            <span style={{ fontSize: 10.5, color: 'var(--text-faint)' }}>(出入口)</span>
+            <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>左侧开门</span>
           </div>
         )}
       </div>
