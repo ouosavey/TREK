@@ -1,5 +1,25 @@
 # VERSION
 
+## v3.0.22-cn.10 - 2026-06-15
+
+### 变更
+- 修复导出图片文字溢出背景色块（onclone中内联computed style到每个元素）
+- 修复地图右键添加地点慢（先开弹窗再异步逆地理编码）
+- 修复PlaceFormModal异步更新prefillCoords时重置表单
+- AMap地点图片优先通过POI详情API获取，解决404
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Planner/TransitRoutePanel.tsx`
+- `client/src/pages/TripPlannerPage.tsx`
+- `client/src/components/Planner/PlaceFormModal.tsx`
+- `server/src/services/mapsService.ts`
+
+---
+
 ## v3.0.22-cn.9 - 2026-06-15
 
 ### 变更

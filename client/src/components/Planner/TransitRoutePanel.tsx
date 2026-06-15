@@ -577,47 +577,20 @@ export default function TransitRoutePanel({
   const [showExportMenu, setShowExportMenu] = React.useState(false)
   const contentRef = React.useRef<HTMLDivElement>(null)
 
-  // 生成截图 canvas：onclone 中修复定位 + 注入CSS变量到:root
+  // 生成截图 canvas：onclone 中修复定位 + 内联所有computed styles
   const captureCanvas = React.useCallback(async () => {
     if (!contentRef.current) return null
 
-    // 从 root 获取所有 CSS 变量值
-    const rootStyle = getComputedStyle(document.documentElement)
-    const allCssVars: string[] = []
-    // 遍历所有样式表，收集 :root 上的自定义属性
-    for (const sheet of document.styleSheets) {
-      try {
-        for (const rule of sheet.cssRules) {
-          if (rule instanceof CSSStyleRule && (rule.selectorText === ':root' || rule.selectorText === 'html')) {
-            const style = rule.style
-            for (let i = 0; i < style.length; i++) {
-              const prop = style[i]
-              if (prop.startsWith('--')) {
-                const val = rootStyle.getPropertyValue(prop).trim()
-                if (val) allCssVars.push(`${prop}: ${val}`)
-              }
-            }
-          }
-        }
-      } catch { /* cross-origin stylesheet */ }
-    }
-    // 也从 rootStyle 收集（覆盖 computed values）
-    const rootCsVars: Record<string, string> = {}
-    const pseudoEl = rootStyle
-    for (let i = 0; i < pseudoEl.length; i++) {
-      const prop = pseudoEl[i]
-      if (prop.startsWith('--')) {
-        rootCsVars[prop] = pseudoEl.getPropertyValue(prop).trim()
-      }
-    }
-    const rootVarsCss = Object.entries(rootCsVars).map(([k, v]) => `${k}: ${v}`).join('; ')
+    // 预先收集原始元素和克隆元素的映射，在 onclone 中内联 computed styles
+    // 这是解决 html2canvas 无法正确解析 CSS 变量 + Tailwind class 的最可靠方案
+    const rootBg = getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary').trim() || '#ffffff'
 
     return html2canvas(contentRef.current, {
       scale: 2,
-      backgroundColor: rootCsVars['--bg-secondary'] || '#ffffff',
+      backgroundColor: rootBg,
       useCORS: true,
       logging: false,
-      onclone: (clonedDoc) => {
+      onclone: (clonedDoc, element) => {
         // 通过 data 属性找到克隆的面板元素
         const target = clonedDoc.querySelector('[data-transit-export]') as HTMLElement | null
         if (!target) return
@@ -636,15 +609,66 @@ export default function TransitRoutePanel({
         target.style.bottom = ''
         target.style.transform = ''
         target.style.zIndex = ''
-        // 移除高度限制，防止内容被截断
         target.style.maxHeight = ''
         target.style.height = 'auto'
         target.style.overflow = 'visible'
 
-        // 3. 注入 :root CSS 变量定义到克隆文档，让 html2canvas 能解析 var()
-        const styleEl = clonedDoc.createElement('style')
-        styleEl.textContent = `:root { ${rootVarsCss} }`
-        clonedDoc.head.appendChild(styleEl)
+        // 3. 对每个子元素内联 computed style（解决 html2canvas 无法解析 CSS 变量的问题）
+        // 遍历原始 DOM 和克隆 DOM，将原始元素的 computed style 内联到克隆元素上
+        const origWalker = document.createTreeWalker(element, NodeFilter.SHOW_ELEMENT)
+        const cloneWalker = clonedDoc.createTreeWalker(target, NodeFilter.SHOW_ELEMENT)
+        const origElements: Element[] = []
+        while (origWalker.nextNode()) origElements.push(origWalker.currentNode as Element)
+
+        let origIdx = 0
+        // 先处理 target 自身
+        const targetOrig = element
+        if (targetOrig) {
+          const cs = getComputedStyle(targetOrig as HTMLElement)
+          const propsToInline = [
+            'color', 'background', 'backgroundColor', 'backgroundImage',
+            'fontSize', 'fontWeight', 'fontFamily', 'lineHeight', 'letterSpacing',
+            'padding', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+            'margin', 'marginTop', 'marginRight', 'marginBottom', 'marginLeft',
+            'border', 'borderRadius', 'borderColor', 'borderWidth',
+            'display', 'flexDirection', 'alignItems', 'justifyContent', 'gap',
+            'width', 'height', 'minWidth', 'maxWidth',
+            'overflow', 'whiteSpace', 'textOverflow', 'textAlign',
+            'opacity', 'boxShadow', 'textDecoration',
+          ]
+          for (const prop of propsToInline) {
+            const val = cs.getPropertyValue(prop)
+            if (val) (target as HTMLElement).style.setProperty(prop, val)
+          }
+        }
+
+        // 处理子元素
+        while (cloneWalker.nextNode()) {
+          if (origIdx >= origElements.length) break
+          const origEl = origElements[origIdx] as HTMLElement
+          const cloneEl = cloneWalker.currentNode as HTMLElement
+          origIdx++
+
+          try {
+            const cs = getComputedStyle(origEl)
+            // 内联影响布局和渲染的关键属性
+            const propsToInline = [
+              'color', 'background', 'backgroundColor', 'backgroundImage',
+              'fontSize', 'fontWeight', 'fontFamily', 'lineHeight', 'letterSpacing',
+              'padding', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+              'margin', 'marginTop', 'marginRight', 'marginBottom', 'marginLeft',
+              'border', 'borderRadius', 'borderColor', 'borderWidth',
+              'display', 'flexDirection', 'alignItems', 'justifyContent', 'gap',
+              'width', 'height', 'minWidth', 'maxWidth',
+              'overflow', 'whiteSpace', 'textOverflow', 'textAlign',
+              'opacity', 'boxShadow', 'textDecoration',
+            ]
+            for (const prop of propsToInline) {
+              const val = cs.getPropertyValue(prop)
+              if (val) cloneEl.style.setProperty(prop, val)
+            }
+          } catch { /* skip */ }
+        }
       },
     })
   }, [])

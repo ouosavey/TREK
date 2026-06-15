@@ -125,13 +125,14 @@ export default function PlaceFormModal({
         website: place.website || '',
       })
     } else if (prefillCoords) {
-      setForm({
+      setForm(prev => ({
         ...DEFAULT_FORM,
         lat: String(prefillCoords.lat),
         lng: String(prefillCoords.lng),
-        name: prefillCoords.name || '',
-        address: prefillCoords.address || '',
-      })
+        // 只在用户还没输入时才填充逆地理编码结果
+        name: prev?.name || prefillCoords.name || '',
+        address: prev?.address || prefillCoords.address || '',
+      }))
     } else {
       setForm(DEFAULT_FORM)
     }

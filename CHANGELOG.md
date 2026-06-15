@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## 2026-06-15 修复导出图片文字溢出 + 右键添加地点 + AMap图片
+
+### Bug修复
+
+#### 1. 导出图片文字溢出背景色块
+- **问题**: 导出图片中有背景色块的文字下移溢出色块，与实际界面不一致
+- **根因**: `:root` CSS 变量注入方案不够——html2canvas 在解析 Tailwind class 中的 `var()` 时仍无法正确计算 lineHeight/padding 等属性组合
+- **修复**: 改用最可靠的方案——在 onclone 中遍历原始 DOM 和克隆 DOM，将每个元素的 **computed style 内联**到克隆元素上，html2canvas 直接读取内联样式
+- **涉及文件**: `TransitRoutePanel.tsx`
+
+#### 2. 地图右键添加地点慢且只能获取经纬度
+- **问题**: 右键地图后弹窗打开慢，且名称/地址为空
+- **根因**: 上一版改为先等逆地理编码再开弹窗，导致用户等待；且 PlaceFormModal 的 useEffect 在 prefillCoords 更新时会重置整个表单
+- **修复**:
+  - 改回先开弹窗再异步获取逆地理编码
+  - PlaceFormModal useEffect 改为 `setForm(prev => ...)`，只在用户未输入时才填充 name/address
+- **涉及文件**: `TripPlannerPage.tsx`, `PlaceFormModal.tsx`
+
+#### 3. AMap 地点图片 404
+- **问题**: `place-photo/amap:xxx` 仍返回 404
+- **根因**: 中文维基百科对中国小地名覆盖率低
+- **修复**: AMap 地点优先通过 AMap POI 详情 API (`/v3/place/detail`) 直接获取图片 URL，再 fallback 到中文维基 → 英文维基 → Wikimedia Commons
+- **涉及文件**: `mapsService.ts`
+
 ## 2026-06-15 修复导出图片样式 + Google Fonts 国内可访问 + AMap 地点图片
 
 ### Bug修复

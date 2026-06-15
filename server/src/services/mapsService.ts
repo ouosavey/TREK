@@ -721,10 +721,41 @@ export async function getPlacePhoto(
     const isCoordLookup = placeId.startsWith('coords:');
     const isAmapLookup = placeId.startsWith('amap:');
 
-    // No Google key, coordinate-only, or AMap lookup → try Wikimedia (URL-based, not byte-cached)
+    // No Google key, coordinate-only, or AMap lookup → try AMap POI photo, then Wikimedia
     if (!apiKey || isCoordLookup || isAmapLookup) {
       if (!isNaN(lat) && !isNaN(lng)) {
-        // AMap 地点：优先尝试中文维基百科（比英文维基对中国地名效果好得多）
+        // AMap 地点：优先通过 AMap POI 详情 API 获取图片
+        if (isAmapLookup) {
+          const amapKey = getAmapKey(userId);
+          const amapId = placeId.slice(5); // 去掉 "amap:" 前缀
+          if (amapKey && amapId) {
+            try {
+              const detailParams = new URLSearchParams({
+                key: amapKey, id: amapId, output: 'JSON', extensions: 'all',
+              });
+              const detailRes = await fetch(`https://restapi.amap.com/v3/place/detail?${detailParams}`);
+              if (detailRes.ok) {
+                const detailData = await detailRes.json() as { status: string; pois?: AmapPoi[] };
+                if (detailData.status === '1' && detailData.pois?.[0]?.photos?.[0]?.url) {
+                  const photoUrl = detailData.pois[0].photos[0].url;
+                  const ssrf = await checkSsrf(photoUrl, true);
+                  if (ssrf.allowed) {
+                    const imgRes = await fetch(photoUrl);
+                    if (imgRes.ok) {
+                      const bytes = Buffer.from(await imgRes.arrayBuffer());
+                      if (bytes.length > 100) {
+                        const cached = await placePhotoCache.put(placeId, bytes, 'AMap');
+                        return { filePath: cached.filePath, attribution: cached.attribution };
+                      }
+                    }
+                  }
+                }
+              }
+            } catch { /* fall through to Wikipedia */ }
+          }
+        }
+
+        // AMap 地点：尝试中文维基百科
         if (isAmapLookup && name) {
           try {
             const searchParams = new URLSearchParams({
