@@ -94,7 +94,8 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
       img.style.maxWidth = '85vw'
       img.style.maxHeight = '80vh'
     }
-    setZoomed(isZoomed)
+    // 只在缩放状态切换时触发 React 重渲染（不是每帧）
+    setZoomed(prev => prev !== isZoomed ? isZoomed : prev)
   }, [])
 
   const resetTransform = useCallback((animate: boolean = true) => {
@@ -103,11 +104,29 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
   }, [applyTransform])
 
   // 切换图片时重置
-  useEffect(() => { resetTransform(false) }, [index, resetTransform])
+  useEffect(() => {
+    resetTransform(false)
+    // 图片切换后设置初始尺寸限制
+    const img = imgRef.current
+    if (img) {
+      img.style.maxWidth = '85vw'
+      img.style.maxHeight = '80vh'
+    }
+  }, [index, resetTransform])
   useEffect(() => {
     setImgSrc('')
     if (file) getAuthUrl(file.url, 'download').then(setImgSrc)
   }, [file?.url])
+
+  // 图片 src 变化后设置初始尺寸限制
+  useEffect(() => {
+    const img = imgRef.current
+    if (img && imgSrc) {
+      img.style.maxWidth = '85vw'
+      img.style.maxHeight = '80vh'
+      img.style.transform = 'translate(0px, 0px) scale(1)'
+    }
+  }, [imgSrc])
 
   const goPrev = () => setIndex(i => Math.max(0, i - 1))
   const goNext = () => setIndex(i => Math.min(files.length - 1, i + 1))
@@ -380,12 +399,11 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
           src={imgSrc}
           alt={file.original_name}
           style={{
-            maxWidth: '85vw', maxHeight: '80vh',
+            // maxWidth/maxHeight 由 applyTransform 通过 ref 直接控制，不写在 React style 中
             objectFit: 'contain', borderRadius: 8, display: 'block',
             transformOrigin: 'center center',
             cursor: zoomed ? 'grab' : 'default',
             willChange: 'transform',
-            imageRendering: 'auto',
           }}
           onClick={e => e.stopPropagation()}
           onDoubleClick={e => { e.stopPropagation(); handleDoubleClick(e) }}
