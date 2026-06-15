@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom'
 import {
   Footprints, Bus, Train as TrainIcon, ChevronDown, ChevronRight,
-  MapPin, Clock, Coins, Navigation, X, ArrowRight, Plane,
+  MapPin, Clock, Navigation, X, ArrowRight, Plane,
   CircleDot, Circle
 } from 'lucide-react'
 import type { TransitRouteResult, TransitRouteOption, TransitSegment, TransitLeg } from '../../types'
@@ -92,51 +92,24 @@ function formatDistance(meters: number): string {
   return `${(meters / 1000).toFixed(1)}公里`
 }
 
-function estimateCalories(meters: number): number {
-  return Math.round(meters * 0.05)
-}
-
-/** 根据当前时间估算下一班列车到达时间（模拟，非实时数据） */
-function estimateNextTrainArrival(): { minutes: number; crowding: '🧍' | '🧍🧍' | '🧍🧍🧍' | '🧍🧍🧍🧍' } {
-  const now = new Date()
-  const hour = now.getHours()
-  // 早高峰 7-9点、晚高峰 17-19点：拥挤
-  const isPeak = (hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19)
-  // 平峰时段：较空
-  const isOffPeak = (hour >= 10 && hour <= 16) || (hour >= 20 && hour <= 22)
-  if (isPeak) return { minutes: Math.floor(Math.random() * 3) + 2, crowding: isPeak && hour < 9 ? '🧍🧍🧍🧍' : '🧍🧍🧍' }
-  if (isOffPeak) return { minutes: Math.floor(Math.random() * 4) + 3, crowding: '🧍🧍' }
-  // 其他时段
-  return { minutes: Math.floor(Math.random() * 5) + 4, crowding: '🧍🧍🧍' }
-}
-
-/** 估算首末班车时间（基于典型地铁运营时间） */
-function estimateTrainSchedule(): { first: string; last: string } {
-  return { first: '05:30', last: '23:00' }
-}
-
-/** 估算票价（按距离+线路类型） */
-function estimateSegmentCost(segment: TransitSegment): number {
-  // 地铁起步价3元，每公里约0.2元；公交2元起
-  const distKm = segment.distance / 1000
-  if (segment.type === 'subway') {
-    return Math.max(3, Math.round(3 + distKm * 0.2))
-  }
-  if (segment.type === 'bus') {
-    return Math.max(2, Math.round(2 + distKm * 0.15))
-  }
-  return 0
+/** 生成方案摘要文字：如 "地铁2条，公交1条" */
+function getOptionSummary(segments: TransitSegment[]): string {
+  const subwayCount = segments.filter(s => s.type === 'subway').length
+  const busCount = segments.filter(s => s.type === 'bus').length
+  const parts: string[] = []
+  if (subwayCount > 0) parts.push(`地铁${subwayCount}条`)
+  if (busCount > 0) parts.push(`公交${busCount}条`)
+  return parts.join('，') || '步行'
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// ── 时间线式详细导航视图（核心升级） ────────────────────────────────────
+// ── 时间线式详细导航视图 ────────────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════════════
 
 /** 时间线节点：起点 */
 function TimelineStart({ name }: { name: string }) {
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-      {/* 左侧时间轴 */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 24, flexShrink: 0, paddingTop: 2 }}>
         <div style={{
           width: 14, height: 14, borderRadius: '50%',
@@ -147,7 +120,6 @@ function TimelineStart({ name }: { name: string }) {
         </div>
         <div style={{ width: 2.5, flex: 1, minHeight: 20, background: '#e5e7eb', marginTop: 2 }} />
       </div>
-      {/* 右侧内容 */}
       <div style={{ flex: 1, paddingBottom: 12, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <MapPin size={15} style={{ color: '#22c55e', flexShrink: 0 }} />
@@ -176,7 +148,6 @@ function TimelineEnd({ name }: { name: string }) {
           <MapPin size={15} style={{ color: '#ef4444', flexShrink: 0 }} />
           <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{name}</span>
         </div>
-        <span style={{ fontSize: 11, color: 'var(--text-faint)', marginLeft: 21 }}>方案时长包含等车时长</span>
       </div>
     </div>
   )
@@ -184,7 +155,6 @@ function TimelineEnd({ name }: { name: string }) {
 
 /** 时间线节点：步行段 */
 function TimelineWalk({ segment }: { segment: TransitSegment }) {
-  const cal = estimateCalories(segment.distance)
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 24, flexShrink: 0, paddingTop: 4 }}>
@@ -198,9 +168,7 @@ function TimelineWalk({ segment }: { segment: TransitSegment }) {
         <div style={{ width: 2.5, flex: 1, minHeight: 16, background: '#e5e7eb', marginTop: 2 }} />
       </div>
       <div style={{ flex: 1, paddingBottom: 10, minWidth: 0 }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
-        }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <Footprints size={13} style={{ color: '#6b7280', flexShrink: 0 }} />
           <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>
             步行{formatDistance(segment.distance)}
@@ -208,17 +176,9 @@ function TimelineWalk({ segment }: { segment: TransitSegment }) {
           <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>
             ({formatDurationShort(segment.duration)})
           </span>
-          {cal > 0 && (
-            <span style={{ fontSize: 10.5, color: 'var(--text-faint)' }}>
-              消耗{cal}大卡
-            </span>
-          )}
         </div>
         {segment.instruction && (
-          <div style={{
-            fontSize: 11.5, color: 'var(--text-secondary)',
-            marginTop: 3, lineHeight: 1.5,
-          }}>
+          <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 3, lineHeight: 1.5 }}>
             {segment.instruction}
           </div>
         )}
@@ -228,15 +188,9 @@ function TimelineWalk({ segment }: { segment: TransitSegment }) {
 }
 
 /** 时间线节点：地铁/公交段 */
-function TimelineTransit({ segment, totalCost }: { segment: TransitSegment; totalCost?: number }) {
+function TimelineTransit({ segment }: { segment: TransitSegment }) {
   const isSubway = segment.type === 'subway'
   const color = getLineColor(segment.lineName, segment.lineColor)
-  const [expanded, setExpanded] = React.useState(true)
-  // 预估数据（非实时，供参考）
-  const nextTrain = estimateNextTrainArrival()
-  const schedule = estimateTrainSchedule()
-  const segCost = estimateSegmentCost(segment)
-  const secondTrainMinutes = nextTrain.minutes + (isSubway ? 4 : 8)
 
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -258,8 +212,8 @@ function TimelineTransit({ segment, totalCost }: { segment: TransitSegment; tota
 
       {/* 右侧内容 */}
       <div style={{ flex: 1, paddingBottom: 12, minWidth: 0 }}>
-        {/* 站名行：上车站 + 进站指引 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2, flexWrap: 'wrap' }}>
+        {/* 上车站名 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4, flexWrap: 'wrap' }}>
           {isSubway
             ? <TrainIcon size={15} style={{ color, flexShrink: 0 }} />
             : <Bus size={15} style={{ color, flexShrink: 0 }} />
@@ -267,34 +221,20 @@ function TimelineTransit({ segment, totalCost }: { segment: TransitSegment; tota
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
             {segment.departureStop}
           </span>
-          {segment.departureStop.match(/[\(（]/) && (
-            <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
-              {segment.departureStop.match(/[\(（][^\)）]*/)?.[0]?.replace(/^[\(（]/, '')}
-            </span>
-          )}
-          {isSubway && (
-            <span style={{
-              fontSize: 10, color: '#3b82f6', cursor: 'pointer',
-              textDecoration: 'underline', textDecorationStyle: 'dotted',
-            }}>
-              地铁进站指引 &gt;
-            </span>
-          )}
         </div>
 
-        {/* 线路信息卡片（核心详情区） */}
+        {/* 线路信息卡片 */}
         <div style={{
           background: 'var(--bg-tertiary)', borderRadius: 10,
-          padding: '9px 11px', marginTop: 5, marginBottom: 4,
+          padding: '9px 11px', marginTop: 4, marginBottom: 4,
           border: `1px solid ${color}15`,
         }}>
-          {/* 线路名标签 + 方向 + 到站时刻表 */}
+          {/* 线路名标签 + 方向 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
             <span style={{
               fontSize: 12, fontWeight: 800, color: 'white',
               background: color, padding: '2px 9px', borderRadius: 5,
-              whiteSpace: 'nowrap', letterSpacing: '0.02em',
-              textShadow: `0 1px 2px ${color}50`,
+              whiteSpace: 'nowrap',
             }}>
               {segment.lineName || (isSubway ? '地铁' : '公交')}
             </span>
@@ -303,134 +243,49 @@ function TimelineTransit({ segment, totalCost }: { segment: TransitSegment; tota
                 {segment.instruction.replace(/^乘坐/, '')}
               </span>
             )}
-            <span style={{
-              fontSize: 10, color: '#3b82f6', marginLeft: 'auto', cursor: 'pointer',
-            }}>
-              到站时刻表 &gt;
-            </span>
           </div>
 
-          {expanded && (
-            <>
-              {/* 列车到站信息（模拟预估） */}
+          {/* 站点信息 */}
+          <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', lineHeight: 1.75 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <CircleDot size={9} style={{ color: '#22c55e', flexShrink: 0 }} />
+              <span style={{ fontWeight: 500 }}>{segment.departureStop}</span>
+              <span style={{ color: 'var(--text-faint)', fontSize: 10.5, marginLeft: 'auto' }}>上车站</span>
+            </div>
+            {segment.viaStops != null && segment.viaStops > 0 && (
               <div style={{
-                background: 'rgba(255,255,255,0.6)', borderRadius: 7,
-                padding: '7px 9px', marginBottom: 6,
-                border: `1px solid ${color}12`,
+                paddingLeft: 5, color: 'var(--text-muted)',
+                fontSize: 10.5, paddingTop: 1, paddingBottom: 2,
+                display: 'flex', alignItems: 'center', gap: 3,
               }}>
-                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-                  {/* 第1辆 */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 110 }}>
-                    <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>第 1 辆</span>
-                    <span style={{
-                      fontSize: 10.5, color: '#22c55e', fontWeight: 600,
-                      display: 'inline-flex', alignItems: 'center', gap: 2,
-                    }}>
-                      <Clock size={9} />{nextTrain.minutes}分钟
-                    </span>
-                    <span style={{ fontSize: 10, letterSpacing: -1 }}>{nextTrain.crowding}</span>
-                  </div>
-                  {/* 第2辆 */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 110 }}>
-                    <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>第 2 辆</span>
-                    <span style={{
-                      fontSize: 10.5, color: 'var(--text-faint)', fontWeight: 500,
-                      display: 'inline-flex', alignItems: 'center', gap: 2,
-                    }}>
-                      <Clock size={9} />{secondTrainMinutes}分钟
-                    </span>
-                  </div>
-                </div>
-
-                {/* 车厢冷气提示（仅地铁） */}
-                {isSubway && (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 4,
-                    paddingTop: 5, borderTop: '1px dashed var(--border-faint)',
-                    marginTop: 4, fontSize: 10, color: '#60a5fa',
-                  }}>
-                    <span>❄️</span>
-                    <span>强冷: 1、6 车厢；弱冷: 2~5 车厢</span>
-                  </div>
-                )}
+                <Navigation size={9} />
+                <span>{segment.viaStops} 站 ({formatDurationShort(segment.duration)})</span>
               </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingTop: 2 }}>
+              <Circle size={9} style={{ color: '#ef4444', flexShrink: 0 }} />
+              <span style={{ fontWeight: 500 }}>{segment.arrivalStop}</span>
+              <span style={{ color: 'var(--text-faint)', fontSize: 10.5, marginLeft: 'auto' }}>下车站</span>
+            </div>
+          </div>
 
-              {/* 站点信息 */}
-              <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', lineHeight: 1.75 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <CircleDot size={9} style={{ color: '#22c55e', flexShrink: 0 }} />
-                  <span style={{ fontWeight: 500 }}>{segment.departureStop}</span>
-                  <span style={{ color: 'var(--text-faint)', fontSize: 10.5, marginLeft: 'auto' }}>上车站</span>
-                </div>
-                {segment.viaStops != null && segment.viaStops > 0 && (
-                  <div style={{
-                    paddingLeft: 5, color: 'var(--text-muted)',
-                    fontSize: 10.5, paddingTop: 1, paddingBottom: 2,
-                    display: 'flex', alignItems: 'center', gap: 3,
-                  }}>
-                    <Navigation size={9} />
-                    <span>{segment.viaStops} 站 ({formatDurationShort(segment.duration)})</span>
-                  </div>
-                )}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingTop: 2 }}>
-                  <Circle size={9} style={{ color: '#ef4444', flexShrink: 0 }} />
-                  <span style={{ fontWeight: 500 }}>{segment.arrivalStop}</span>
-                  <span style={{ color: 'var(--text-faint)', fontSize: 10.5, marginLeft: 'auto' }}>下车站</span>
-                </div>
-              </div>
-
-              {/* 底部信息条：时长 | 距离 | 票价 | 首末班 */}
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
-                paddingTop: 5, borderTop: '1px solid var(--border-faint)',
-                fontSize: 10.5, color: 'var(--text-faint)',
-              }}>
-                <span><Clock size={9} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 2 }} />{formatDurationShort(segment.duration)}</span>
-                <span><Navigation size={9} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 2 }} />{formatDistance(segment.distance)}</span>
-                {segCost > 0 && (
-                  <span><Coins size={9} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 2 }} />约¥{segCost}</span>
-                )}
-                <span style={{ marginLeft: 'auto' }}>
-                  上车站 首{schedule.first} 末{schedule.last}
-                </span>
-              </div>
-            </>
-          )}
-
-          {/* 展开/收起按钮 */}
-          <button
-            onClick={() => setExpanded(!expanded)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 3,
-              marginTop: expanded ? 5 : 0, padding: '3px 0',
-              border: 'none', background: 'transparent', cursor: 'pointer',
-              fontFamily: 'inherit', fontSize: 10.5, color: 'var(--text-faint)',
-              width: 'fit-content',
-            }}
-          >
-            {expanded
-              ? <><ChevronDown size={12} /><span>收起详情</span></>
-              : <><ChevronRight size={12} /><span>{segment.viaStops || 0}站 ({formatDurationShort(segment.duration)})</span></>
-            }
-          </button>
+          {/* 底部信息条：时长 | 距离 */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+            paddingTop: 5, borderTop: '1px solid var(--border-faint)',
+            fontSize: 10.5, color: 'var(--text-faint)',
+          }}>
+            <span><Clock size={9} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 2 }} />{formatDurationShort(segment.duration)}</span>
+            <span><Navigation size={9} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 2 }} />{formatDistance(segment.distance)}</span>
+          </div>
         </div>
 
-        {/* 下车站名行 + 出站指引 */}
+        {/* 下车站名 */}
         {(segment.arrivalStop && segment.arrivalStop !== segment.departureStop) && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5, flexWrap: 'wrap' }}>
-            {isSubway && (
-              <span style={{
-                fontSize: 10, color: '#ef4444', cursor: 'pointer',
-                textDecoration: 'underline', textDecorationStyle: 'dotted',
-              }}>
-                地铁出站指引 &gt;
-              </span>
-            )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
               {segment.arrivalStop}
             </span>
-            <span style={{ fontSize: 10.5, color: 'var(--text-faint)' }}>(出入口)</span>
-            <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>左侧开门</span>
           </div>
         )}
       </div>
@@ -439,79 +294,94 @@ function TimelineTransit({ segment, totalCost }: { segment: TransitSegment; tota
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// ── 方案摘要标签（用于未选中的备选方案） ─────────────────────────────────
+// ── 方案卡片（可折叠，标题简洁） ────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════════════
 
-function OptionSummaryBadge({ option, index, isSelected, onSelect }: {
-  option: TransitRouteOption; index: number; isSelected: boolean; onSelect: () => void
+function OptionCard({ option, index, isSelected, isExpanded, onSelect, onToggle }: {
+  option: TransitRouteOption; index: number; isSelected: boolean; isExpanded: boolean
+  onSelect: () => void; onToggle: () => void
 }) {
   const segs = Array.isArray(option.segments) ? option.segments : []
-  const subwayCount = segs.filter(s => s.type === 'subway').length
-  const busCount = segs.filter(s => s.type === 'bus').length
+  const summary = getOptionSummary(segs)
 
   return (
-    <button
-      onClick={onSelect}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        width: '100%', padding: '8px 12px',
-        border: `1.5px solid ${isSelected ? 'var(--text-primary)' : 'var(--border-faint)'}`,
-        borderRadius: 10, background: isSelected ? 'var(--bg-hover)' : 'transparent',
-        cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-        transition: 'all 0.15s',
-      }}
-    >
-      <div style={{
-        width: 22, height: 22, borderRadius: '50%',
-        background: isSelected ? 'var(--text-primary)' : 'var(--bg-tertiary)',
-        color: isSelected ? 'white' : 'var(--text-faint)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 11, fontWeight: 700, flexShrink: 0,
-      }}>
-        {index + 1}
-      </div>
-      <span style={{ flex: 1, fontSize: 12.5, fontWeight: 500, color: 'var(--text-primary)' }}>
-        {formatDuration(option.duration)} 步行{formatDistance(option.walkingDistance)}
-      </span>
-      {/* 线路标签 */}
-      <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
-        {segs.filter(s => s.type === 'subway').slice(0, 3).map((seg, i) => (
-          <span key={i} style={{
-            fontSize: 9.5, fontWeight: 600, color: 'white',
-            background: getLineColor(seg.lineName, seg.lineColor),
-            padding: '1px 5px', borderRadius: 3, whiteSpace: 'nowrap',
-          }}>
-            {seg.lineName || '地铁'}
-          </span>
-        ))}
-        {segs.filter(s => s.type === 'bus').slice(0, 2).map((seg, i) => (
-          <span key={i} style={{
-            fontSize: 9.5, fontWeight: 600, color: '#fff',
-            background: '#3b82f6', padding: '1px 5px', borderRadius: 3, whiteSpace: 'nowrap',
-          }}>
-            公交
-          </span>
-        ))}
-      </div>
-      {option.cost > 0 && (
-        <span style={{ fontSize: 11, color: 'var(--text-faint)', flexShrink: 0 }}>
-          ¥{option.cost.toFixed(0)}
+    <div style={{
+      borderRadius: 10, overflow: 'hidden',
+      border: `1.5px solid ${isSelected ? 'var(--text-primary)' : 'var(--border-faint)'}`,
+      background: isSelected ? 'var(--bg-hover)' : 'var(--bg-card)',
+      transition: 'all 0.15s',
+    }}>
+      {/* 标题栏：简洁摘要，点击展开/收起 */}
+      <button
+        onClick={onToggle}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          width: '100%', padding: '10px 12px',
+          border: 'none', background: 'transparent',
+          cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+        }}
+      >
+        {/* 序号 */}
+        <div style={{
+          width: 22, height: 22, borderRadius: '50%',
+          background: isSelected ? 'var(--text-primary)' : 'var(--bg-tertiary)',
+          color: isSelected ? 'white' : 'var(--text-faint)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 11, fontWeight: 700, flexShrink: 0,
+        }}>
+          {index + 1}
+        </div>
+
+        {/* 时长 + 步行距离 */}
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+          {formatDuration(option.duration)}
         </span>
+        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+          步行{formatDistance(option.walkingDistance)}
+        </span>
+
+        {/* 简洁摘要：地铁N条，公交N条 */}
+        <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>
+          {summary}
+        </span>
+
+        {/* 展开/收起箭头 */}
+        <span style={{ marginLeft: 'auto', flexShrink: 0, color: 'var(--text-faint)', display: 'flex', alignItems: 'center' }}>
+          {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        </span>
+      </button>
+
+      {/* 展开后的详情时间线 */}
+      {isExpanded && (
+        <div style={{ padding: '4px 14px 12px', borderTop: '1px solid var(--border-faint)' }}>
+          <div style={{ paddingLeft: 2 }}>
+            <TimelineStart name={segs[0]?.departureStop || ''} />
+            {segs.map((seg, si) => (
+              <React.Fragment key={si}>
+                {seg.type === 'walk'
+                  ? <TimelineWalk segment={seg} />
+                  : <TimelineTransit segment={seg} />
+                }
+              </React.Fragment>
+            ))}
+            <TimelineEnd name={segs[segs.length - 1]?.arrivalStop || ''} />
+          </div>
+        </div>
       )}
-    </button>
+    </div>
   )
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// ── 单段路线区块（带目的地标题） ─────────────────────────────────────────
+// ── 单段路线区块 ─────────────────────────────────────────────────────────
 // ════════════════════════════════════════════════════════════════════════════
 
 function LegSection({ leg, legIndex, onSelectOption }: {
   leg: TransitLeg; legIndex: number; onSelectOption: (optIdx: number) => void
 }) {
   const { t } = useTranslation()
-  const selectedOpt = leg.options[leg.selectedOptionIndex]
-  const segs = Array.isArray(selectedOpt?.segments) ? selectedOpt.segments : []
+  // 默认所有方案都折叠
+  const [expandedIdx, setExpandedIdx] = React.useState<number | null>(null)
 
   // 错误处理（跨城 / 无法识别城市）
   if (leg.error) {
@@ -575,7 +445,6 @@ function LegSection({ leg, legIndex, onSelectOption }: {
               }}>
                 <TrainIcon size={14} /> 12306 查询购票
               </a>
-              <span style={{ fontSize: 10, color: '#b8860b' }}>票价以12306实际查询为准</span>
             </div>
           </div>
         </div>
@@ -604,7 +473,7 @@ function LegSection({ leg, legIndex, onSelectOption }: {
     )
   }
 
-  // 正常路线：展示选中方案的完整时间线 + 其他方案为紧凑卡片
+  // 正常路线：所有方案以可折叠卡片展示
   return (
     <div style={{
       borderRadius: 12, overflow: 'hidden',
@@ -622,100 +491,25 @@ function LegSection({ leg, legIndex, onSelectOption }: {
         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
           &rarr; {leg.toName}
         </span>
+        <span style={{ fontSize: 11, color: 'var(--text-faint)', marginLeft: 'auto' }}>
+          {leg.options.length}个方案
+        </span>
       </div>
 
-      {/* 选中方案：完整时间线导航 */}
-      {selectedOpt && (
-        <div style={{ padding: '12px 14px' }}>
-          {/* 方案概要条 */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
-            padding: '6px 10px', background: 'var(--bg-tertiary)', borderRadius: 8,
-            marginBottom: 12,
-          }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
-              {formatDuration(selectedOpt.duration)}
-            </span>
-            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-              步行{formatDistance(selectedOpt.walkingDistance)}
-            </span>
-            {/* 线路标签 */}
-            {segs.filter(s => s.type === 'subway').map((seg, i) => (
-              <span key={i} style={{
-                fontSize: 10.5, fontWeight: 700, color: 'white',
-                background: getLineColor(seg.lineName, seg.lineColor),
-                padding: '2px 8px', borderRadius: 4,
-              }}>
-                {seg.lineName || '地铁'}
-              </span>
-            ))}
-            {segs.filter(s => s.type === 'bus').map((seg, i) => (
-              <span key={i} style={{
-                fontSize: 10.5, fontWeight: 700, color: 'white',
-                background: '#3b82f6', padding: '2px 8px', borderRadius: 4,
-              }}>
-                {seg.lineName || '公交'}
-              </span>
-            ))}
-            {selectedOpt.cost > 0 && (
-              <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>
-                {segs.filter(s => s.type === 'subway' || s.type === 'bus').length}条 &middot;
-                ¥{selectedOpt.cost.toFixed(0)}
-              </span>
-            )}
-            {segs[0]?.departureStop && (
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                {segs[0].departureStop.match(/[\(（]/)?.[0]?.replace(/[\(（].*/, '') || segs[0].departureStop}进站
-              </span>
-            )}
-          </div>
-
-          {/* 时间线 */}
-          <div style={{ paddingLeft: 2 }}>
-            {/* 起点 */}
-            <TimelineStart name={leg.fromName} />
-
-            {/* 各段 */}
-            {segs.map((seg, si) => (
-              <React.Fragment key={si}>
-                {seg.type === 'walk'
-                  ? <TimelineWalk segment={seg} />
-                  : <TimelineTransit segment={seg} />
-                }
-              </React.Fragment>
-            ))}
-
-            {/* 终点 */}
-            <TimelineEnd name={leg.toName} />
-          </div>
-        </div>
-      )}
-
-      {/* 备选方案列表 */}
-      {leg.options.length > 1 && (
-        <div style={{
-          padding: '8px 12px 10px',
-          borderTop: '1px solid var(--border-faint)',
-          background: 'var(--bg-secondary)',
-        }}>
-          <div style={{ fontSize: 10.5, color: 'var(--text-faint)', marginBottom: 6, fontWeight: 600, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
-            其他方案
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {leg.options.map((opt, i) =>
-              i !== leg.selectedOptionIndex && (
-                <OptionSummaryBadge
-                  key={i}
-                  option={opt}
-                  index={i}
-                  isSelected={false}
-                  onSelect={() => onSelectOption(i)}
-                />
-              )
-            )}
-          </div>
-        </div>
-      )}
+      {/* 方案列表 */}
+      <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {leg.options.map((opt, i) => (
+          <OptionCard
+            key={i}
+            option={opt}
+            index={i}
+            isSelected={i === leg.selectedOptionIndex}
+            isExpanded={expandedIdx === i}
+            onSelect={() => { onSelectOption(i); setExpandedIdx(i) }}
+            onToggle={() => setExpandedIdx(expandedIdx === i ? null : i)}
+          />
+        ))}
+      </div>
     </div>
   )
 }
@@ -790,8 +584,6 @@ export default function TransitRoutePanel({
   // 统计
   const totalDur = result.legs.reduce((s, l) =>
     s + (l.options[l.selectedOptionIndex]?.duration || 0), 0)
-  const totalCost = result.legs.reduce((s, l) =>
-    s + (l.options[l.selectedOptionIndex]?.cost || 0), 0)
   const successLegs = result.legs.filter(l => !l.error).length
 
   const panel = (
@@ -839,7 +631,7 @@ export default function TransitRoutePanel({
           </div>
         )}
 
-        {/* 标题栏 */}
+        {/* 标题栏（不显示金额） */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '14px 16px 10px', borderBottom: '1px solid var(--border-faint)',
@@ -851,7 +643,7 @@ export default function TransitRoutePanel({
             </span>
             {successLegs > 0 && (
               <span style={{ fontSize: isMobile ? 11 : 10.5, color: '#fff', background: 'linear-gradient(135deg,#3b82f6,#6366f1)', padding: '2px 8px', borderRadius: 10, fontWeight: 600 }}>
-                {formatDuration(totalDur)} &middot; ¥{totalCost.toFixed(0)}
+                {formatDuration(totalDur)}
               </span>
             )}
           </div>
