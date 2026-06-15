@@ -493,11 +493,20 @@ export default function TransitRoutePanel({
   const { t } = useTranslation()
   // 响应式检测屏幕宽度
   const [isMobile, setIsMobile] = React.useState(() => typeof window !== 'undefined' && window.innerWidth <= 768)
+  // 客户端挂载检测: SSR时document.body不存在,Portal会崩溃
+  const [mounted, setMounted] = React.useState(false)
   React.useEffect(() => {
+    setMounted(true)
+  }, [])
+  React.useEffect(() => {
+    if (!mounted) return
     const onResize = () => setIsMobile(window.innerWidth <= 768)
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
-  }, [])
+  }, [mounted])
+
+  // 未挂载时不渲染(防止SSR崩溃)
+  if (!mounted) return null
 
   // 汇总统计
   const totalDur = result.legs.reduce((s, l) =>
@@ -621,7 +630,6 @@ export default function TransitRoutePanel({
     </>
   )
 
-  // SSR安全: 确保document.body存在
-  if (typeof document === 'undefined' || !document.body) return null
+  // Portal渲染到document.body,绕过父容器overflow/transform限制
   return ReactDOM.createPortal(panel, document.body)
 }

@@ -1330,7 +1330,7 @@ export async function calculateAmapTransitRoute(
         if (seg.bus?.buslines?.length) {
           const busline = seg.bus.buslines[0]; // 取第一条线路
           const lineName = busline.name || '';
-          const isSubway = /地铁|轻轨|磁悬浮|地铁线/.test(lineName);
+          const isSubway = /地铁|轻轨|磁悬浮|地铁线|轨道交通/.test(lineName);
           const busCoords: [number, number][] = [];
           if (busline.polyline) {
             for (const point of busline.polyline.split(';')) {
