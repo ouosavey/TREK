@@ -53,9 +53,10 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
   const { t } = useTranslation()
   const [index, setIndex] = useState(initialIndex)
   const [imgSrc, setImgSrc] = useState('')
+  const [zoomed, setZoomed] = useState(false) // 用于触发 React 重渲染更新样式
   const file = files[index]
 
-  // 缩放状态用 ref 管理，避免 React 重渲染导致卡顿
+  // 缩放状态用 ref 管理，避免滚轮/拖拽时 React 重渲染卡顿
   const transformRef = useRef({ scale: 1, x: 0, y: 0 })
   const imgRef = useRef<HTMLImageElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -70,6 +71,7 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
     const img = imgRef.current
     if (!img) return
     const { scale, x, y } = transformRef.current
+    const isZoomed = scale > 1.05
     if (animate && !isAnimating.current) {
       isAnimating.current = true
       img.style.transition = 'transform 0.25s cubic-bezier(0.22, 1, 0.36, 1)'
@@ -84,6 +86,15 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
       img.style.transition = 'none'
       img.style.transform = `translate(${x}px, ${y}px) scale(${scale})`
     }
+    // 放大时移除尺寸限制，让图片以原始分辨率渲染（解决模糊问题）
+    if (isZoomed) {
+      img.style.maxWidth = 'none'
+      img.style.maxHeight = 'none'
+    } else {
+      img.style.maxWidth = '85vw'
+      img.style.maxHeight = '80vh'
+    }
+    setZoomed(isZoomed)
   }, [])
 
   const resetTransform = useCallback((animate: boolean = true) => {
@@ -101,31 +112,35 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
   const goPrev = () => setIndex(i => Math.max(0, i - 1))
   const goNext = () => setIndex(i => Math.min(files.length - 1, i + 1))
 
-  // ── 鼠标滚轮缩放（以鼠标位置为中心） ──
-  const handleWheel = useCallback((e: WheelEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    const img = imgRef.current
+  // ── 以指定屏幕点为中心缩放（核心公式） ──
+  // transformOrigin: center center + transform: translate(tx,ty) scale(s)
+  // 鼠标相对容器中心: mx = clientX - rect.left - rect.width/2
+  // 新偏移: ntx = mx - (mx - oldTx) * (newScale / oldScale)
+  const zoomAtPoint = useCallback((clientX: number, clientY: number, factor: number) => {
     const container = containerRef.current
-    if (!img || !container) return
-
+    if (!container) return
     const rect = container.getBoundingClientRect()
-    // 鼠标相对于容器中心的位置
-    const mouseX = e.clientX - rect.left - rect.width / 2
-    const mouseY = e.clientY - rect.top - rect.height / 2
+    const mx = clientX - rect.left - rect.width / 2
+    const my = clientY - rect.top - rect.height / 2
 
     const oldScale = transformRef.current.scale
-    const factor = e.deltaY > 0 ? 0.92 : 1.08
     const newScale = Math.min(10, Math.max(0.3, oldScale * factor))
     const ratio = newScale / oldScale
 
-    // 以鼠标位置为中心缩放
+    transformRef.current.x = mx - (mx - transformRef.current.x) * ratio
+    transformRef.current.y = my - (my - transformRef.current.y) * ratio
     transformRef.current.scale = newScale
-    transformRef.current.x = mouseX - ratio * (mouseX - transformRef.current.x)
-    transformRef.current.y = mouseY - ratio * (mouseY - transformRef.current.y)
 
     applyTransform(false)
   }, [applyTransform])
+
+  // ── 鼠标滚轮缩放 ──
+  const handleWheel = useCallback((e: WheelEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const factor = e.deltaY > 0 ? 0.92 : 1.08
+    zoomAtPoint(e.clientX, e.clientY, factor)
+  }, [zoomAtPoint])
 
   // 注册 wheel 事件（passive: false 以允许 preventDefault）
   useEffect(() => {
@@ -165,12 +180,12 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
       const container = containerRef.current
       if (!container) return
       const rect = container.getBoundingClientRect()
-      const cx = e.clientX - rect.left - rect.width / 2
-      const cy = e.clientY - rect.top - rect.height / 2
+      const mx = e.clientX - rect.left - rect.width / 2
+      const my = e.clientY - rect.top - rect.height / 2
       const targetScale = 2.5
       const ratio = targetScale / transformRef.current.scale
-      transformRef.current.x = cx - ratio * (cx - transformRef.current.x)
-      transformRef.current.y = cy - ratio * (cy - transformRef.current.y)
+      transformRef.current.x = mx - (mx - transformRef.current.x) * ratio
+      transformRef.current.y = my - (my - transformRef.current.y) * ratio
       transformRef.current.scale = targetScale
       applyTransform(true)
     }
@@ -181,7 +196,6 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 2) {
-      // 双指：记录初始距离和中心
       const dx = e.touches[0].clientX - e.touches[1].clientX
       const dy = e.touches[0].clientY - e.touches[1].clientY
       lastPinchDist.current = Math.sqrt(dx * dx + dy * dy)
@@ -193,14 +207,12 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
       swipeStart.current = null
     } else if (e.touches.length === 1) {
       if (transformRef.current.scale > 1.05) {
-        // 放大状态：单指拖拽
         isDragging.current = true
         dragStart.current = {
           x: e.touches[0].clientX, y: e.touches[0].clientY,
           tx: transformRef.current.x, ty: transformRef.current.y,
         }
       } else {
-        // 未放大：记录滑动起点
         swipeStart.current = e.touches[0].clientX
       }
     }
@@ -216,30 +228,31 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
       const ratio = dist / lastPinchDist.current
       lastPinchDist.current = dist
 
-      // 以双指中心为缩放中心
       const newCenter = {
         x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
         y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
       }
+
+      // 以双指中心为缩放中心
       const container = containerRef.current
       if (container) {
         const rect = container.getBoundingClientRect()
-        const cx = lastPinchCenter.current.x - rect.left - rect.width / 2
-        const cy = lastPinchCenter.current.y - rect.top - rect.height / 2
+        const mx = newCenter.x - rect.left - rect.width / 2
+        const my = newCenter.y - rect.top - rect.height / 2
 
         const oldScale = transformRef.current.scale
         const newScale = Math.min(10, Math.max(0.3, oldScale * ratio))
         const scaleRatio = newScale / oldScale
 
-        transformRef.current.scale = newScale
-        transformRef.current.x = cx - scaleRatio * (cx - transformRef.current.x)
-        transformRef.current.y = cy - scaleRatio * (cy - transformRef.current.y)
+        transformRef.current.x = mx - (mx - transformRef.current.x) * scaleRatio
+        transformRef.current.y = my - (my - transformRef.current.y) * scaleRatio
 
         // 跟随双指中心平移
         transformRef.current.x += newCenter.x - lastPinchCenter.current.x
         transformRef.current.y += newCenter.y - lastPinchCenter.current.y
         lastPinchCenter.current = newCenter
       }
+      transformRef.current.scale = Math.min(10, Math.max(0.3, transformRef.current.scale * ratio))
       applyTransform(false)
     } else if (e.touches.length === 1 && isDragging.current) {
       e.preventDefault()
@@ -290,7 +303,6 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
 
   const hasPrev = index > 0
   const hasNext = index < files.length - 1
-  const currentScale = transformRef.current.scale
   const navBtn = (side: 'left' | 'right', onClick: () => void, show: boolean): React.ReactNode => show ? (
     <button onClick={e => { e.stopPropagation(); onClick() }}
       style={{
@@ -317,14 +329,12 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
           <span style={{ marginLeft: 8, color: 'rgba(255,255,255,0.4)' }}>{index + 1} / {files.length}</span>
         </span>
         <div style={{ display: 'flex', gap: 8, flexShrink: 0, alignItems: 'center' }}>
-          {/* 缩放比例指示 */}
-          {currentScale > 1.05 && (
+          {zoomed && (
             <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', minWidth: 40, textAlign: 'center' }}>
-              {Math.round(currentScale * 100)}%
+              {Math.round(transformRef.current.scale * 100)}%
             </span>
           )}
-          {/* 重置缩放按钮 */}
-          {currentScale > 1.05 && (
+          {zoomed && (
             <button
               onClick={() => resetTransform(true)}
               style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 6, cursor: 'pointer', color: 'rgba(255,255,255,0.8)', display: 'flex', padding: '3px 8px', fontSize: 11, fontFamily: 'inherit' }}
@@ -372,9 +382,10 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
           style={{
             maxWidth: '85vw', maxHeight: '80vh',
             objectFit: 'contain', borderRadius: 8, display: 'block',
-            transformOrigin: '0 0',
-            cursor: transformRef.current.scale > 1.05 ? (isDragging.current ? 'grabbing' : 'grab') : 'default',
+            transformOrigin: 'center center',
+            cursor: zoomed ? 'grab' : 'default',
             willChange: 'transform',
+            imageRendering: 'auto',
           }}
           onClick={e => e.stopPropagation()}
           onDoubleClick={e => { e.stopPropagation(); handleDoubleClick(e) }}
@@ -384,7 +395,7 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
       </div>
 
       {/* 底部缩放提示 */}
-      {currentScale <= 1.05 && (
+      {!zoomed && (
         <div style={{ textAlign: 'center', padding: '6px 0', fontSize: 11, color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>
           滚轮/双指缩放 · 双击放大 · 键盘 +/- 缩放
         </div>
