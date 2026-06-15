@@ -465,10 +465,11 @@ export default function TripPlannerPage(): React.ReactElement | null {
     if (!can('place_edit', trip)) return
     e.originalEvent?.preventDefault()
     const { lat, lng } = e.latlng
-    setPrefillCoords({ lat, lng })
     setEditingPlace(null)
     setEditingAssignmentId(null)
-    setShowPlaceForm(true)
+
+    // 先做逆地理编码获取名称和地址，再打开弹窗
+    let name = '', address = ''
     try {
       const { mapsApi } = await import('../api/client')
       // AMap reverse geocoding expects GCJ-02 coords, but we receive WGS-84 from MapViewAMap
@@ -476,10 +477,12 @@ export default function TripPlannerPage(): React.ReactElement | null {
       const data = useAmap
         ? (() => { const [gcjLng, gcjLat] = wgs84ToGcj02(lng, lat); return mapsApi.reverseAmap(gcjLat, gcjLng) })()
         : await mapsApi.reverse(lat, lng, language)
-      if (data.name || data.address) {
-        setPrefillCoords(prev => prev ? { ...prev, name: data.name || '', address: data.address || '' } : prev)
-      }
+      name = data.name || ''
+      address = data.address || ''
     } catch { /* best effort */ }
+
+    setPrefillCoords({ lat, lng, name, address })
+    setShowPlaceForm(true)
   }, [language])
 
   const handleSavePlace = useCallback(async (data) => {

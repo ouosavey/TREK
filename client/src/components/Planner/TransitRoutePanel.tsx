@@ -630,6 +630,10 @@ export default function TransitRoutePanel({
         target.style.bottom = ''
         target.style.transform = ''
         target.style.zIndex = ''
+        // 移除高度限制，防止内容被截断
+        target.style.maxHeight = ''
+        target.style.height = 'auto'
+        target.style.overflow = 'visible'
 
         // 3. 遍历所有子元素，内联 CSS 变量
         const cloneWalker = clonedDoc.createTreeWalker(target, NodeFilter.SHOW_ELEMENT)

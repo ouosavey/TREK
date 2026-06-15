@@ -1,5 +1,25 @@
 # VERSION
 
+## v3.0.22-cn.8 - 2026-06-15
+
+### 变更
+- 修复导出图片底部被截断（onclone中清除maxHeight/overflow）
+- 修复地图右键添加地点只能获取经纬度（先逆地理编码再开弹窗）
+- AMap 搜索接口超时从 8s 提升到 15s
+- 修复导出图片含菜单弹窗（等待DOM更新后截图）
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/pages/TripPlannerPage.tsx`
+- `client/src/components/Planner/TransitRoutePanel.tsx`
+- `client/src/api/client.ts`
+- `client/src/components/Files/FileManager.tsx`
+
+---
+
 ## v3.0.22-cn.7 - 2026-06-15
 
 ### 变更
