@@ -1,4 +1,5 @@
 import React from 'react'
+import ReactDOM from 'react-dom'
 import {
   Footprints, Bus, Train as TrainIcon, ChevronDown, ChevronRight,
   MapPin, Clock, Coins, Navigation, X, ArrowRight, Plane
