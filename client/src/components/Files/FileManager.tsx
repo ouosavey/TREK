@@ -54,8 +54,15 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
   const [index, setIndex] = useState(initialIndex)
   const [imgSrc, setImgSrc] = useState('')
   const [touchStart, setTouchStart] = useState<number | null>(null)
+  const [scale, setScale] = useState(1)
+  const [translate, setTranslate] = useState({ x: 0, y: 0 })
+  const [dragging, setDragging] = useState(false)
+  const dragStart = useRef({ x: 0, y: 0, tx: 0, ty: 0 })
+  const lastPinchDist = useRef<number | null>(null)
   const file = files[index]
 
+  // 切换图片时重置缩放
+  useEffect(() => { setScale(1); setTranslate({ x: 0, y: 0 }) }, [index])
   useEffect(() => {
     setImgSrc('')
     if (file) getAuthUrl(file.url, 'download').then(setImgSrc)
@@ -64,11 +71,92 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
   const goPrev = () => setIndex(i => Math.max(0, i - 1))
   const goNext = () => setIndex(i => Math.min(files.length - 1, i + 1))
 
+  // 鼠标滚轮缩放
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault()
+    const delta = e.deltaY > 0 ? -0.15 : 0.15
+    setScale(s => Math.min(8, Math.max(0.5, s + delta * s)))
+  }, [])
+
+  // 双指捏合缩放
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      lastPinchDist.current = Math.sqrt(dx * dx + dy * dy)
+    } else if (e.touches.length === 1) {
+      if (scale > 1.05) {
+        setDragging(true)
+        dragStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, tx: translate.x, ty: translate.y }
+      } else {
+        setTouchStart(e.touches[0].clientX)
+      }
+    }
+  }, [scale, translate])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2 && lastPinchDist.current !== null) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      const ratio = dist / lastPinchDist.current
+      lastPinchDist.current = dist
+      setScale(s => Math.min(8, Math.max(0.5, s * ratio)))
+    } else if (e.touches.length === 1 && dragging) {
+      const dx = e.touches[0].clientX - dragStart.current.x
+      const dy = e.touches[0].clientY - dragStart.current.y
+      setTranslate({ x: dragStart.current.tx + dx, y: dragStart.current.ty + dy })
+    }
+  }, [dragging])
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length < 2) lastPinchDist.current = null
+    if (e.touches.length === 0) {
+      setDragging(false)
+      if (scale <= 1.05 && touchStart !== null) {
+        const diff = e.changedTouches[0].clientX - touchStart
+        if (diff > 60) goPrev()
+        else if (diff < -60) goNext()
+      }
+      setTouchStart(null)
+    }
+  }, [scale, touchStart])
+
+  // 鼠标拖拽
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (scale > 1.05) {
+      setDragging(true)
+      dragStart.current = { x: e.clientX, y: e.clientY, tx: translate.x, ty: translate.y }
+      e.preventDefault()
+    }
+  }, [scale, translate])
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!dragging) return
+    const dx = e.clientX - dragStart.current.x
+    const dy = e.clientY - dragStart.current.y
+    setTranslate({ x: dragStart.current.tx + dx, y: dragStart.current.ty + dy })
+  }, [dragging])
+
+  const handleMouseUp = useCallback(() => { setDragging(false) }, [])
+
+  // 双击切换缩放
+  const handleDoubleClick = useCallback(() => {
+    if (scale > 1.05) {
+      setScale(1); setTranslate({ x: 0, y: 0 })
+    } else {
+      setScale(3)
+    }
+  }, [scale])
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
       if (e.key === 'ArrowLeft') goPrev()
       if (e.key === 'ArrowRight') goNext()
+      if (e.key === '+' || e.key === '=') setScale(s => Math.min(8, s * 1.2))
+      if (e.key === '-') setScale(s => Math.max(0.5, s / 1.2))
+      if (e.key === '0') { setScale(1); setTranslate({ x: 0, y: 0 }) }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -94,16 +182,11 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 2000, display: 'flex', flexDirection: 'column', paddingBottom: 'var(--bottom-nav-h)' }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 2000, display: 'flex', flexDirection: 'column', paddingBottom: 'var(--bottom-nav-h)', userSelect: 'none' }}
       onClick={onClose}
-      onTouchStart={e => setTouchStart(e.touches[0].clientX)}
-      onTouchEnd={e => {
-        if (touchStart === null) return
-        const diff = e.changedTouches[0].clientX - touchStart
-        if (diff > 60) goPrev()
-        else if (diff < -60) goNext()
-        setTouchStart(null)
-      }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
@@ -111,7 +194,23 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
           {file.original_name}
           <span style={{ marginLeft: 8, color: 'rgba(255,255,255,0.4)' }}>{index + 1} / {files.length}</span>
         </span>
-        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0, alignItems: 'center' }}>
+          {/* 缩放比例指示 */}
+          {scale > 1.05 && (
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', minWidth: 40, textAlign: 'center' }}>
+              {Math.round(scale * 100)}%
+            </span>
+          )}
+          {/* 重置缩放按钮 */}
+          {scale > 1.05 && (
+            <button
+              onClick={() => { setScale(1); setTranslate({ x: 0, y: 0 }) }}
+              style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 6, cursor: 'pointer', color: 'rgba(255,255,255,0.8)', display: 'flex', padding: '3px 8px', fontSize: 11, fontFamily: 'inherit' }}
+              title="重置缩放"
+            >
+              1:1
+            </button>
+          )}
           <button
             onClick={() => openFileUrl(file.url, file.original_name).catch(() => {})}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', display: 'flex', padding: 4 }}
@@ -131,12 +230,33 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
       </div>
 
       {/* Main image + nav */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: 0 }}
-        onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: 0, overflow: 'hidden' }}
+        onClick={e => { if (e.target === e.currentTarget && scale <= 1.05) onClose() }}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+      >
         {navBtn('left', goPrev, hasPrev)}
-        {imgSrc && <img src={imgSrc} alt={file.original_name} style={{ maxWidth: '85vw', maxHeight: '80vh', objectFit: 'contain', borderRadius: 8, display: 'block' }} onClick={e => e.stopPropagation()} />}
+        {imgSrc && <img src={imgSrc} alt={file.original_name} style={{
+          maxWidth: scale > 1.05 ? 'none' : '85vw',
+          maxHeight: scale > 1.05 ? 'none' : '80vh',
+          objectFit: 'contain', borderRadius: 8, display: 'block',
+          transform: `scale(${scale}) translate(${translate.x / scale}px, ${translate.y / scale}px)`,
+          transformOrigin: 'center center',
+          transition: dragging ? 'none' : 'transform 0.15s ease',
+          cursor: scale > 1.05 ? (dragging ? 'grabbing' : 'grab') : 'default',
+        }} onClick={e => e.stopPropagation()} onDoubleClick={e => { e.stopPropagation(); handleDoubleClick() }} />}
         {navBtn('right', goNext, hasNext)}
       </div>
+
+      {/* 底部缩放提示 */}
+      {scale <= 1.05 && (
+        <div style={{ textAlign: 'center', padding: '6px 0', fontSize: 11, color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>
+          滚轮/双指缩放 · 双击放大 · 键盘 +/- 缩放
+        </div>
+      )}
 
       {/* Thumbnail strip */}
       {files.length > 1 && (
