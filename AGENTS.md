@@ -9,6 +9,7 @@
 - 添加新功能
 - 部署服务器镜像
 - 构建 APK 新版本
+- 每次记录的内容标题包含记录的具体时间，这样方便区分
 
 ### 2. 版本号记录 (VERSION.md)
 **位置**: `放到项目的根目录`
@@ -35,4 +36,5 @@
 1. 修改请推送到cn-localized分支
 2. github上的workflow里现在的自动构建请把本次修复的内容写上去
 3. 只构建GHCR (ghcr.io)的amd64镜像
+4.每次都要将根目录下的VERSION.md、CHANGELOG.md、AGENTS.md文件一起推送
 ```
