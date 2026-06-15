@@ -286,6 +286,12 @@ export interface TransitLeg {
   options: TransitRouteOption[]
   selectedOptionIndex: number
   error?: string            // 查询失败原因(如跨城)
+  crossCityInfo?: {         // 跨城路段交通建议
+    distanceKm: number      // 直线距离(km)
+    suggestTrain?: boolean  // 建议高铁/火车
+    suggestPlane?: boolean  // 建议飞机
+    estHours?: number       // 预估小时数(高铁参考)
+  }
 }
 
 export interface TransitRouteResult {

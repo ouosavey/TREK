@@ -1,7 +1,7 @@
 import React from 'react'
 import {
   Footprints, Bus, Train as TrainIcon, ChevronDown, ChevronRight,
-  MapPin, Clock, Coins, Navigation, X, ArrowRight
+  MapPin, Clock, Coins, Navigation, X, ArrowRight, Plane
 } from 'lucide-react'
 import type { TransitRouteResult, TransitRouteOption, TransitSegment, TransitLeg } from '../../types'
 import { useTranslation } from '../../i18n'
@@ -288,6 +288,68 @@ function LegSection({ leg, legIndex, onSelectOption }: {
   const { t } = useTranslation()
 
   if (leg.error) {
+    // 跨城路段：显示交通建议卡片
+    if (leg.crossCityInfo) {
+      const info = leg.crossCityInfo
+      return (
+        <div style={{
+          borderRadius: 10, overflow: 'hidden',
+          border: '1px solid #e8a838',
+          background: 'linear-gradient(135deg, #fff9f0 0%, #fff5e6 100%)',
+        }}>
+          {/* 标题头 */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '7px 10px', background: 'rgba(232,168,56,0.08)',
+            borderBottom: '1px solid rgba(232,168,56,0.2)',
+          }}>
+            <Navigation size={13} style={{ color: '#e8a838', flexShrink: 0 }} />
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{leg.fromName}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#b8860b' }}>
+              → {leg.toName}
+            </span>
+          </div>
+          {/* 跨城提示 */}
+          <div style={{ padding: '10px 12px' }}>
+            <div style={{ fontSize: 11, color: '#996515', marginBottom: 8, textAlign: 'center' }}>
+              {leg.error}
+            </div>
+            {/* 交通建议 */}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+              {info.suggestTrain && (
+                <div style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                  padding: '10px 14px', borderRadius: 10, background: 'white',
+                  border: '1.5px solid #3b82f6', minWidth: 90,
+                }}>
+                  <TrainIcon size={22} style={{ color: '#3b82f6' }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#1e40af' }}>高铁/火车</span>
+                  <span style={{ fontSize: 10, color: '#64748b' }}>约{info.estHours}小时</span>
+                  <span style={{ fontSize: 10, color: '#94a3b8' }}>{info.distanceKm}km</span>
+                </div>
+              )}
+              {info.suggestPlane && (
+                <div style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                  padding: '10px 14px', borderRadius: 10, background: 'white',
+                  border: '1.5px solid #8b5cf6', minWidth: 90,
+                }}>
+                  <Plane size={22} style={{ color: '#8b5cf6' }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#5b21b6' }}>飞机</span>
+                  <span style={{ fontSize: 10, color: '#64748b' }}>约2-3小时</span>
+                  <span style={{ fontSize: 10, color: '#94a3b8' }}>{info.distanceKm}km</span>
+                </div>
+              )}
+            </div>
+            {/* 提示文字 */}
+            <div style={{ fontSize: 10, color: '#a16207', textAlign: 'center', marginTop: 8 }}>
+              建议使用 12306 或各旅行App查询购票
+            </div>
+          </div>
+        </div>
+      )
+    }
+    // 普通错误（无法识别城市等）
     return (
       <div style={{
         borderRadius: 10, overflow: 'hidden',

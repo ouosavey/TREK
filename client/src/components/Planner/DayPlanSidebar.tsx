@@ -782,6 +782,8 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
     // 跨城检测：距离超过 300km 视为跨城，不调用公交 API
     const distKm = calcDistanceKm(fromPlace.lat, fromPlace.lng, toPlace.lat, toPlace.lng)
     if (distKm > 300) {
+      // 根据距离判断建议的交通方式
+      const estHours = Math.round(distKm / 300) // 高铁约300km/h
       return {
         leg: {
           fromName: fromPlace.name || '起点',
@@ -790,7 +792,13 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
           toCoords: [toPlace.lat, toPlace.lng],
           options: [],
           selectedOptionIndex: 0,
-          error: t('transit.crossCity', { defaultValue: `跨城路段（约${Math.round(distKm)}km），无法使用公交/地铁，请使用高铁/飞机等交通方式` }),
+          error: t('transit.crossCity', { defaultValue: `跨城路段（约${Math.round(distKm)}km），无法使用公交/地铁` }),
+          crossCityInfo: {
+            distanceKm: Math.round(distKm),
+            suggestTrain: distKm < 2500,
+            suggestPlane: distKm > 1500,
+            estHours,
+          },
         },
         routeData: null,
       }
