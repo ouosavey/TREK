@@ -518,22 +518,19 @@ export default function TransitRoutePanel({
           WebkitTapHighlightColor: 'transparent',
         }}
       />
-      {/* 面板主体 - 桌面居中 / 手机底部抽屉 */}
+      {/* 面板主体 */}
       <div style={{
         position: 'fixed',
-        // 桌面端：居中弹窗
         ...(!isMobile ? {
           top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
           width: 'min(480px, calc(100vw - 32px))',
           maxHeight: '80vh',
-          borderRadius: 16,
         } : {
-          // 移动端：底部抽屉式全屏弹窗
           bottom: 0, left: 0, right: 0,
           height: '90vh', maxHeight: '90vh',
           borderRadius: '16px 16px 0 0',
         }),
-        display: 'flex', flexDirection: 'column',
+        borderRadius: !isMobile ? 16 : undefined,
         background: 'var(--bg-secondary)',
         boxShadow: isMobile
           ? '0 -4px 24px rgba(0,0,0,0.2)'
@@ -543,21 +540,18 @@ export default function TransitRoutePanel({
         border: '1px solid var(--border-faint)',
         overscrollBehavior: 'contain',
         WebkitOverflowScrolling: 'touch',
+        padding: '14px 16px',
       }}>
         {/* 移动端拖拽指示条 */}
         {isMobile && (
-          <div style={{
-            display: 'flex', justifyContent: 'center', paddingTop: 8, paddingBottom: 4,
-            flexShrink: 0,
-          }}>
+          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 6, paddingBottom: 8 }}>
             <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border-primary)' }} />
           </div>
         )}
-        {/* 标题栏 + 汇总 + 关闭 */}
+        {/* 标题栏 */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          flexShrink: 0, paddingBottom: 10, borderBottom: '1px solid var(--border-faint)',
-          paddingLeft: 2, paddingRight: 2,
+          paddingBottom: 10, borderBottom: '1px solid var(--border-faint)', marginBottom: 10,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: isMobile ? 15 : 13, fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -571,7 +565,8 @@ export default function TransitRoutePanel({
           </div>
           <button onClick={onClose} style={{
             background: 'var(--bg-tertiary)', border: 'none', borderRadius: '50%',
-            cursor: 'pointer', color: 'var(--text-faint)', width: isMobile ? 32 : 28, height: isMobile ? 32 : 28,
+            cursor: 'pointer', color: 'var(--text-faint)',
+            width: isMobile ? 32 : 28, height: isMobile ? 32 : 28,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
           }}>
@@ -582,8 +577,7 @@ export default function TransitRoutePanel({
         {/* 换乘策略选择器 */}
         <div style={{
           display: 'flex', gap: 4, flexWrap: 'wrap',
-          paddingTop: 10, paddingBottom: 8, borderBottom: '1px solid var(--border-faint)', flexShrink: 0,
-          paddingLeft: 2, paddingRight: 2,
+          marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid var(--border-faint)',
         }}>
           {STRATEGIES.map(s => (
             <button
@@ -597,7 +591,7 @@ export default function TransitRoutePanel({
                   : '1px solid var(--border-faint)',
                 background: selectedStrategy === s.value ? 'var(--bg-hover)' : 'transparent',
                 color: selectedStrategy === s.value ? 'var(--text-primary)' : 'var(--text-faint)',
-                cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s',
+                cursor: 'pointer', fontFamily: 'inherit',
               }}
             >
               <span style={{ marginRight: 3 }}>{s.icon}</span>
@@ -606,8 +600,8 @@ export default function TransitRoutePanel({
           ))}
         </div>
 
-        {/* 各段路线（可滚动区域） */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 8, flex: 1, minHeight: 0, paddingLeft: 2, paddingRight: 2, paddingBottom: isMobile ? 24 : 16 }}>
+        {/* 各段路线（自然流式布局，由外层overflowY:auto控制滚动） */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: isMobile ? 24 : 12 }}>
           {result.legs.map((leg, li) => (
             <LegSection
               key={li}
@@ -627,6 +621,7 @@ export default function TransitRoutePanel({
     </>
   )
 
-  // 使用 Portal 渲染到 document.body，绕过父容器的 overflow:hidden / transform 限制
+  // SSR安全: 确保document.body存在
+  if (typeof document === 'undefined' || !document.body) return null
   return ReactDOM.createPortal(panel, document.body)
 }
