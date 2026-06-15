@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-06-15 修复图片拖动报错 + 导出图片样式错位
+
+### Bug修复
+
+#### 1. 手机端图片拖动时控制台大量报错
+- **问题**: 拖动/缩放图片时，F12 控制台刷屏 "Unable to preventDefault inside passive event listener invocation"
+- **根因**: React 的 `onTouchMove` 合成事件默认注册为 `passive: true`，但代码中调用了 `e.preventDefault()`
+- **修复**: 将 touchmove 从 React 合成事件改为原生 `addEventListener('touchmove', fn, { passive: false })`
+- **涉及文件**: `FileManager.tsx`
+
+#### 2. 公交地铁路线导出图片与浮窗显示不一致
+- **问题**: html2canvas 导出的图片中文字和背景色块错位，与面板实际显示不同
+- **根因**: 面板组件大量使用 CSS 变量（`var(--bg-tertiary)` 等），html2canvas 无法解析这些变量值
+- **修复**: 在 html2canvas 的 `onclone` 回调中遍历所有元素，将 CSS 变量替换为从 `getComputedStyle` 获取的实际颜色值
+- **涉及文件**: `TransitRoutePanel.tsx`
+
 ## 2026-06-15 图片缩放最大倍数提升 + 照片预览缩放功能
 
 ### 功能增强

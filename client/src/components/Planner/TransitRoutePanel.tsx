@@ -577,14 +577,115 @@ export default function TransitRoutePanel({
   const [showExportMenu, setShowExportMenu] = React.useState(false)
   const contentRef = React.useRef<HTMLDivElement>(null)
 
-  // 生成截图 canvas
+  // 生成截图 canvas：onclone 中内联所有 CSS 变量，解决 html2canvas 不解析 var() 的问题
   const captureCanvas = React.useCallback(async () => {
     if (!contentRef.current) return null
+
+    // 收集需要解析的 CSS 变量名
+    const cssVarNames: string[] = []
+    const collectVars = (el: HTMLElement) => {
+      const cs = getComputedStyle(el)
+      for (const prop of ['color', 'background', 'backgroundColor', 'borderColor',
+        'borderTopColor', 'borderBottomColor', 'borderLeftColor', 'borderRightColor',
+        'backgroundImage']) {
+        const val = cs.getPropertyValue(prop).trim()
+        if (val.includes('var(')) {
+          const matches = val.match(/var\(--[\w-]+\)/g)
+          if (matches) {
+            for (const m of matches) {
+              const name = m.slice(4, -1) // 去掉 var( 和 )
+              if (!cssVarNames.includes(name)) cssVarNames.push(name)
+            }
+          }
+        }
+      }
+      // 也检查 inline style
+      if (el.style) {
+        for (let i = 0; i < el.style.length; i++) {
+          const val = el.style.getPropertyValue(el.style[i])
+          if (val.includes('var(')) {
+            const matches = val.match(/var\(--[\w-]+\)/g)
+            if (matches) {
+              for (const m of matches) {
+                const name = m.slice(4, -1)
+                if (!cssVarNames.includes(name)) cssVarNames.push(name)
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 先遍历一次收集用到的变量名
+    const walker = document.createTreeWalker(contentRef.current, NodeFilter.SHOW_ELEMENT)
+    while (walker.nextNode()) { collectVars(walker.currentNode as HTMLElement) }
+
+    // 从 root 获取变量实际值
+    const rootStyle = getComputedStyle(document.documentElement)
+    const varValues: Record<string, string> = {}
+    for (const name of cssVarNames) {
+      varValues[name] = rootStyle.getPropertyValue(name).trim()
+    }
+
     return html2canvas(contentRef.current, {
       scale: 2,
-      backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary').trim() || '#ffffff',
+      backgroundColor: varValues['--bg-secondary'] || '#ffffff',
       useCORS: true,
       logging: false,
+      onclone: (clonedDoc) => {
+        const clonedEl = clonedDoc.body.querySelector('[ref]') as HTMLElement
+          || clonedDoc.body.firstChild?.firstChild as HTMLElement
+
+        // 替换克隆文档中所有 CSS 变量为实际值
+        const replaceVars = (el: Element | null) => {
+          if (!el || !(el instanceof HTMLElement)) return
+          replaceVars(el.firstChild as HTMLElement)
+
+          // 处理 inline style 中的 var()
+          if (el.style) {
+            for (let i = 0; i < el.style.length; i++) {
+              const prop = el.style[i]
+              let val = el.style.getPropertyValue(prop)
+              if (val.includes('var(')) {
+                for (const [name, resolved] of Object.entries(varValues)) {
+                  val = val.replaceAll(`var(${name})`, resolved)
+                }
+                el.style.setProperty(prop, val)
+              }
+            }
+          }
+          // 处理 attribute 中的 var()（如 style attribute）
+          if (el.getAttribute && el.getAttribute('style')) {
+            let attrVal = el.getAttribute('style') || ''
+            if (attrVal.includes('var(')) {
+              for (const [name, resolved] of Object.entries(varValues)) {
+                attrVal = attrVal.replaceAll(`var(${name})`, resolved)
+              }
+              el.setAttribute('style', attrVal)
+            }
+          }
+        }
+
+        // 遍历克隆文档中所有元素
+        const cloneWalker = clonedDoc.createTreeWalker(
+          clonedEl || clonedDoc.body,
+          NodeFilter.SHOW_ELEMENT
+        )
+        while (cloneWalker.nextNode()) {
+          const node = cloneWalker.currentNode as HTMLElement
+          // 处理 style 属性中的 CSS 变量
+          if (node.getAttribute) {
+            const styleAttr = node.getAttribute('style')
+            if (styleAttr && styleAttr.includes('var(')) {
+              let newStyle = styleAttr
+              for (const [name, resolved] of Object.entries(varValues)) {
+                newStyle = newStyle.replaceAll(`var(${name})`, resolved)
+              }
+              node.setAttribute('style', newStyle)
+            }
+          }
+        }
+      },
     })
   }, [])
 

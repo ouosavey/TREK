@@ -147,8 +147,35 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
       const step = Math.min(d * 0.0015, 0.12)
       zoomAt(e.clientX, e.clientY, e.deltaY > 0 ? 1 - step : 1 + step)
     }
+    // touchmove 必须用原生 { passive: false }，否则 preventDefault 会报错
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && pinchDist.current != null) {
+        e.preventDefault(); e.stopPropagation()
+        const dx = e.touches[0].clientX - e.touches[1].clientX
+        const dy = e.touches[0].clientY - e.touches[1].clientY
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        const ratio = dist / pinchDist.current
+        pinchDist.current = dist
+        const nc = { x: (e.touches[0].clientX + e.touches[1].clientX) / 2, y: (e.touches[0].clientY + e.touches[1].clientY) / 2 }
+        const r = box.getBoundingClientRect()
+        const mx = nc.x - r.left - r.width / 2, my = nc.y - r.top - r.height / 2
+        const oldS = scale.current, newS = Math.min(fitScale.current * maxZoomFactor.current, Math.max(fitScale.current * 0.2, oldS * ratio))
+        const sr = newS / oldS
+        tx.current = mx - (mx - tx.current) * sr + (nc.x - pinchCenter.current.x)
+        ty.current = my - (my - ty.current) * sr + (nc.y - pinchCenter.current.y)
+        scale.current = newS
+        pinchCenter.current = nc
+        writeDOM()
+      } else if (e.touches.length === 1 && dragging.current) {
+        e.preventDefault()
+        tx.current = dragOrigin.current.tx + (e.touches[0].clientX - dragOrigin.current.x)
+        ty.current = dragOrigin.current.ty + (e.touches[0].clientY - dragOrigin.current.y)
+        writeDOM()
+      }
+    }
     box.addEventListener('wheel', onWheel, { passive: false })
-    return () => box.removeEventListener('wheel', onWheel)
+    box.addEventListener('touchmove', onTouchMove, { passive: false })
+    return () => { box.removeEventListener('wheel', onWheel); box.removeEventListener('touchmove', onTouchMove) }
   }, [imgSrc]) // 只在图片变化时重建
 
   // ── 鼠标拖拽 ──
@@ -275,7 +302,7 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
       <div ref={boxEl} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: 0, overflow: 'hidden', touchAction: 'none' }}
         onClick={e => { if (e.target === e.currentTarget && scale.current <= fitScale.current * 1.02) onClose() }}
         onMouseDown={onMD} onMouseMove={onMM} onMouseUp={onMU} onMouseLeave={onMU}
-        onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE}>
+        onTouchStart={onTS} onTouchEnd={onTE}>
         {navBtn('left', goPrev, hasPrev)}
         {imgSrc && <img ref={imgEl} src={imgSrc} alt={file.original_name} onLoad={onImgLoad}
           style={{ objectFit: 'contain', borderRadius: 8, display: 'block', transformOrigin: 'center center', willChange: 'transform' }}
