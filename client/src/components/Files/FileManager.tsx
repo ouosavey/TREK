@@ -72,6 +72,9 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
   const swipeX = useRef<number | null>(null)
   const animating = useRef(false)
 
+  // 手机端最大缩放到 fitScale 的 15 倍，桌面端 10 倍
+  const maxZoomFactor = useRef(typeof window !== 'undefined' && window.innerWidth < 768 ? 15 : 10)
+
   // 直接写 DOM，无节流，无 React 重渲染
   const writeDOM = () => {
     const img = imgEl.current
@@ -79,7 +82,7 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
     img.style.transform = `translate(${tx.current}px,${ty.current}px) scale(${scale.current})`
     const zoomed = scale.current > fitScale.current * 1.02
     img.style.cursor = zoomed ? (dragging.current ? 'grabbing' : 'grab') : 'default'
-    const label = labelEl.current; if (label) { label.textContent = `${Math.round(scale.current / fitScale.current * 100)}%`; label.style.display = zoomed ? '' : 'none' }
+    const label = labelEl.current; if (label) { label.textContent = `${Math.round(scale.current / fitScale.current * maxZoomFactor.current0)}%`; label.style.display = zoomed ? '' : 'none' }
     const btn = resetEl.current; if (btn) btn.style.display = zoomed ? '' : 'none'
     const hint = hintEl.current; if (hint) hint.style.display = zoomed ? 'none' : ''
   }
@@ -127,7 +130,7 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
     const mx = cx - r.left - r.width / 2
     const my = cy - r.top - r.height / 2
     const oldS = scale.current
-    const newS = Math.min(fitScale.current * 10, Math.max(fitScale.current * 0.2, oldS * factor))
+    const newS = Math.min(fitScale.current * maxZoomFactor.current, Math.max(fitScale.current * 0.2, oldS * factor))
     const ratio = newS / oldS
     tx.current = mx - (mx - tx.current) * ratio
     ty.current = my - (my - ty.current) * ratio
@@ -206,7 +209,7 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
       const box = boxEl.current; if (box) {
         const r = box.getBoundingClientRect()
         const mx = nc.x - r.left - r.width / 2, my = nc.y - r.top - r.height / 2
-        const oldS = scale.current, newS = Math.min(fitScale.current * 10, Math.max(fitScale.current * 0.2, oldS * ratio))
+        const oldS = scale.current, newS = Math.min(fitScale.current * maxZoomFactor.current, Math.max(fitScale.current * 0.2, oldS * ratio))
         const sr = newS / oldS
         tx.current = mx - (mx - tx.current) * sr + (nc.x - pinchCenter.current.x)
         ty.current = my - (my - ty.current) * sr + (nc.y - pinchCenter.current.y)
@@ -239,7 +242,7 @@ function ImageLightbox({ files, initialIndex, onClose }: ImageLightboxProps) {
       if (e.key === 'Escape') onClose()
       if (e.key === 'ArrowLeft') goPrev()
       if (e.key === 'ArrowRight') goNext()
-      if (e.key === '+' || e.key === '=') { scale.current = Math.min(fitScale.current * 10, scale.current * 1.2); writeDOM() }
+      if (e.key === '+' || e.key === '=') { scale.current = Math.min(fitScale.current * maxZoomFactor.current, scale.current * 1.2); writeDOM() }
       if (e.key === '-') { scale.current = Math.max(fitScale.current * 0.2, scale.current / 1.2); writeDOM() }
       if (e.key === '0') resetZoom(true)
     }

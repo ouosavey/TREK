@@ -1,5 +1,22 @@
 # VERSION
 
+## v3.0.22-cn.3 - 2026-06-15
+
+### 变更
+- 文件图片预览：手机端最大缩放从 10x 提升到 15x
+- 照片预览（PhotoLightbox）新增缩放功能：双指/双击/滚轮/拖拽/键盘
+- 照片预览手机端最大缩放 15x，桌面端 10x
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Files/FileManager.tsx`
+- `client/src/components/Photos/PhotoLightbox.tsx`
+
+---
+
 ## v3.0.22-cn.2 - 2026-06-15
 
 ### 变更
