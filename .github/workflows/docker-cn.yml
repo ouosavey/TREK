@@ -73,10 +73,20 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **重构: 公交/地铁改为多段逐点路线规划:**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 核心变更: 从\"首尾两点一次查询\"改为\"相邻地点对逐段查询\"" >> $GITHUB_STEP_SUMMARY
-          echo "  - 每段路线独立显示目的地标题(如: 惠园大酒店 → 汉口站)" >> $GITHUB_STEP_SUMMARY
-          echo "  - 跨城路段自动识别并提示(如: 汉口站→北京西站 显示\"跨城无法使用公交\")" >> $GITHUB_STEP_SUMMARY
-          echo "  - 图标改用带颜色的交通工具图标(地铁🚇/公交🚌/步行👣)替代纯色块" >> $GITHUB_STEP_SUMMARY
-          echo "  - 数据结构新增TransitLeg支持多段,每段可独立选择方案" >> $GITHUB_STEP_SUMMARY
-          echo "  - 标题栏显示汇总统计(总时间+总费用),切换策略时重新查询所有段" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复: 手机端点击公交/地铁按钮白屏**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: TripPlannerPage移动端setRoute传入一维数组导致地图渲染崩溃(TypeError: number is not iterable)" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: 坐标数据多层清洗防御+onRouteCalculated回调增加验证+try-catch" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复: 桌面端公交面板内容截断无法滚动**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 重构面板布局为flex三段式(标题固定+内容区独立滚动)" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复: 方案选中边框不跟随切换**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 点击方案时同时触发onSelect+onToggle" >> $GITHUB_STEP_SUMMARY
+          echo "- **新增: 公交面板时间线式导航布局**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 绿色起点+红色终点+彩色时间轴+可折叠方案卡片" >> $GITHUB_STEP_SUMMARY
+          echo "  - 方案标题简洁显示'地铁N条，公交N条'，点击展开详情" >> $GITHUB_STEP_SUMMARY
+          echo "- **新增: 导出为图片功能**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 绿色相机按钮弹出菜单: 保存图片到本地 / 添加到旅行文件" >> $GITHUB_STEP_SUMMARY
+          echo "- **新增: 图片预览缩放功能**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 鼠标滚轮/双指捏合缩放、双击放大、拖拽平移、键盘快捷键" >> $GITHUB_STEP_SUMMARY
+          echo "- **去掉模拟占位数据**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 移除列车到站时间/拥挤度/强冷弱冷/首末班/票价估算(高德API不提供)" >> $GITHUB_STEP_SUMMARY
+          echo "  - 去掉金额显示" >> $GITHUB_STEP_SUMMARY
