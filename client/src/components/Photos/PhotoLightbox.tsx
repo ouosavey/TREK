@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
-import { X, ChevronLeft, ChevronRight, Edit2, Trash2, Check } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { X, ChevronLeft, ChevronRight, Edit2, Trash2, Check, RotateCcw } from 'lucide-react'
 import { useTranslation } from '../../i18n'
 import type { Photo, Place, Day } from '../../types'
 
@@ -41,14 +41,191 @@ export function PhotoLightbox({ photos, initialIndex, onClose, onUpdate, onDelet
     setEditCaption(false)
   }, [photos.length])
 
+  // ── 缩放状态：纯 ref，零 React 重渲染 ──
+  const scale = useRef(1)
+  const tx = useRef(0)
+  const ty = useRef(0)
+  const fitScale = useRef(1)
+  const imgEl = useRef<HTMLImageElement>(null)
+  const boxEl = useRef<HTMLDivElement>(null)
+  const hintEl = useRef<HTMLDivElement>(null)
+  const labelEl = useRef<HTMLSpanElement>(null)
+  const resetEl = useRef<HTMLButtonElement>(null)
+  const dragging = useRef(false)
+  const dragOrigin = useRef({ x: 0, y: 0, tx: 0, ty: 0 })
+  const pinchDist = useRef<number | null>(null)
+  const pinchCenter = useRef({ x: 0, y: 0 })
+  const swipeX = useRef<number | null>(null)
+  const animating = useRef(false)
+
+  // 手机端最大缩放到 fitScale 的 15 倍，桌面端 10 倍
+  const maxZoomFactor = useRef(typeof window !== 'undefined' && window.innerWidth < 768 ? 15 : 10)
+
+  const writeDOM = () => {
+    const img = imgEl.current
+    if (!img) return
+    img.style.transform = `translate(${tx.current}px,${ty.current}px) scale(${scale.current})`
+    const zoomed = scale.current > fitScale.current * 1.02
+    img.style.cursor = zoomed ? (dragging.current ? 'grabbing' : 'grab') : 'default'
+    const label = labelEl.current; if (label) { label.textContent = `${Math.round(scale.current / fitScale.current * 100)}%`; label.style.display = zoomed ? '' : 'none' }
+    const btn = resetEl.current; if (btn) btn.style.display = zoomed ? '' : 'none'
+    const hint = hintEl.current; if (hint) hint.style.display = zoomed ? 'none' : ''
+  }
+
+  const writeDOMAnimated = (targetScale: number, targetTx: number, targetTy: number) => {
+    const img = imgEl.current
+    if (!img || animating.current) return
+    animating.current = true
+    scale.current = targetScale; tx.current = targetTx; ty.current = targetTy
+    img.style.transition = 'transform 0.25s cubic-bezier(0.22,1,0.36,1)'
+    img.style.transform = `translate(${targetTx}px,${targetTy}px) scale(${targetScale})`
+    setTimeout(() => { img.style.transition = 'none'; animating.current = false; writeDOM() }, 260)
+  }
+
+  const resetZoom = (animate = true) => {
+    scale.current = fitScale.current; tx.current = 0; ty.current = 0
+    if (animate) writeDOMAnimated(fitScale.current, 0, 0)
+    else writeDOM()
+  }
+
+  const onImgLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget
+    const box = boxEl.current
+    if (!box) return
+    const cw = box.clientWidth, ch = box.clientHeight
+    const iw = img.naturalWidth, ih = img.naturalHeight
+    if (!iw || !ih) return
+    fitScale.current = Math.min(cw * 0.92 / iw, ch * 0.92 / ih, 1)
+    scale.current = fitScale.current; tx.current = 0; ty.current = 0
+    writeDOM()
+  }
+
+  useEffect(() => { resetZoom(false) }, [index])
+
+  const zoomAt = (cx: number, cy: number, factor: number) => {
+    const box = boxEl.current; if (!box) return
+    const r = box.getBoundingClientRect()
+    const mx = cx - r.left - r.width / 2
+    const my = cy - r.top - r.height / 2
+    const oldS = scale.current
+    const newS = Math.min(fitScale.current * maxZoomFactor.current, Math.max(fitScale.current * 0.2, oldS * factor))
+    const ratio = newS / oldS
+    tx.current = mx - (mx - tx.current) * ratio
+    ty.current = my - (my - ty.current) * ratio
+    scale.current = newS
+    writeDOM()
+  }
+
+  // ── 滚轮缩放 ──
   useEffect(() => {
-    const handleKey = (e) => {
+    const box = boxEl.current; if (!box) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault(); e.stopPropagation()
+      const d = Math.abs(e.deltaY)
+      const step = Math.min(d * 0.0015, 0.12)
+      zoomAt(e.clientX, e.clientY, e.deltaY > 0 ? 1 - step : 1 + step)
+    }
+    box.addEventListener('wheel', onWheel, { passive: false })
+    return () => box.removeEventListener('wheel', onWheel)
+  }, [index])
+
+  // ── 鼠标拖拽 ──
+  const onMD = (e: React.MouseEvent) => {
+    if (scale.current > fitScale.current * 1.02) {
+      dragging.current = true
+      dragOrigin.current = { x: e.clientX, y: e.clientY, tx: tx.current, ty: ty.current }
+      e.preventDefault()
+    }
+  }
+  const onMM = (e: React.MouseEvent) => {
+    if (!dragging.current) return
+    tx.current = dragOrigin.current.tx + (e.clientX - dragOrigin.current.x)
+    ty.current = dragOrigin.current.ty + (e.clientY - dragOrigin.current.y)
+    writeDOM()
+  }
+  const onMU = () => { dragging.current = false; writeDOM() }
+
+  // ── 双击 ──
+  const onDblClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (scale.current > fitScale.current * 1.02) { resetZoom(true); return }
+    const box = boxEl.current; if (!box) return
+    const r = box.getBoundingClientRect()
+    const mx = e.clientX - r.left - r.width / 2
+    const my = e.clientY - r.top - r.height / 2
+    const target = fitScale.current * 3
+    const ratio = target / scale.current
+    const ntx = mx - (mx - tx.current) * ratio
+    const nty = my - (my - ty.current) * ratio
+    writeDOMAnimated(target, ntx, nty)
+  }
+
+  // ── 触摸 ──
+  const onTS = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      pinchDist.current = Math.sqrt(dx * dx + dy * dy)
+      pinchCenter.current = { x: (e.touches[0].clientX + e.touches[1].clientX) / 2, y: (e.touches[0].clientY + e.touches[1].clientY) / 2 }
+      dragging.current = false; swipeX.current = null
+    } else if (e.touches.length === 1) {
+      if (scale.current > fitScale.current * 1.02) {
+        dragging.current = true
+        dragOrigin.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, tx: tx.current, ty: ty.current }
+      } else { swipeX.current = e.touches[0].clientX }
+    }
+  }
+  const onTM = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && pinchDist.current != null) {
+      e.preventDefault(); e.stopPropagation()
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      const ratio = dist / pinchDist.current
+      pinchDist.current = dist
+      const nc = { x: (e.touches[0].clientX + e.touches[1].clientX) / 2, y: (e.touches[0].clientY + e.touches[1].clientY) / 2 }
+      const box = boxEl.current; if (box) {
+        const r = box.getBoundingClientRect()
+        const mx = nc.x - r.left - r.width / 2, my = nc.y - r.top - r.height / 2
+        const oldS = scale.current, newS = Math.min(fitScale.current * maxZoomFactor.current, Math.max(fitScale.current * 0.2, oldS * ratio))
+        const sr = newS / oldS
+        tx.current = mx - (mx - tx.current) * sr + (nc.x - pinchCenter.current.x)
+        ty.current = my - (my - ty.current) * sr + (nc.y - pinchCenter.current.y)
+        scale.current = newS
+        pinchCenter.current = nc
+      }
+      writeDOM()
+    } else if (e.touches.length === 1 && dragging.current) {
+      e.preventDefault()
+      tx.current = dragOrigin.current.tx + (e.touches[0].clientX - dragOrigin.current.x)
+      ty.current = dragOrigin.current.ty + (e.touches[0].clientY - dragOrigin.current.y)
+      writeDOM()
+    }
+  }
+  const onTE = (e: React.TouchEvent) => {
+    if (e.touches.length < 2) pinchDist.current = null
+    if (e.touches.length === 0) {
+      dragging.current = false; writeDOM()
+      if (swipeX.current != null && scale.current <= fitScale.current * 1.02) {
+        const diff = e.changedTouches[0].clientX - swipeX.current
+        if (diff > 60) prev(); else if (diff < -60) next()
+      }
+      swipeX.current = null
+    }
+  }
+
+  // ── 键盘 ──
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
       if (e.key === 'ArrowLeft') prev()
       if (e.key === 'ArrowRight') next()
+      if (e.key === '+' || e.key === '=') { scale.current = Math.min(fitScale.current * maxZoomFactor.current, scale.current * 1.2); writeDOM() }
+      if (e.key === '-') { scale.current = Math.max(fitScale.current * 0.2, scale.current / 1.2); writeDOM() }
+      if (e.key === '0') resetZoom(true)
     }
-    window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
   }, [onClose, prev, next])
 
   const handleSaveCaption = async () => {
@@ -79,7 +256,7 @@ export function PhotoLightbox({ photos, initialIndex, onClose, onUpdate, onDelet
   return (
     <div
       className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
-      style={{ paddingBottom: 'var(--bottom-nav-h)' }}
+      style={{ paddingBottom: 'var(--bottom-nav-h)', userSelect: 'none', touchAction: 'none' }}
       onClick={onClose}
     >
       {/* Main area */}
@@ -93,6 +270,8 @@ export function PhotoLightbox({ photos, initialIndex, onClose, onUpdate, onDelet
             {index + 1} / {photos.length}
           </div>
           <div className="flex items-center gap-2">
+            <span ref={labelEl} style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', minWidth: 40, textAlign: 'center', display: 'none' }} />
+            <button ref={resetEl} onClick={() => resetZoom(true)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 6, cursor: 'pointer', color: 'rgba(255,255,255,0.8)', display: 'none', padding: '3px 8px', fontSize: 11, fontFamily: 'inherit' }}>1:1</button>
             <button
               onClick={handleDelete}
               className="p-2 text-white/60 hover:text-red-400 hover:bg-white/10 rounded-lg transition-colors"
@@ -110,11 +289,17 @@ export function PhotoLightbox({ photos, initialIndex, onClose, onUpdate, onDelet
         </div>
 
         {/* Image area */}
-        <div className="flex-1 flex items-center justify-center relative min-h-0 px-16">
+        <div
+          ref={boxEl}
+          className="flex-1 flex items-center justify-center relative min-h-0 overflow-hidden"
+          style={{ touchAction: 'none' }}
+          onMouseDown={onMD} onMouseMove={onMM} onMouseUp={onMU} onMouseLeave={onMU}
+          onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE}
+        >
           {/* Prev button */}
           {index > 0 && (
             <button
-              onClick={prev}
+              onClick={e => { e.stopPropagation(); prev() }}
               className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors z-10"
             >
               <ChevronLeft className="w-6 h-6" />
@@ -122,21 +307,30 @@ export function PhotoLightbox({ photos, initialIndex, onClose, onUpdate, onDelet
           )}
 
           <img
+            ref={imgEl}
             src={photo.url}
             alt={photo.caption || photo.original_name}
-            className="max-h-full max-w-full object-contain rounded-lg select-none"
+            className="rounded-lg select-none"
+            style={{ objectFit: 'contain', display: 'block', transformOrigin: 'center center', willChange: 'transform' }}
+            onLoad={onImgLoad}
+            onDoubleClick={onDblClick}
             draggable={false}
           />
 
           {/* Next button */}
           {index < photos.length - 1 && (
             <button
-              onClick={next}
+              onClick={e => { e.stopPropagation(); next() }}
               className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors z-10"
             >
               <ChevronRight className="w-6 h-6" />
             </button>
           )}
+        </div>
+
+        {/* Zoom hint */}
+        <div ref={hintEl} style={{ textAlign: 'center', padding: '6px 0', fontSize: 11, color: 'rgba(255,255,255,0.3)', flexShrink: 0 }}>
+          双指缩放 · 双击放大 · 键盘 +/- 缩放
         </div>
 
         {/* Bottom info */}
