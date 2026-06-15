@@ -574,37 +574,65 @@ export default function TransitRoutePanel({
   const [isMobile, setIsMobile] = React.useState(() => typeof window !== 'undefined' && window.innerWidth <= 768)
   const [mounted, setMounted] = React.useState(false)
   const [exporting, setExporting] = React.useState(false)
+  const [showExportMenu, setShowExportMenu] = React.useState(false)
   const contentRef = React.useRef<HTMLDivElement>(null)
 
-  // 导出为图片并上传到旅行文件
-  const handleExportImage = React.useCallback(async () => {
-    if (!contentRef.current || !tripId || exporting) return
+  // 生成截图 canvas
+  const captureCanvas = React.useCallback(async () => {
+    if (!contentRef.current) return null
+    return html2canvas(contentRef.current, {
+      scale: 2,
+      backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary').trim() || '#ffffff',
+      useCORS: true,
+      logging: false,
+    })
+  }, [])
+
+  // 保存图片到本地
+  const handleSaveLocal = React.useCallback(async () => {
+    setShowExportMenu(false)
+    if (exporting) return
     setExporting(true)
     try {
-      // 先临时展开所有方案以便截图完整
-      const canvas = await html2canvas(contentRef.current, {
-        scale: 2,
-        backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary').trim() || '#ffffff',
-        useCORS: true,
-        logging: false,
-      })
-      canvas.toBlob(async (blob) => {
-        if (!blob) { setExporting(false); return }
-        const now = new Date()
-        const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`
-        const timeStr = `${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`
-        const filename = `公交路线_${dateStr}_${timeStr}.png`
-        const formData = new FormData()
-        formData.append('file', blob, filename)
-        formData.append('description', '公交/地铁路线规划详情')
-        await filesApi.upload(tripId, formData)
-        setExporting(false)
-      }, 'image/png')
+      const canvas = await captureCanvas()
+      if (!canvas) { setExporting(false); return }
+      const now = new Date()
+      const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`
+      const timeStr = `${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`
+      const filename = `公交路线_${dateStr}_${timeStr}.png`
+      const link = document.createElement('a')
+      link.download = filename
+      link.href = canvas.toDataURL('image/png')
+      link.click()
     } catch (e) {
-      console.error('导出图片失败', e)
-      setExporting(false)
+      console.error('保存图片失败', e)
     }
-  }, [tripId, exporting])
+    setExporting(false)
+  }, [exporting, captureCanvas])
+
+  // 添加到旅行文件
+  const handleSaveToTrip = React.useCallback(async () => {
+    setShowExportMenu(false)
+    if (!tripId || exporting) return
+    setExporting(true)
+    try {
+      const canvas = await captureCanvas()
+      if (!canvas) { setExporting(false); return }
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'))
+      if (!blob) { setExporting(false); return }
+      const now = new Date()
+      const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`
+      const timeStr = `${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`
+      const filename = `公交路线_${dateStr}_${timeStr}.png`
+      const formData = new FormData()
+      formData.append('file', blob, filename)
+      formData.append('description', '公交/地铁路线规划详情')
+      await filesApi.upload(tripId, formData)
+    } catch (e) {
+      console.error('添加到旅行文件失败', e)
+    }
+    setExporting(false)
+  }, [tripId, exporting, captureCanvas])
 
   React.useEffect(() => { setMounted(true) }, [])
   React.useEffect(() => {
@@ -625,7 +653,7 @@ export default function TransitRoutePanel({
     <>
       {/* 遮罩层 */}
       <div
-        onClick={onClose}
+        onClick={() => { setShowExportMenu(false); onClose() }}
         style={{
           position: 'fixed', inset: 0,
           background: 'rgba(0,0,0,0.4)',
@@ -682,26 +710,73 @@ export default function TransitRoutePanel({
               </span>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {/* 导出为图片按钮 */}
-            {tripId && (
-              <button
-                onClick={handleExportImage}
-                disabled={exporting}
-                title="导出为图片并保存到旅行文件"
-                style={{
-                  background: exporting ? 'var(--bg-tertiary)' : 'linear-gradient(135deg,#10b981,#059669)',
-                  border: 'none', borderRadius: 8,
-                  cursor: exporting ? 'not-allowed' : 'pointer',
-                  color: 'white',
-                  width: isMobile ? 32 : 28, height: isMobile ? 32 : 28,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0, opacity: exporting ? 0.7 : 1,
-                }}
-              >
-                {exporting ? <Loader2 size={isMobile ? 15 : 13} style={{ animation: 'spin 1s linear infinite' }} /> : <Camera size={isMobile ? 15 : 13} />}
-              </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }}>
+            {/* 导出按钮 */}
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              disabled={exporting}
+              title="导出路线"
+              style={{
+                background: exporting ? 'var(--bg-tertiary)' : 'linear-gradient(135deg,#10b981,#059669)',
+                border: 'none', borderRadius: 8,
+                cursor: exporting ? 'not-allowed' : 'pointer',
+                color: 'white',
+                width: isMobile ? 32 : 28, height: isMobile ? 32 : 28,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0, opacity: exporting ? 0.7 : 1,
+              }}
+            >
+              {exporting ? <Loader2 size={isMobile ? 15 : 13} style={{ animation: 'spin 1s linear infinite' }} /> : <Camera size={isMobile ? 15 : 13} />}
+            </button>
+
+            {/* 导出选择弹窗 */}
+            {showExportMenu && (
+              <div style={{
+                position: 'absolute', top: '100%', right: 0, marginTop: 6,
+                background: 'var(--bg-secondary)', borderRadius: 10,
+                border: '1px solid var(--border-faint)',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                padding: '6px', minWidth: 180, zIndex: 10,
+              }}>
+                <button
+                  onClick={handleSaveLocal}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    width: '100%', padding: '10px 12px',
+                    border: 'none', background: 'transparent',
+                    borderRadius: 7, cursor: 'pointer',
+                    fontFamily: 'inherit', textAlign: 'left',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  <Download size={15} style={{ color: '#3b82f6', flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>保存图片到本地</div>
+                    <div style={{ fontSize: 10.5, color: 'var(--text-faint)' }}>下载 PNG 到设备</div>
+                  </div>
+                </button>
+                {tripId && (
+                  <button
+                    onClick={handleSaveToTrip}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      width: '100%', padding: '10px 12px',
+                      border: 'none', background: 'transparent',
+                      borderRadius: 7, cursor: 'pointer',
+                      fontFamily: 'inherit', textAlign: 'left',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    <Plane size={15} style={{ color: '#10b981', flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>添加到旅行文件</div>
+                      <div style={{ fontSize: 10.5, color: 'var(--text-faint)' }}>保存至本次旅行的文件区</div>
+                    </div>
+                  </button>
+                )}
+              </div>
             )}
+
             <button onClick={onClose} style={{
             background: 'var(--bg-tertiary)', border: 'none', borderRadius: '50%',
             cursor: 'pointer', color: 'var(--text-faint)',
