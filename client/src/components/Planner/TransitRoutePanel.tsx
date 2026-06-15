@@ -506,7 +506,7 @@ export default function TransitRoutePanel({
     s + (l.options[l.selectedOptionIndex]?.cost || 0), 0)
   const successLegs = result.legs.filter(l => !l.error).length
 
-  return (
+  const panel = (
     <>
       {/* 遮罩层 */}
       <div
@@ -626,4 +626,7 @@ export default function TransitRoutePanel({
       </div>
     </>
   )
+
+  // 使用 Portal 渲染到 document.body，绕过父容器的 overflow:hidden / transform 限制
+  return ReactDOM.createPortal(panel, document.body)
 }
