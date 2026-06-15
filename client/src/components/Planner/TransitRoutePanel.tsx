@@ -667,37 +667,62 @@ export default function TransitRoutePanel({
               const val = cs.getPropertyValue(prop)
               if (val) cloneEl.style.setProperty(prop, val)
             }
-            // 关键修复：对有背景色的元素修正文字垂直位置
+            // 关键修复：对有背景色的元素修正文字垂直位置（第6次迭代）
             // html2canvas 对 inline 元素的文本基线计算与浏览器不同，
             // 导致 span 内文字下移、溢出背景色块底部。
             //
-            // ⚠️ 绝对不能改 display（inline-flex/inline-block 都会导致渲染异常/全白）
+            // ⚠️ 硬约束（经5次迭代验证）：
+            //   - 绝对不能改 display（inline-flex→全白，inline-block→几乎全白）
+            //   - 不能用 transform（html2canvas 不支持）
+            //   - padding-top 补偿方向错误（文字已偏低，加top更偏）
             //
-            // 策略（经4次迭代验证）：
-            //   1. line-height=1 — 减少行高，让文字更紧凑
-            //   2. padding-bottom+3px — 扩展背景色块底部，"接住"偏移的文字
-            //   不改 display，不改 height，保持原始 inline 布局模式
+            // 最终策略：保持外层 inline 不变 + 内部包裹子span调整文字位置
+            //   1. 外层：line-height=1 + padding-bottom+2px（扩展底部接住文字）
+            //   2. 将所有子节点包裹到新的 <span> 中，设置 vertical-align:middle
+            //      让 html2canvas 在渲染内部文本时使用中间对齐而非基线对齐
             const bg = cs.getPropertyValue('background-color').trim()
             if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
               cloneEl.style.lineHeight = '1'
               const pb = parseFloat(cs.getPropertyValue('padding-bottom')) || 0
-              cloneEl.style.paddingBottom = `${pb + 3}px`
+              cloneEl.style.paddingBottom = `${pb + 2}px`
+
+              // 将所有子节点包裹到一个新 span 中，用 vertical-align 调整文字基线
+              const innerSpan = clonedDoc.createElement('span')
+              innerSpan.style.display = 'inline-block'
+              innerSpan.style.verticalAlign = 'middle'
+              innerSpan.style.lineHeight = '1'
+              // 把现有子节点移入 innerSpan
+              while (cloneEl.firstChild) {
+                innerSpan.appendChild(cloneEl.firstChild)
+              }
+              cloneEl.appendChild(innerSpan)
             }
           } catch { /* skip */ }
         }
 
-        // 4. 最终兜底修复：对所有有背景色的元素修正文字位置
+        // 4. 最终兜底修复：对所有有背景色的元素包裹内部span
         const finalFixWalker = clonedDoc.createTreeWalker(target, NodeFilter.SHOW_ELEMENT)
         while (finalFixWalker.nextNode()) {
           const el = finalFixWalker.currentNode as HTMLElement
           try {
-            if (el.style.lineHeight === '1') continue  // 已在上面处理过
+            // 已在上面处理过的元素会有 innerSpan 子节点，跳过
+            if (el.children.length === 1 && el.children[0].style.display === 'inline-block') continue
+            // 已设置 line-height:1 的也跳过（可能已被处理）
+            if (el.style.lineHeight === '1') continue
             const cs = getComputedStyle(el)
             const bg = cs.getPropertyValue('background-color').trim()
             if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
               el.style.lineHeight = '1'
               const pb = parseFloat(cs.getPropertyValue('padding-bottom')) || 0
-              el.style.paddingBottom = `${pb + 3}px`
+              el.style.paddingBottom = `${pb + 2}px`
+              const innerSpan = clonedDoc.createElement('span')
+              innerSpan.style.display = 'inline-block'
+              innerSpan.style.verticalAlign = 'middle'
+              innerSpan.style.lineHeight = '1'
+              while (el.firstChild) {
+                innerSpan.appendChild(el.firstChild)
+              }
+              el.appendChild(innerSpan)
             }
           } catch { /* skip */ }
         }
