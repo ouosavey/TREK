@@ -20,6 +20,7 @@
     "axios": "^1.6.7",
     "dexie": "^4.4.2",
     "heic-to": "^1.4.2",
+    "html2canvas": "^1.4.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.344.0",
     "mapbox-gl": "^3.22.0",

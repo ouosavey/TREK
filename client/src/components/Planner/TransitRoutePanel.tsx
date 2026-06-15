@@ -1,12 +1,14 @@
 import React from 'react'
 import ReactDOM from 'react-dom'
+import html2canvas from 'html2canvas'
 import {
   Footprints, Bus, Train as TrainIcon, ChevronDown, ChevronRight,
   MapPin, Clock, Navigation, X, ArrowRight, Plane,
-  CircleDot, Circle
+  CircleDot, Circle, Camera, Download, Loader2
 } from 'lucide-react'
 import type { TransitRouteResult, TransitRouteOption, TransitSegment, TransitLeg } from '../../types'
 import { useTranslation } from '../../i18n'
+import { filesApi } from '../../api/client'
 
 interface TransitRoutePanelProps {
   result: TransitRouteResult
@@ -14,6 +16,7 @@ interface TransitRoutePanelProps {
   onSelectLegOption: (legIndex: number, optionIndex: number) => void
   onSelectStrategy: (strategy: number) => void
   onClose: () => void
+  tripId?: number
 }
 
 // ── 策略定义 ─────────────────────────────────────────────────────────────
@@ -311,9 +314,9 @@ function OptionCard({ option, index, isSelected, isExpanded, onSelect, onToggle 
       background: isSelected ? 'var(--bg-hover)' : 'var(--bg-card)',
       transition: 'all 0.15s',
     }}>
-      {/* 标题栏：简洁摘要，点击展开/收起 */}
+      {/* 标题栏：简洁摘要，点击展开/收起 + 选中 */}
       <button
-        onClick={onToggle}
+        onClick={() => { onSelect(); onToggle() }}
         style={{
           display: 'flex', alignItems: 'center', gap: 8,
           width: '100%', padding: '10px 12px',
@@ -564,12 +567,44 @@ function get12306Url(fromName: string, toName: string): string {
 
 export default function TransitRoutePanel({
   result, selectedStrategy,
-  onSelectLegOption, onSelectStrategy, onClose,
+  onSelectLegOption, onSelectStrategy, onClose, tripId,
 }: TransitRoutePanelProps) {
   const { t } = useTranslation()
 
   const [isMobile, setIsMobile] = React.useState(() => typeof window !== 'undefined' && window.innerWidth <= 768)
   const [mounted, setMounted] = React.useState(false)
+  const [exporting, setExporting] = React.useState(false)
+  const contentRef = React.useRef<HTMLDivElement>(null)
+
+  // 导出为图片并上传到旅行文件
+  const handleExportImage = React.useCallback(async () => {
+    if (!contentRef.current || !tripId || exporting) return
+    setExporting(true)
+    try {
+      // 先临时展开所有方案以便截图完整
+      const canvas = await html2canvas(contentRef.current, {
+        scale: 2,
+        backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary').trim() || '#ffffff',
+        useCORS: true,
+        logging: false,
+      })
+      canvas.toBlob(async (blob) => {
+        if (!blob) { setExporting(false); return }
+        const now = new Date()
+        const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`
+        const timeStr = `${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`
+        const filename = `公交路线_${dateStr}_${timeStr}.png`
+        const formData = new FormData()
+        formData.append('file', blob, filename)
+        formData.append('description', '公交/地铁路线规划详情')
+        await filesApi.upload(tripId, formData)
+        setExporting(false)
+      }, 'image/png')
+    } catch (e) {
+      console.error('导出图片失败', e)
+      setExporting(false)
+    }
+  }, [tripId, exporting])
 
   React.useEffect(() => { setMounted(true) }, [])
   React.useEffect(() => {
@@ -647,7 +682,27 @@ export default function TransitRoutePanel({
               </span>
             )}
           </div>
-          <button onClick={onClose} style={{
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* 导出为图片按钮 */}
+            {tripId && (
+              <button
+                onClick={handleExportImage}
+                disabled={exporting}
+                title="导出为图片并保存到旅行文件"
+                style={{
+                  background: exporting ? 'var(--bg-tertiary)' : 'linear-gradient(135deg,#10b981,#059669)',
+                  border: 'none', borderRadius: 8,
+                  cursor: exporting ? 'not-allowed' : 'pointer',
+                  color: 'white',
+                  width: isMobile ? 32 : 28, height: isMobile ? 32 : 28,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0, opacity: exporting ? 0.7 : 1,
+                }}
+              >
+                {exporting ? <Loader2 size={isMobile ? 15 : 13} style={{ animation: 'spin 1s linear infinite' }} /> : <Camera size={isMobile ? 15 : 13} />}
+              </button>
+            )}
+            <button onClick={onClose} style={{
             background: 'var(--bg-tertiary)', border: 'none', borderRadius: '50%',
             cursor: 'pointer', color: 'var(--text-faint)',
             width: isMobile ? 32 : 28, height: isMobile ? 32 : 28,
@@ -656,6 +711,7 @@ export default function TransitRoutePanel({
           }}>
             <X size={isMobile ? 16 : 14} />
           </button>
+        </div>
         </div>
 
         {/* 换乘策略选择器 */}
@@ -694,7 +750,7 @@ export default function TransitRoutePanel({
           padding: '10px 14px',
           minHeight: 0,
         }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: isMobile ? 28 : 14 }}>
+          <div ref={contentRef} style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: isMobile ? 28 : 14 }}>
             {Array.isArray(result.legs) && result.legs.map((leg, li) => (
               <LegSection
                 key={li}

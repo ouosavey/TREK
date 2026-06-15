@@ -2244,6 +2244,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                             onSelectLegOption={handleTransitSelectOption}
                             onSelectStrategy={handleTransitStrategyChange}
                             onClose={() => setTransitResult(null)}
+                            tripId={tripId}
                           />
                         </TransitErrorBoundary>
                       )}
