@@ -667,44 +667,31 @@ export default function TransitRoutePanel({
               const val = cs.getPropertyValue(prop)
               if (val) cloneEl.style.setProperty(prop, val)
             }
-            // 关键修复：对有背景色的元素改用 inline-flex 强制居中
-            // html2canvas 的 line-height / baseline 计算与浏览器完全不同，
-            // 导致 inline 元素内文字下移溢出背景色块。
-            // 解决方案：改为 inline-flex + 固定高度 + 居中，绕过行高计算问题
+            // 关键修复：对有背景色的元素修正文字垂直位置
+            // html2canvas 的文本基线计算与浏览器不同，导致 inline 元素内文字下移溢出背景色块。
+            // 策略：line-height=1 减少行高 + 增加padding-top补偿下移（约2-3px）
             const bg = cs.getPropertyValue('background-color').trim()
             if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
-              const fs = parseFloat(cs.getPropertyValue('font-size')) || 12
-              const pt = parseFloat(cs.getPropertyValue('padding-top')) || 0
-              const pb = parseFloat(cs.getPropertyValue('padding-bottom')) || 0
-              cloneEl.style.display = 'inline-flex'
-              cloneEl.style.alignItems = 'center'
-              cloneEl.style.justifyContent = 'center'
-              cloneEl.style.height = `${fs + pt + pb}px`
               cloneEl.style.lineHeight = '1'
+              // 增加顶部内边距，将背景色块整体下移以包裹住偏移的文字
+              const pt = parseFloat(cs.getPropertyValue('padding-top')) || 0
+              cloneEl.style.paddingTop = `${pt + 3}px`
             }
           } catch { /* skip */ }
         }
 
-        // 4. 最终兜底修复：对所有有背景色的元素强制 inline-flex 居中
-        // html2canvas 对 inline 元素的 baseline/line-height 处理有根本性 bug
-        // 必须用 flex 布局绕过，否则文字必然偏移
+        // 4. 最终兜底修复：对所有有背景色的元素修正文字位置
         const finalFixWalker = clonedDoc.createTreeWalker(target, NodeFilter.SHOW_ELEMENT)
         while (finalFixWalker.nextNode()) {
           const el = finalFixWalker.currentNode as HTMLElement
           try {
-            // 跳过已被上面循环处理过的元素（已有 display:inline-flex）
-            if (el.style.display === 'inline-flex') continue
+            if (el.style.lineHeight === '1') continue  // 已在上面处理过
             const cs = getComputedStyle(el)
             const bg = cs.getPropertyValue('background-color').trim()
             if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
-              const fs = parseFloat(cs.getPropertyValue('font-size')) || 12
-              const pt = parseFloat(cs.getPropertyValue('padding-top')) || 0
-              const pb = parseFloat(cs.getPropertyValue('padding-bottom')) || 0
-              el.style.display = 'inline-flex'
-              el.style.alignItems = 'center'
-              el.style.justifyContent = 'center'
-              el.style.height = `${fs + pt + pb}px`
               el.style.lineHeight = '1'
+              const pt = parseFloat(cs.getPropertyValue('padding-top')) || 0
+              el.style.paddingTop = `${pt + 3}px`
             }
           } catch { /* skip */ }
         }
