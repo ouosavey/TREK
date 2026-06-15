@@ -436,11 +436,16 @@ export function MapViewGL({
     if (!map) return
     const src = map.getSource('trip-route') as mapboxgl.GeoJSONSource | undefined
     if (!src) return
-    const features = (route || []).filter(seg => seg && seg.length > 1).map(seg => ({
-      type: 'Feature' as const,
-      properties: {},
-      geometry: { type: 'LineString' as const, coordinates: seg.map(([lat, lng]) => [lng, lat]) },
-    }))
+    const features = (route || []).filter(seg => seg && seg.length > 1).map(seg => {
+      // 防御性清洗：过滤掉非 [number, number] 格式的坐标
+      const cleanSeg = seg.filter((c): c is [number, number] => Array.isArray(c) && c.length === 2 && typeof c[0] === 'number' && typeof c[1] === 'number')
+      if (cleanSeg.length < 2) return null
+      return {
+        type: 'Feature' as const,
+        properties: {},
+        geometry: { type: 'LineString' as const, coordinates: cleanSeg.map(([lat, lng]) => [lng, lat]) },
+      }
+    }).filter(Boolean)
     src.setData({ type: 'FeatureCollection', features })
   }, [route])
 

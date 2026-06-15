@@ -580,22 +580,24 @@ export default function TransitRoutePanel({
           ? '0 -4px 24px rgba(0,0,0,0.2)'
           : '0 8px 40px rgba(0,0,0,0.2)',
         zIndex: 9999,
-        overflowY: 'auto',
         border: '1px solid var(--border-faint)',
         overscrollBehavior: 'contain',
         WebkitOverflowScrolling: 'touch',
-        padding: '14px 16px',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
       }}>
         {/* 移动端拖拽指示条 */}
         {isMobile && (
-          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 6, paddingBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 6, paddingBottom: 8, flexShrink: 0 }}>
             <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border-primary)' }} />
           </div>
         )}
         {/* 标题栏 */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          paddingBottom: 10, borderBottom: '1px solid var(--border-faint)', marginBottom: 10,
+          padding: '14px 16px 10px', borderBottom: '1px solid var(--border-faint)',
+          flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: isMobile ? 15 : 13, fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -621,7 +623,8 @@ export default function TransitRoutePanel({
         {/* 换乘策略选择器 */}
         <div style={{
           display: 'flex', gap: 4, flexWrap: 'wrap',
-          marginBottom: 10, paddingBottom: 10, borderBottom: '1px solid var(--border-faint)',
+          padding: '10px 16px', borderBottom: '1px solid var(--border-faint)',
+          flexShrink: 0,
         }}>
           {STRATEGIES.map(s => (
             <button
@@ -644,22 +647,31 @@ export default function TransitRoutePanel({
           ))}
         </div>
 
-        {/* 各段路线（自然流式布局，由外层overflowY:auto控制滚动） */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: isMobile ? 24 : 12 }}>
-          {Array.isArray(result.legs) && result.legs.map((leg, li) => (
-            <LegSection
-              key={li}
-              leg={leg}
-              legIndex={li}
-              onSelectOption={(oi) => onSelectLegOption(li, oi)}
-            />
-          ))}
+        {/* 可滚动内容区 */}
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          overscrollBehavior: 'contain',
+          WebkitOverflowScrolling: 'touch',
+          padding: '10px 16px',
+          minHeight: 0,
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: isMobile ? 24 : 12 }}>
+            {Array.isArray(result.legs) && result.legs.map((leg, li) => (
+              <LegSection
+                key={li}
+                leg={leg}
+                legIndex={li}
+                onSelectOption={(oi) => onSelectLegOption(li, oi)}
+              />
+            ))}
 
-          {(!result.legs || result.legs.length === 0) && (
-            <div style={{ fontSize: 13, color: 'var(--text-faint)', textAlign: 'center', padding: '24px 0' }}>
-              {t('transit.noRoutes', { defaultValue: '未找到公交路线' })}
-            </div>
-          )}
+            {(!result.legs || result.legs.length === 0) && (
+              <div style={{ fontSize: 13, color: 'var(--text-faint)', textAlign: 'center', padding: '24px 0' }}>
+                {t('transit.noRoutes', { defaultValue: '未找到公交路线' })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </>

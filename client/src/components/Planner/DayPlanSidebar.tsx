@@ -889,7 +889,13 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
           totalDuration += routeData.duration
           totalCost += routeData.cost
           for (const seg of routeData.segments) {
-            allCoords.push(...seg.coordinates)
+            if (Array.isArray(seg.coordinates)) {
+              for (const c of seg.coordinates) {
+                if (Array.isArray(c) && c.length === 2 && typeof c[0] === 'number' && typeof c[1] === 'number') {
+                  allCoords.push(c as [number, number])
+                }
+              }
+            }
           }
         } else {
           // 无公交路线时用直线连接
@@ -942,7 +948,13 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
         totalDur += opt.duration
         totalCostVal += opt.cost
         for (const seg of (opt.segments || [])) {
-          if (Array.isArray(seg.coordinates)) allCoords.push(...seg.coordinates)
+          if (Array.isArray(seg.coordinates)) {
+            for (const c of seg.coordinates) {
+              if (Array.isArray(c) && c.length === 2 && typeof c[0] === 'number' && typeof c[1] === 'number') {
+                allCoords.push(c as [number, number])
+              }
+            }
+          }
         }
       } else {
         // 错误段用直线
@@ -999,7 +1011,13 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
           totalDuration += routeData.duration
           totalCost += routeData.cost
           for (const seg of (routeData.segments || [])) {
-            if (Array.isArray(seg.coordinates)) allCoords.push(...seg.coordinates)
+            if (Array.isArray(seg.coordinates)) {
+              for (const c of seg.coordinates) {
+                if (Array.isArray(c) && c.length === 2 && typeof c[0] === 'number' && typeof c[1] === 'number') {
+                  allCoords.push(c as [number, number])
+                }
+              }
+            }
           }
         } else {
           allCoords.push([placesWithCoords[i].lat, placesWithCoords[i].lng])

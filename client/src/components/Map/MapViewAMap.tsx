@@ -910,8 +910,11 @@ export const MapViewAMap = memo(function MapViewAMap({
 
     for (const seg of route) {
       if (!seg || seg.length < 2) continue
+      // 防御性清洗：过滤掉非 [number, number] 格式的坐标
+      const cleanSeg = seg.filter((c): c is [number, number] => Array.isArray(c) && c.length === 2 && typeof c[0] === 'number' && typeof c[1] === 'number')
+      if (cleanSeg.length < 2) continue
       // Convert all coordinates WGS-84 → GCJ-02
-      const gcjPath = wgs84ToGcj02Batch(seg.map(([lat, lng]) => [lng, lat]))
+      const gcjPath = wgs84ToGcj02Batch(cleanSeg.map(([lat, lng]) => [lng, lat]))
       const path = gcjPath.map(([lng, lat]) => new AMap.LngLat(lng, lat))
       const polyline = new AMap.Polyline({
         path,
