@@ -1,5 +1,23 @@
 # VERSION
 
+## v3.0.22-cn.20 - 2026-06-16
+
+### 变更
+- 修复搜索按钮添加地点报"Failed to create place"（数据库列缺失：动态构建SQL + 迁移添加缺失列 + PRAGMA检测列）
+- 前端PlaceFormData添加osm_id和phone字段
+- handleSelectMapsResult添加image_url映射（AMap photo_url→image_url）
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `server/src/services/placeService.ts`
+- `server/src/db/migrations.ts`
+- `client/src/components/Planner/PlaceFormModal.tsx`
+
+---
+
 ## v3.0.22-cn.19 - 2026-06-16
 
 ### 变更

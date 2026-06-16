@@ -92,18 +92,24 @@ export function listPlaces(
 
 // ---------------------------------------------------------------------------
 // Create place
-// 防御性检查：检测 osm_id 列是否存在（迁移可能未运行）
-let _hasOsmIdColumn: boolean | undefined;
-function hasOsmIdColumn(): boolean {
-  if (_hasOsmIdColumn !== undefined) return _hasOsmIdColumn;
-  try {
-    db.prepare('SELECT osm_id FROM places LIMIT 0').get();
-    _hasOsmIdColumn = true;
-  } catch {
-    _hasOsmIdColumn = false;
-    console.warn('[placeService] osm_id column does not exist in places table, skipping it in queries');
+// 防御性检查：检测 places 表中可能缺失的列（迁移可能未运行）
+let _placesColumnCache: Record<string, boolean> | undefined;
+function placesHasColumn(col: string): boolean {
+  if (!_placesColumnCache) {
+    _placesColumnCache = {};
+    try {
+      const row = db.prepare('SELECT * FROM places LIMIT 0').get() as Record<string, unknown> | undefined;
+      // better-sqlite3 returns undefined columns as undefined in the row object
+      // We need to use PRAGMA to get actual column list
+      const cols = db.prepare("PRAGMA table_info(places)").all() as { name: string }[];
+      for (const c of cols) {
+        _placesColumnCache[c.name] = true;
+      }
+    } catch {
+      console.warn('[placeService] Failed to detect places table columns');
+    }
   }
-  return _hasOsmIdColumn;
+  return !!_placesColumnCache[col];
 }
 
 // ---------------------------------------------------------------------------
@@ -126,32 +132,44 @@ export function createPlace(
     transport_mode, tags = [],
   } = body;
 
-  // 防御性检查：检测 osm_id 列是否存在（迁移可能未运行）
-  const useOsmId = hasOsmIdColumn();
+  // 动态构建 INSERT 语句，只包含数据库中实际存在的列
+  const hasGooglePlaceId = placesHasColumn('google_place_id');
+  const hasOsmId = placesHasColumn('osm_id');
+  const hasWebsite = placesHasColumn('website');
+  const hasPhone = placesHasColumn('phone');
 
-  const result = useOsmId
-    ? db.prepare(`
-        INSERT INTO places (trip_id, name, description, lat, lng, address, category_id, price, currency,
-          place_time, end_time,
-          duration_minutes, notes, image_url, google_place_id, osm_id, website, phone, transport_mode)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        tripId, name, description || null, lat || null, lng || null, address || null,
-        category_id || null, price || null, currency || null,
-        place_time || null, end_time || null, duration_minutes || 60, notes || null, image_url || null,
-        google_place_id || null, osm_id || null, website || null, phone || null, transport_mode || 'walking',
-      )
-    : db.prepare(`
-        INSERT INTO places (trip_id, name, description, lat, lng, address, category_id, price, currency,
-          place_time, end_time,
-          duration_minutes, notes, image_url, google_place_id, website, phone, transport_mode)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        tripId, name, description || null, lat || null, lng || null, address || null,
-        category_id || null, price || null, currency || null,
-        place_time || null, end_time || null, duration_minutes || 60, notes || null, image_url || null,
-        google_place_id || null, website || null, phone || null, transport_mode || 'walking',
-      );
+  const columns = [
+    'trip_id', 'name', 'description', 'lat', 'lng', 'address', 'category_id', 'price', 'currency',
+    'place_time', 'end_time',
+    'duration_minutes', 'notes', 'image_url',
+  ];
+  const values: (string | number | null)[] = [
+    tripId, name, description || null, lat || null, lng || null, address || null,
+    category_id || null, price || null, currency || null,
+    place_time || null, end_time || null, duration_minutes || 60, notes || null, image_url || null,
+  ];
+
+  if (hasGooglePlaceId) { columns.push('google_place_id'); values.push(google_place_id || null); }
+  if (hasOsmId) { columns.push('osm_id'); values.push(osm_id || null); }
+  if (hasWebsite) { columns.push('website'); values.push(website || null); }
+  if (hasPhone) { columns.push('phone'); values.push(phone || null); }
+
+  columns.push('transport_mode');
+  values.push(transport_mode || 'walking');
+
+  const placeholders = columns.map(() => '?').join(', ');
+  const sql = `INSERT INTO places (${columns.join(', ')}) VALUES (${placeholders})`;
+
+  let result;
+  try {
+    result = db.prepare(sql).run(...values);
+  } catch (err) {
+    console.error('[placeService] createPlace SQL error:', err);
+    console.error('[placeService] SQL:', sql);
+    console.error('[placeService] Values:', values);
+    console.error('[placeService] Available columns:', Object.keys(_placesColumnCache || {}));
+    throw err;
+  }
 
   const placeId = result.lastInsertRowid;
 
@@ -201,95 +219,68 @@ export function updatePlace(
     transport_mode, tags,
   } = body;
 
-  const useOsmId = hasOsmIdColumn();
+  // 动态构建 UPDATE 语句，只包含数据库中实际存在的列
+  const hasGooglePlaceId = placesHasColumn('google_place_id');
+  const hasOsmId = placesHasColumn('osm_id');
+  const hasWebsite = placesHasColumn('website');
+  const hasPhone = placesHasColumn('phone');
 
-  if (useOsmId) {
-    db.prepare(`
-      UPDATE places SET
-        name = COALESCE(?, name),
-        description = ?,
-        lat = ?,
-        lng = ?,
-        address = ?,
-        category_id = ?,
-        price = ?,
-        currency = COALESCE(?, currency),
-        place_time = ?,
-        end_time = ?,
-        duration_minutes = COALESCE(?, duration_minutes),
-        notes = ?,
-        image_url = ?,
-        google_place_id = ?,
-        osm_id = ?,
-        website = ?,
-        phone = ?,
-        transport_mode = COALESCE(?, transport_mode),
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).run(
-      name || null,
-      description !== undefined ? description : existingPlace.description,
-      lat !== undefined ? lat : existingPlace.lat,
-      lng !== undefined ? lng : existingPlace.lng,
-      address !== undefined ? address : existingPlace.address,
-      category_id !== undefined ? category_id : existingPlace.category_id,
-      price !== undefined ? price : existingPlace.price,
-      currency || null,
-      place_time !== undefined ? place_time : existingPlace.place_time,
-      end_time !== undefined ? end_time : existingPlace.end_time,
-      duration_minutes || null,
-      notes !== undefined ? notes : existingPlace.notes,
-      image_url !== undefined ? image_url : existingPlace.image_url,
-      google_place_id !== undefined ? google_place_id : existingPlace.google_place_id,
-      osm_id !== undefined ? osm_id : existingPlace.osm_id,
-      website !== undefined ? website : existingPlace.website,
-      phone !== undefined ? phone : existingPlace.phone,
-      transport_mode || null,
-      placeId,
-    );
-  } else {
-    db.prepare(`
-      UPDATE places SET
-        name = COALESCE(?, name),
-        description = ?,
-        lat = ?,
-        lng = ?,
-        address = ?,
-        category_id = ?,
-        price = ?,
-        currency = COALESCE(?, currency),
-        place_time = ?,
-        end_time = ?,
-        duration_minutes = COALESCE(?, duration_minutes),
-        notes = ?,
-        image_url = ?,
-        google_place_id = ?,
-        website = ?,
-        phone = ?,
-        transport_mode = COALESCE(?, transport_mode),
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).run(
-      name || null,
-      description !== undefined ? description : existingPlace.description,
-      lat !== undefined ? lat : existingPlace.lat,
-      lng !== undefined ? lng : existingPlace.lng,
-      address !== undefined ? address : existingPlace.address,
-      category_id !== undefined ? category_id : existingPlace.category_id,
-      price !== undefined ? price : existingPlace.price,
-      currency || null,
-      place_time !== undefined ? place_time : existingPlace.place_time,
-      end_time !== undefined ? end_time : existingPlace.end_time,
-      duration_minutes || null,
-      notes !== undefined ? notes : existingPlace.notes,
-      image_url !== undefined ? image_url : existingPlace.image_url,
-      google_place_id !== undefined ? google_place_id : existingPlace.google_place_id,
-      website !== undefined ? website : existingPlace.website,
-      phone !== undefined ? phone : existingPlace.phone,
-      transport_mode || null,
-      placeId,
-    );
+  const setClauses: string[] = [
+    'name = COALESCE(?, name)',
+    'description = ?',
+    'lat = ?',
+    'lng = ?',
+    'address = ?',
+    'category_id = ?',
+    'price = ?',
+    'currency = COALESCE(?, currency)',
+    'place_time = ?',
+    'end_time = ?',
+    'duration_minutes = COALESCE(?, duration_minutes)',
+    'notes = ?',
+    'image_url = ?',
+  ];
+  const values: (string | number | null)[] = [
+    name || null,
+    description !== undefined ? description : existingPlace.description,
+    lat !== undefined ? lat : existingPlace.lat,
+    lng !== undefined ? lng : existingPlace.lng,
+    address !== undefined ? address : existingPlace.address,
+    category_id !== undefined ? category_id : existingPlace.category_id,
+    price !== undefined ? price : existingPlace.price,
+    currency || null,
+    place_time !== undefined ? place_time : existingPlace.place_time,
+    end_time !== undefined ? end_time : existingPlace.end_time,
+    duration_minutes || null,
+    notes !== undefined ? notes : existingPlace.notes,
+    image_url !== undefined ? image_url : existingPlace.image_url,
+  ];
+
+  if (hasGooglePlaceId) {
+    setClauses.push('google_place_id = ?');
+    values.push(google_place_id !== undefined ? google_place_id : existingPlace.google_place_id);
   }
+  if (hasOsmId) {
+    setClauses.push('osm_id = ?');
+    values.push(osm_id !== undefined ? osm_id : existingPlace.osm_id);
+  }
+  if (hasWebsite) {
+    setClauses.push('website = ?');
+    values.push(website !== undefined ? website : existingPlace.website);
+  }
+  if (hasPhone) {
+    setClauses.push('phone = ?');
+    values.push(phone !== undefined ? phone : existingPlace.phone);
+  }
+
+  setClauses.push('transport_mode = COALESCE(?, transport_mode)');
+  values.push(transport_mode || null);
+
+  setClauses.push('updated_at = CURRENT_TIMESTAMP');
+  values.push(placeId);
+
+  const sql = `UPDATE places SET ${setClauses.join(', ')} WHERE id = ?`;
+  db.prepare(sql).run(...values);
 
   if (tags !== undefined) {
     db.prepare('DELETE FROM place_tags WHERE place_id = ?').run(placeId);

@@ -87,7 +87,7 @@ Please report this to https://github.com/markedjs/marked.`,t){let i="<p>An error
 <meta charset="UTF-8">
 <base href="${window.location.origin}/">
 <title>${T(t.title)} — Journey Book</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.loli.net/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Inter', -apple-system, sans-serif; color: #1A1A1A; font-size: 11pt; line-height: 1.55; -webkit-print-color-adjust: exact; print-color-adjust: exact; }

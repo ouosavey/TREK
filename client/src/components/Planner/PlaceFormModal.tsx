@@ -26,6 +26,8 @@ interface PlaceFormData {
   website: string
   google_place_id: string
   image_url: string
+  osm_id: string
+  phone: string
 }
 
 function isGoogleMapsUrl(input: string): boolean {
@@ -61,6 +63,8 @@ const DEFAULT_FORM: PlaceFormData = {
   website: '',
   google_place_id: '',
   image_url: '',
+  osm_id: '',
+  phone: '',
 }
 
 interface PlaceFormModalProps {
@@ -129,6 +133,8 @@ export default function PlaceFormModal({
         website: place.website || '',
         google_place_id: place.google_place_id || '',
         image_url: place.image_url || '',
+        osm_id: (place as any).osm_id || '',
+        phone: (place as any).phone || '',
       })
     } else if (prefillCoords) {
       setForm(prev => ({
@@ -320,6 +326,7 @@ export default function PlaceFormModal({
       osm_id: result.osm_id || prev.osm_id,
       website: result.website || prev.website,
       phone: result.phone || prev.phone,
+      image_url: result.photo_url || result.image_url || prev.image_url,
     }))
     setMapsResults([])
     setMapsSearch('')

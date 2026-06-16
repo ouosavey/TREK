@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-06-16 修复搜索按钮添加地点报Failed to create place（数据库列缺失）v3.0.22-cn.20
+
+### Bug修复
+
+#### 1. 修复搜索按钮添加地点报"Failed to create place"
+- **问题**: 自动补全选择后添加地点成功，但搜索按钮（放大镜）搜索结果选择后添加报"Failed to create place"
+- **根因**: 数据库中可能缺少`google_place_id`、`website`、`phone`列（这些列只在CREATE TABLE中定义，没有对应的ALTER TABLE迁移）。`createPlace`的SQL包含这些列，如果列不存在则SQLite报错。自动补全路径恰好不触发是因为之前的`hasOsmIdColumn()`只检查`osm_id`列，当`osm_id`存在时使用包含所有列的SQL，但其他列可能不存在
+- **修复**:
+  - 将`hasOsmIdColumn()`替换为`placesHasColumn(col)`，使用`PRAGMA table_info(places)`检测所有列
+  - `createPlace`和`updatePlace`动态构建SQL，只包含数据库中实际存在的列
+  - 添加迁移确保`google_place_id`、`website`、`phone`列存在
+  - `createPlace`添加try-catch和详细错误日志（SQL、参数、可用列）
+  - 前端`PlaceFormData`接口添加`osm_id`和`phone`字段
+  - `handleSelectMapsResult`添加`image_url`映射（AMap的`photo_url`→`image_url`）
+- **涉及文件**: `server/src/services/placeService.ts`, `server/src/db/migrations.ts`, `client/src/components/Planner/PlaceFormModal.tsx`
+
 ## 2026-06-16 修复添加地点Internal server error（osm_id列缺失防御）v3.0.22-cn.19
 
 ### Bug修复

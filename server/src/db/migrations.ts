@@ -2265,6 +2265,17 @@ function runMigrations(db: Database.Database): void {
         if (!err.message?.includes('no such table')) throw err;
       }
     },
+    // Ensure places table has all columns that may be missing from older databases
+    () => {
+      const cols = [
+        'google_place_id TEXT',
+        'website TEXT',
+        'phone TEXT',
+      ];
+      for (const col of cols) {
+        try { db.exec(`ALTER TABLE places ADD COLUMN ${col}`); } catch (err: any) { if (!err.message?.includes('duplicate column name')) throw err; }
+      }
+    },
   ];
 
   if (currentVersion < migrations.length) {
