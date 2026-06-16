@@ -597,14 +597,22 @@ export default function TransitRoutePanel({
     saveEl(el, ['position','top','left','right','bottom','transform','zIndex',
                  'width','height','maxHeight','overflow','borderRadius'])
 
-    // 遮罩层（面板的兄弟元素，需要隐藏）
-    const overlay = el.previousElementSibling as HTMLElement | null
-    let origOverlayDisplay = ''
-    if (overlay && getComputedStyle(overlay).position === 'fixed') {
-      origOverlayDisplay = overlay.style.display || ''
-      savedStyles.push({ el: overlay, props: { display: origOverlayDisplay } })
-      overlay.style.display = 'none'
+    // 遮罩层：通过父元素查找所有 fixed 定位的半透明遮罩（更可靠）
+    const parent = el.parentElement
+    const overlays: HTMLElement[] = []
+    if (parent) {
+      parent.querySelectorAll(':scope > *').forEach(child => {
+        if (child === el) return
+        const cs = getComputedStyle(child as HTMLElement)
+        if (cs.position === 'fixed' && cs.zIndex !== 'auto') {
+          overlays.push(child as HTMLElement)
+        }
+      })
     }
+    overlays.forEach(ov => {
+      saveEl(ov, ['display'])
+      ov.style.display = 'none'
+    })
 
     // 内部滚动容器
     const innerScroll = el.querySelector('[style*="overflow-y: auto"]') as HTMLElement ||
@@ -613,14 +621,20 @@ export default function TransitRoutePanel({
       saveEl(innerScroll, ['overflowY','overflow','maxHeight','height'])
     }
 
-    // 有背景色的元素（线路名标签等）—— 微调文字位置
-    const bgElements: { el: HTMLElement; origPt: string; origPb: string; origLh: string }[] = []
+    // 收集所有需要微调文字位置的元素：
+    // - 有背景色（非透明）的 span/button：线路名标签等
+    // - 有可见边框的 button：策略选择按钮（最省钱/最少换乘/少步行）
+    // 这些元素在 SVG foreignObject 中文字基线偏移，需要补偿
+    const tweakElements: { el: HTMLElement; origPt: string; origPb: string; origLh: string }[] = []
     el.querySelectorAll('span[style], button[style]').forEach(node => {
       const elem = node as HTMLElement
       const cs = getComputedStyle(elem)
       const bg = cs.backgroundColor.trim()
-      if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent' && cs.backgroundImage === 'none') {
-        bgElements.push({
+      const border = cs.borderWidth.trim()
+      const hasBg = bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent'
+      const hasBorder = border && border !== '0px' && cs.borderStyle !== 'none'
+      if (hasBg || hasBorder) {
+        tweakElements.push({
           el: elem,
           origPt: elem.style.paddingTop || '',
           origPb: elem.style.paddingBottom || '',
@@ -657,13 +671,12 @@ export default function TransitRoutePanel({
       // 强制浏览器重排
       void el.offsetHeight
 
-      // 有背景色元素：微调 padding 和 line-height 补偿 SVG foreignObject 文字偏移
-      // html-to-image 的 SVG 渲染中文字基线比 HTML 略低，增加 paddingTop 补偿
-      bgElements.forEach(({ el: elem }) => {
-        const cs = getComputedStyle(elem)
-        const pt = parseFloat(cs.paddingTop) || 0
+      // 微调文字位置：增加 paddingTop + 紧凑行高 补偿 SVG foreignObject 文字偏移
+      tweakElements.forEach(({ el: elem }) => {
+        const pt = parseFloat(elem.style.paddingTop) ||
+                   parseFloat(getComputedStyle(elem).paddingTop) || 0
         Object.assign(elem.style, {
-          paddingTop: `${pt + 2}px`,
+          paddingTop: `${pt + 3}px`,
           lineHeight: '1',
         })
       })
@@ -677,8 +690,8 @@ export default function TransitRoutePanel({
         backgroundColor: rootBg,
         cacheBust: true,
         filter: (node) => {
-          // 排除遮罩层（已被隐藏，但 filter 再兜底）
-          if (node === overlay) return false
+          // 排除遮罩层（已被隐藏，filter 兜底）
+          if (overlays.includes(node as HTMLElement)) return false
           return true
         },
       })
@@ -691,8 +704,8 @@ export default function TransitRoutePanel({
           else elem.style.removeProperty(k)
         }
       }
-      // 恢复背景色元素的原始 padding 和 line-height
-      bgElements.forEach(({ el: elem, origPt, origPb, origLh }) => {
+      // 恢复被微调元素的原始样式
+      tweakElements.forEach(({ el: elem, origPt, origPb, origLh }) => {
         Object.assign(elem.style, {
           paddingTop: origPt,
           paddingBottom: origPb,
