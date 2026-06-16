@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## 2026-06-16 修复导出图片截断+策略按钮换行（克隆节点方案）v3.0.22-cn.16
+
+### Bug修复
+
+#### 1. 修复导出图片底部截断
+- **问题**: 导出图片下部被截断，内容不完整
+- **根因**: html-to-image的`style`选项只应用到克隆根节点，但`getImageSize`在style应用前就计算了尺寸（基于原始DOM的maxHeight:85vh），导致图片尺寸不够
+- **修复**: 采用克隆节点方案——深克隆面板节点到屏幕外（position:absolute;top:-9999px），在克隆上移除maxHeight/overflow限制，截图后删除克隆。真实DOM完全不受影响
+
+#### 2. 修复策略按钮文字换行
+- **问题**: 导出图片中"最省钱""少步行"等策略按钮文字换行
+- **根因**: 按钮缺少whiteSpace:nowrap，SVG foreignObject中宽度受限时文字换行
+- **修复**: JSX中策略按钮添加whiteSpace:'nowrap'（永久修复），同时在克隆节点上也添加
+
+#### 3. 克隆节点方案同时解决了之前的所有问题
+- 面板跳动：不修改真实DOM的position
+- 遮罩残留：不修改真实DOM的display
+- 底部截断：克隆节点无maxHeight限制，getImageSize获取正确尺寸
+- 文字换行：克隆节点上添加whiteSpace:nowrap
+- **涉及文件**: `client/src/components/Planner/TransitRoutePanel.tsx`
+
 ## 2026-06-16 修复导出面板跳动+遮罩残留+控制台报错 v3.0.22-cn.15
 
 ### Bug修复

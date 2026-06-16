@@ -1,5 +1,21 @@
 # VERSION
 
+## v3.0.22-cn.16 - 2026-06-16
+
+### 变更
+- 修复导出图片底部截断（克隆节点方案：深克隆面板到屏幕外，移除maxHeight/overflow限制，截图后删除克隆，真实DOM不受影响）
+- 修复策略按钮文字换行（JSX添加whiteSpace:nowrap+克隆节点上也添加）
+- 克隆节点方案同时解决：面板跳动、遮罩残留、底部截断、文字换行
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Planner/TransitRoutePanel.tsx`
+
+---
+
 ## v3.0.22-cn.15 - 2026-06-16
 
 ### 变更

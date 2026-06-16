@@ -578,23 +578,33 @@ export default function TransitRoutePanel({
   const contentRef = React.useRef<HTMLDivElement>(null)
 
   // 生成截图 canvas（使用 html-to-image，基于 SVG foreignObject，浏览器原生渲染）
-  // 策略：不操作外层容器和遮罩层的真实DOM（避免面板跳动+遮罩残留），
-  // 只临时修改内部滚动容器（不影响面板位置），其余通过 style/filter 选项处理
+  // 策略：克隆面板节点到屏幕外，在克隆上做所有样式修改，截图后删除克隆
+  // 真实DOM完全不受影响 → 无面板跳动、无遮罩残留
   const captureCanvas = React.useCallback(async () => {
     if (!contentRef.current) return null
 
     const rootBg = getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary').trim() || '#ffffff'
     const el = contentRef.current
 
-    // 只保存内部滚动容器的原始样式（修改它不会导致面板跳动）
-    const innerScroll = el.querySelector('[style*="overflow-y: auto"]') as HTMLElement ||
-                        el.querySelector('[style*="overflowY"]') as HTMLElement
-    const savedScrollStyle: Record<string, string> = {}
+    // 1. 深克隆面板节点
+    const clone = el.cloneNode(true) as HTMLElement
+
+    // 2. 修改克隆节点样式：移除固定定位和高度限制
+    Object.assign(clone.style, {
+      position: 'absolute',
+      top: '-9999px',
+      left: '0',
+      transform: 'none',
+      zIndex: '0',
+      maxHeight: 'none',
+      height: 'auto',
+      overflow: 'visible',
+    })
+
+    // 3. 修改克隆中内部滚动容器：移除溢出限制
+    const innerScroll = clone.querySelector('[style*="overflow-y: auto"]') as HTMLElement ||
+                        clone.querySelector('[style*="overflowY"]') as HTMLElement
     if (innerScroll) {
-      for (const k of ['overflowY','overflow','maxHeight','height']) {
-        savedScrollStyle[k] = innerScroll.style.getPropertyValue(k)
-      }
-      // 临时移除滚动容器的溢出限制，让截图包含完整内容
       Object.assign(innerScroll.style, {
         overflowY: 'visible',
         overflow: 'visible',
@@ -603,26 +613,23 @@ export default function TransitRoutePanel({
       })
     }
 
+    // 4. 修复克隆中策略按钮文字换行
+    clone.querySelectorAll('button').forEach(btn => {
+      (btn as HTMLElement).style.whiteSpace = 'nowrap'
+    })
+
+    // 5. 将克隆添加到body，让浏览器计算布局
+    document.body.appendChild(clone)
+
     try {
-      const canvas = await toCanvas(el, {
+      // 等待浏览器完成布局
+      void clone.offsetHeight
+
+      const canvas = await toCanvas(clone, {
         pixelRatio: 2,
         backgroundColor: rootBg,
         cacheBust: true,
-        style: {
-          // 覆盖克隆节点的定位（不影响真实DOM）
-          position: 'relative',
-          top: 'auto',
-          left: 'auto',
-          right: 'auto',
-          bottom: 'auto',
-          transform: 'none',
-          zIndex: '0',
-          maxHeight: 'none',
-          height: 'auto',
-          overflow: 'visible',
-        },
         filter: (node) => {
-          // 排除遮罩层（不修改真实DOM的display，用filter跳过）
           if (node instanceof HTMLElement) {
             if ((node as HTMLElement).hasAttribute('data-transit-overlay')) return false
             const pos = getComputedStyle(node).position
@@ -634,13 +641,8 @@ export default function TransitRoutePanel({
       })
       return canvas
     } finally {
-      // 恢复内部滚动容器的原始样式
-      if (innerScroll) {
-        for (const [k, v] of Object.entries(savedScrollStyle)) {
-          if (v) innerScroll.style.setProperty(k, v)
-          else innerScroll.style.removeProperty(k)
-        }
-      }
+      // 6. 删除克隆节点
+      document.body.removeChild(clone)
     }
   }, [])
 
@@ -869,6 +871,7 @@ export default function TransitRoutePanel({
                 background: selectedStrategy === s.value ? 'var(--bg-hover)' : 'transparent',
                 color: selectedStrategy === s.value ? 'var(--text-primary)' : 'var(--text-faint)',
                 cursor: 'pointer', fontFamily: 'inherit',
+                whiteSpace: 'nowrap',
               }}
             >
               <span style={{ marginRight: 3 }}>{s.icon}</span>

@@ -73,9 +73,9 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复: 导出时面板跳动和遮罩层残留**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: 旧方案直接修改真实DOM的position/display，导致面板位置变化和遮罩状态异常" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 重写captureCanvas，用style选项覆盖克隆节点+filter排除遮罩，不再修改真实DOM" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复: F12控制台fonts.loli.net CSS跨域读取报错**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: 字体link标签缺少crossorigin属性，浏览器以no-cors模式加载" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 添加crossorigin属性，浏览器以CORS模式加载字体CSS" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复: 导出图片底部截断**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: style选项只应用到克隆根节点，getImageSize在style应用前就计算了尺寸" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: 克隆节点方案——深克隆面板到屏幕外，移除maxHeight/overflow限制，截图后删除克隆" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复: 策略按钮文字换行**" >> $GITHUB_STEP_SUMMARY
+          echo "  - JSX中策略按钮添加whiteSpace:nowrap，克隆节点上也添加" >> $GITHUB_STEP_SUMMARY
+          echo "- **克隆节点方案同时解决**: 面板跳动、遮罩残留、底部截断、文字换行" >> $GITHUB_STEP_SUMMARY
