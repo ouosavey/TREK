@@ -647,6 +647,9 @@ export default function TransitRoutePanel({
       }
 
       // 微调文字位置：inline-flex 强制垂直居中 + 防止换行
+      // ⚠️ 已禁用：inline-flex 在 html-to-image 的 SVG foreignObject 中导致全白
+      // 文字偏移问题需要通过其他方式解决，目前保持原样
+      /*
       tweakElements.forEach(({ el: elem }) => {
         const cs = getComputedStyle(elem)
         const fs = parseFloat(cs.fontSize) || 12
@@ -664,6 +667,7 @@ export default function TransitRoutePanel({
           whiteSpace: 'nowrap',
         })
       })
+      */
 
       // 强制浏览器重排
       void el.offsetHeight
