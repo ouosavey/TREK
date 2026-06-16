@@ -504,7 +504,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
         const { mapsApi } = await import('../api/client')
         const useAmap = mapProvider === 'amap' || hasAmapKey
         const reverseData = useAmap
-          ? (() => { const [gcjLng, gcjLat] = wgs84ToGcj02(data.lng, data.lat); return mapsApi.reverseAmap(gcjLat, gcjLng) })()
+          ? await (async () => { const [gcjLng, gcjLat] = wgs84ToGcj02(data.lng, data.lat); return mapsApi.reverseAmap(gcjLat, gcjLng) })()
           : await mapsApi.reverse(data.lat, data.lng, language)
         if (reverseData.address) {
           data.address = reverseData.address

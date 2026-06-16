@@ -51,7 +51,14 @@ router.post('/', authenticate, requireTripAccess, validateStringLengths({ name: 
     return res.status(400).json({ error: 'Place name is required' });
   }
 
-  const place = createPlace(tripId, req.body);
+  let place;
+  try {
+    place = createPlace(tripId, req.body);
+  } catch (err) {
+    console.error('[createPlace] Error creating place:', err);
+    console.error('[createPlace] Request body:', JSON.stringify(req.body, null, 2));
+    return res.status(500).json({ error: 'Failed to create place', detail: err instanceof Error ? err.message : String(err) });
+  }
   res.status(201).json({ place });
   broadcast(tripId, 'place:created', { place }, req.headers['x-socket-id'] as string);
   try { onPlaceCreated(Number(tripId), place.id); } catch {}

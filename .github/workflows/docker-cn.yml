@@ -73,7 +73,10 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复: 导出图片全白**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: 克隆节点方案导致双重克隆+离屏定位，SVG foreignObject渲染失败" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 回退到直接在原面板上调用toCanvas，用height/width参数覆盖canvas尺寸" >> $GITHUB_STEP_SUMMARY
-          echo "  - 临时移除maxHeight获取scrollHeight，立即恢复，传给toCanvas作为完整尺寸" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复: 天气温度前的Ø符号**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 替换为≈（约等于），更直观表示气候平均值" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复: 搜索按钮添加地点报Internal server error**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 服务器端createPlace添加try-catch和详细错误日志" >> $GITHUB_STEP_SUMMARY
+          echo "  - 返回具体错误信息而非笼统的500" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复: AMap逆地理编码缺少await**" >> $GITHUB_STEP_SUMMARY
+          echo "  - IIFE改为async IIFE + await" >> $GITHUB_STEP_SUMMARY

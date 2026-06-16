@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## 2026-06-16 修复天气Ø符号+搜索添加地点报错+逆地理编码await v3.0.22-cn.18
+
+### Bug修复
+
+#### 1. 修复天气温度前的"Ø"符号
+- **问题**: 天气温度前显示"Ø"符号，不直观
+- **根因**: "Ø"是气象学中表示平均值的符号，用于区分气候数据(climate)和实时预报(forecast)
+- **修复**: 将"Ø"替换为"≈"（约等于），更直观地表示气候平均值
+- **涉及文件**: `client/src/components/Weather/WeatherWidget.tsx`
+
+#### 2. 修复搜索按钮添加地点报"Internal server error"
+- **问题**: 通过搜索按钮搜索地点后选择添加，报"Internal server error"
+- **根因**: 服务器端createPlace缺少try-catch，SQL错误直接返回500，无法定位具体原因
+- **修复**: 添加try-catch和详细错误日志，返回具体错误信息而非笼统的500
+- **涉及文件**: `server/src/routes/places.ts`
+
+#### 3. 修复AMap逆地理编码缺少await
+- **问题**: handleSavePlace中AMap逆地理编码调用缺少await，导致reverseData是Promise对象
+- **根因**: IIFE返回Promise但未await
+- **修复**: 改为async IIFE + await
+- **涉及文件**: `client/src/pages/TripPlannerPage.tsx`
+
 ## 2026-06-16 修复导出图片全白（回退克隆方案，改用height参数）v3.0.22-cn.17
 
 ### Bug修复

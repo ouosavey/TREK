@@ -1,5 +1,23 @@
 # VERSION
 
+## v3.0.22-cn.18 - 2026-06-16
+
+### 变更
+- 修复天气温度前的"Ø"符号，替换为"≈"（约等于），更直观表示气候平均值
+- 修复搜索按钮添加地点报"Internal server error"（添加try-catch和详细错误日志）
+- 修复AMap逆地理编码缺少await（async IIFE + await）
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Weather/WeatherWidget.tsx`
+- `server/src/routes/places.ts`
+- `client/src/pages/TripPlannerPage.tsx`
+
+---
+
 ## v3.0.22-cn.17 - 2026-06-16
 
 ### 变更
