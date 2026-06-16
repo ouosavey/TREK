@@ -584,19 +584,27 @@ export default function TransitRoutePanel({
     const rootBg = getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary').trim() || '#ffffff'
     const el = contentRef.current
 
-    // ---- 1. 保存所有需要修改的元素的原始样式（用CSSStyleDeclaration对象）----
+    // ---- 1. 保存所有需要修改的元素的原始样式 ----
     const savedStyles: { el: HTMLElement; props: Record<string, string> }[] = []
 
-    // 外层容器：保存需要改的属性
-    const saveEl = (elem: HTMLElement, keys: (keyof CSSStyleDeclaration)[]) => {
+    const saveEl = (elem: HTMLElement, keys: string[]) => {
       const props: Record<string, string> = {}
-      for (const k of keys) { props[String(k)] = elem.style.getPropertyValue(String(k)) }
+      for (const k of keys) { props[k] = elem.style.getPropertyValue(k) }
       savedStyles.push({ el: elem, props })
     }
 
-    // 外层容器属性
+    // 外层容器
     saveEl(el, ['position','top','left','right','bottom','transform','zIndex',
                  'width','height','maxHeight','overflow','borderRadius'])
+
+    // 遮罩层（面板的兄弟元素，需要隐藏）
+    const overlay = el.previousElementSibling as HTMLElement | null
+    let origOverlayDisplay = ''
+    if (overlay && getComputedStyle(overlay).position === 'fixed') {
+      origOverlayDisplay = overlay.style.display || ''
+      savedStyles.push({ el: overlay, props: { display: origOverlayDisplay } })
+      overlay.style.display = 'none'
+    }
 
     // 内部滚动容器
     const innerScroll = el.querySelector('[style*="overflow-y: auto"]') as HTMLElement ||
@@ -605,19 +613,23 @@ export default function TransitRoutePanel({
       saveEl(innerScroll, ['overflowY','overflow','maxHeight','height'])
     }
 
-    // 有背景色的元素
-    const allSpans = el.querySelectorAll('span[style], button[style]')
-    allSpans.forEach(node => {
+    // 有背景色的元素（线路名标签等）—— 微调文字位置
+    const bgElements: { el: HTMLElement; origPt: string; origPb: string; origLh: string }[] = []
+    el.querySelectorAll('span[style], button[style]').forEach(node => {
       const elem = node as HTMLElement
-      if (!elem.style.cssText) return
       const cs = getComputedStyle(elem)
       const bg = cs.backgroundColor.trim()
-      if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
-        saveEl(elem, ['display','lineHeight','verticalAlign','textAlign','height'])
+      if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent' && cs.backgroundImage === 'none') {
+        bgElements.push({
+          el: elem,
+          origPt: elem.style.paddingTop || '',
+          origPb: elem.style.paddingBottom || '',
+          origLh: elem.style.lineHeight || '',
+        })
       }
     })
 
-    // ---- 2. 应用截图优化样式（用Object.assign，不用setAttribute）----
+    // ---- 2. 应用截图优化样式 ----
     try {
       // 外层容器：移除定位和高度限制
       Object.assign(el.style, {
@@ -642,26 +654,21 @@ export default function TransitRoutePanel({
         })
       }
 
-      // 有背景色元素：强制 inline-block + lineHeight=height 居中
-      allSpans.forEach(node => {
-        const elem = node as HTMLElement
+      // 强制浏览器重排
+      void el.offsetHeight
+
+      // 有背景色元素：微调 padding 和 line-height 补偿 SVG foreignObject 文字偏移
+      // html-to-image 的 SVG 渲染中文字基线比 HTML 略低，增加 paddingTop 补偿
+      bgElements.forEach(({ el: elem }) => {
         const cs = getComputedStyle(elem)
-        const bg = cs.backgroundColor.trim()
-        if (!bg || bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent') return
-        const fs = parseFloat(cs.fontSize) || 12
         const pt = parseFloat(cs.paddingTop) || 0
-        const pb = parseFloat(cs.paddingBottom) || 0
-        const totalH = fs + pt + pb
         Object.assign(elem.style, {
-          display: 'inline-block',
-          lineHeight: totalH + 'px',
-          verticalAlign: 'middle',
-          textAlign: 'center',
-          height: totalH + 'px',
+          paddingTop: `${pt + 2}px`,
+          lineHeight: '1',
         })
       })
 
-      // 强制浏览器重排
+      // 再次重排确保样式生效
       void el.offsetHeight
 
       // ---- 3. 截图 ----
@@ -670,11 +677,8 @@ export default function TransitRoutePanel({
         backgroundColor: rootBg,
         cacheBust: true,
         filter: (node) => {
-          if (node instanceof HTMLElement) {
-            const pos = getComputedStyle(node).position
-            const bg = node.style.background || ''
-            if (pos === 'fixed' && bg.includes('0,0,0')) return false
-          }
+          // 排除遮罩层（已被隐藏，但 filter 再兜底）
+          if (node === overlay) return false
           return true
         },
       })
@@ -683,13 +687,18 @@ export default function TransitRoutePanel({
       // ---- 4. 恢复所有原始样式 ----
       for (const { el: elem, props } of savedStyles) {
         for (const [k, v] of Object.entries(props)) {
-          if (v) {
-            elem.style.setProperty(k, v)
-          } else {
-            elem.style.removeProperty(k)
-          }
+          if (v) elem.style.setProperty(k, v)
+          else elem.style.removeProperty(k)
         }
       }
+      // 恢复背景色元素的原始 padding 和 line-height
+      bgElements.forEach(({ el: elem, origPt, origPb, origLh }) => {
+        Object.assign(elem.style, {
+          paddingTop: origPt,
+          paddingBottom: origPb,
+          lineHeight: origLh,
+        })
+      })
     }
   }, [])
 
