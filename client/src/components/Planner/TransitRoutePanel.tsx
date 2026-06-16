@@ -593,11 +593,10 @@ export default function TransitRoutePanel({
       savedStyles.push({ el: elem, props })
     }
 
-    // 外层容器
-    saveEl(el, ['position','top','left','right','bottom','transform','zIndex',
-                 'width','height','maxHeight','overflow','borderRadius'])
+    // 外层容器：只保存需要改的属性（不改position！）
+    saveEl(el, ['height','maxHeight','overflow'])
 
-    // 遮罩层：通过 data 属性精确定位（最可靠，不依赖 DOM 结构）
+    // 遮罩层：通过 data 属性精确定位
     const overlay = document.querySelector('[data-transit-overlay]') as HTMLElement | null
     if (overlay) {
       saveEl(overlay, ['display'])
@@ -630,17 +629,11 @@ export default function TransitRoutePanel({
 
     // ---- 2. 应用截图优化样式 ----
     try {
-      // 外层容器：移除定位和高度限制
+      // 关键：保持 position:fixed 不变！只移除高度限制，避免面板跳动和遮罩暴露
       Object.assign(el.style, {
-        position: 'relative',
-        top: 'auto', left: 'auto', right: 'auto', bottom: 'auto',
-        transform: 'none',
-        zIndex: '0',
-        width: 'min(520px, calc(100vw - 32px))',
-        height: 'auto',
         maxHeight: 'none',
+        height: 'auto',
         overflow: 'visible',
-        borderRadius: '16px',
       })
 
       // 内部滚动容器：移除溢出隐藏
@@ -653,8 +646,7 @@ export default function TransitRoutePanel({
         })
       }
 
-      // 微调文字位置：用 inline-flex 强制垂直居中 + 防止文字换行
-      // html-to-image 使用浏览器原生 SVG 渲染（不是 html2canvas 的 JS 引擎），inline-flex 安全
+      // 微调文字位置：inline-flex 强制垂直居中 + 防止换行
       tweakElements.forEach(({ el: elem }) => {
         const cs = getComputedStyle(elem)
         const fs = parseFloat(cs.fontSize) || 12
@@ -669,7 +661,7 @@ export default function TransitRoutePanel({
           justifyContent: 'center',
           height: totalH + 'px',
           lineHeight: '1',
-          whiteSpace: 'nowrap',       // 防止策略按钮等文字换行
+          whiteSpace: 'nowrap',
         })
       })
 
@@ -682,7 +674,6 @@ export default function TransitRoutePanel({
         backgroundColor: rootBg,
         cacheBust: true,
         filter: (node) => {
-          // 排除遮罩层
           if (node === overlay) return false
           return true
         },
