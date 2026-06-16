@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-06-16 修复添加地点Internal server error（osm_id列缺失防御）v3.0.22-cn.19
+
+### Bug修复
+
+#### 1. 修复添加地点报"Internal server error"/"Failed to create place"
+- **问题**: 自动补全选择后添加报"Failed to create place"，搜索按钮选择后添加报"Internal server error"
+- **根因**: `createPlace`和`updatePlace`的SQL包含`osm_id`列，但数据库CREATE TABLE中未定义该列（仅通过迁移添加），如果迁移未成功运行，INSERT/UPDATE会因列不存在而失败
+- **修复**:
+  - 在CREATE TABLE中添加`osm_id TEXT`列定义（确保新数据库包含它）
+  - `createPlace`和`updatePlace`添加防御性检查：运行时检测`osm_id`列是否存在，不存在则使用不含`osm_id`的SQL
+  - 服务器端路由添加try-catch和详细错误日志
+- **涉及文件**: `server/src/db/schema.ts`, `server/src/services/placeService.ts`, `server/src/routes/places.ts`
+
+#### 2. 恢复天气温度前的"Ø"符号
+- **问题**: 上一版本将"Ø"替换为"≈"，用户希望恢复
+- **说明**: "Ø"是气象学中表示平均值的符号，用于区分气候数据(climate)和实时预报(forecast)
+- **涉及文件**: `client/src/components/Weather/WeatherWidget.tsx`
+
 ## 2026-06-16 修复天气Ø符号+搜索添加地点报错+逆地理编码await v3.0.22-cn.18
 
 ### Bug修复

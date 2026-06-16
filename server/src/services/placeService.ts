@@ -92,6 +92,20 @@ export function listPlaces(
 
 // ---------------------------------------------------------------------------
 // Create place
+// 防御性检查：检测 osm_id 列是否存在（迁移可能未运行）
+let _hasOsmIdColumn: boolean | undefined;
+function hasOsmIdColumn(): boolean {
+  if (_hasOsmIdColumn !== undefined) return _hasOsmIdColumn;
+  try {
+    db.prepare('SELECT osm_id FROM places LIMIT 0').get();
+    _hasOsmIdColumn = true;
+  } catch {
+    _hasOsmIdColumn = false;
+    console.warn('[placeService] osm_id column does not exist in places table, skipping it in queries');
+  }
+  return _hasOsmIdColumn;
+}
+
 // ---------------------------------------------------------------------------
 
 export function createPlace(
@@ -112,17 +126,32 @@ export function createPlace(
     transport_mode, tags = [],
   } = body;
 
-  const result = db.prepare(`
-    INSERT INTO places (trip_id, name, description, lat, lng, address, category_id, price, currency,
-      place_time, end_time,
-      duration_minutes, notes, image_url, google_place_id, osm_id, website, phone, transport_mode)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    tripId, name, description || null, lat || null, lng || null, address || null,
-    category_id || null, price || null, currency || null,
-    place_time || null, end_time || null, duration_minutes || 60, notes || null, image_url || null,
-    google_place_id || null, osm_id || null, website || null, phone || null, transport_mode || 'walking',
-  );
+  // 防御性检查：检测 osm_id 列是否存在（迁移可能未运行）
+  const useOsmId = hasOsmIdColumn();
+
+  const result = useOsmId
+    ? db.prepare(`
+        INSERT INTO places (trip_id, name, description, lat, lng, address, category_id, price, currency,
+          place_time, end_time,
+          duration_minutes, notes, image_url, google_place_id, osm_id, website, phone, transport_mode)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        tripId, name, description || null, lat || null, lng || null, address || null,
+        category_id || null, price || null, currency || null,
+        place_time || null, end_time || null, duration_minutes || 60, notes || null, image_url || null,
+        google_place_id || null, osm_id || null, website || null, phone || null, transport_mode || 'walking',
+      )
+    : db.prepare(`
+        INSERT INTO places (trip_id, name, description, lat, lng, address, category_id, price, currency,
+          place_time, end_time,
+          duration_minutes, notes, image_url, google_place_id, website, phone, transport_mode)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        tripId, name, description || null, lat || null, lng || null, address || null,
+        category_id || null, price || null, currency || null,
+        place_time || null, end_time || null, duration_minutes || 60, notes || null, image_url || null,
+        google_place_id || null, website || null, phone || null, transport_mode || 'walking',
+      );
 
   const placeId = result.lastInsertRowid;
 
@@ -172,49 +201,95 @@ export function updatePlace(
     transport_mode, tags,
   } = body;
 
-  db.prepare(`
-    UPDATE places SET
-      name = COALESCE(?, name),
-      description = ?,
-      lat = ?,
-      lng = ?,
-      address = ?,
-      category_id = ?,
-      price = ?,
-      currency = COALESCE(?, currency),
-      place_time = ?,
-      end_time = ?,
-      duration_minutes = COALESCE(?, duration_minutes),
-      notes = ?,
-      image_url = ?,
-      google_place_id = ?,
-      osm_id = ?,
-      website = ?,
-      phone = ?,
-      transport_mode = COALESCE(?, transport_mode),
-      updated_at = CURRENT_TIMESTAMP
-    WHERE id = ?
-  `).run(
-    name || null,
-    description !== undefined ? description : existingPlace.description,
-    lat !== undefined ? lat : existingPlace.lat,
-    lng !== undefined ? lng : existingPlace.lng,
-    address !== undefined ? address : existingPlace.address,
-    category_id !== undefined ? category_id : existingPlace.category_id,
-    price !== undefined ? price : existingPlace.price,
-    currency || null,
-    place_time !== undefined ? place_time : existingPlace.place_time,
-    end_time !== undefined ? end_time : existingPlace.end_time,
-    duration_minutes || null,
-    notes !== undefined ? notes : existingPlace.notes,
-    image_url !== undefined ? image_url : existingPlace.image_url,
-    google_place_id !== undefined ? google_place_id : existingPlace.google_place_id,
-    osm_id !== undefined ? osm_id : existingPlace.osm_id,
-    website !== undefined ? website : existingPlace.website,
-    phone !== undefined ? phone : existingPlace.phone,
-    transport_mode || null,
-    placeId,
-  );
+  const useOsmId = hasOsmIdColumn();
+
+  if (useOsmId) {
+    db.prepare(`
+      UPDATE places SET
+        name = COALESCE(?, name),
+        description = ?,
+        lat = ?,
+        lng = ?,
+        address = ?,
+        category_id = ?,
+        price = ?,
+        currency = COALESCE(?, currency),
+        place_time = ?,
+        end_time = ?,
+        duration_minutes = COALESCE(?, duration_minutes),
+        notes = ?,
+        image_url = ?,
+        google_place_id = ?,
+        osm_id = ?,
+        website = ?,
+        phone = ?,
+        transport_mode = COALESCE(?, transport_mode),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(
+      name || null,
+      description !== undefined ? description : existingPlace.description,
+      lat !== undefined ? lat : existingPlace.lat,
+      lng !== undefined ? lng : existingPlace.lng,
+      address !== undefined ? address : existingPlace.address,
+      category_id !== undefined ? category_id : existingPlace.category_id,
+      price !== undefined ? price : existingPlace.price,
+      currency || null,
+      place_time !== undefined ? place_time : existingPlace.place_time,
+      end_time !== undefined ? end_time : existingPlace.end_time,
+      duration_minutes || null,
+      notes !== undefined ? notes : existingPlace.notes,
+      image_url !== undefined ? image_url : existingPlace.image_url,
+      google_place_id !== undefined ? google_place_id : existingPlace.google_place_id,
+      osm_id !== undefined ? osm_id : existingPlace.osm_id,
+      website !== undefined ? website : existingPlace.website,
+      phone !== undefined ? phone : existingPlace.phone,
+      transport_mode || null,
+      placeId,
+    );
+  } else {
+    db.prepare(`
+      UPDATE places SET
+        name = COALESCE(?, name),
+        description = ?,
+        lat = ?,
+        lng = ?,
+        address = ?,
+        category_id = ?,
+        price = ?,
+        currency = COALESCE(?, currency),
+        place_time = ?,
+        end_time = ?,
+        duration_minutes = COALESCE(?, duration_minutes),
+        notes = ?,
+        image_url = ?,
+        google_place_id = ?,
+        website = ?,
+        phone = ?,
+        transport_mode = COALESCE(?, transport_mode),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(
+      name || null,
+      description !== undefined ? description : existingPlace.description,
+      lat !== undefined ? lat : existingPlace.lat,
+      lng !== undefined ? lng : existingPlace.lng,
+      address !== undefined ? address : existingPlace.address,
+      category_id !== undefined ? category_id : existingPlace.category_id,
+      price !== undefined ? price : existingPlace.price,
+      currency || null,
+      place_time !== undefined ? place_time : existingPlace.place_time,
+      end_time !== undefined ? end_time : existingPlace.end_time,
+      duration_minutes || null,
+      notes !== undefined ? notes : existingPlace.notes,
+      image_url !== undefined ? image_url : existingPlace.image_url,
+      google_place_id !== undefined ? google_place_id : existingPlace.google_place_id,
+      website !== undefined ? website : existingPlace.website,
+      phone !== undefined ? phone : existingPlace.phone,
+      transport_mode || null,
+      placeId,
+    );
+  }
 
   if (tags !== undefined) {
     db.prepare('DELETE FROM place_tags WHERE place_id = ?').run(placeId);

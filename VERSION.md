@@ -1,5 +1,23 @@
 # VERSION
 
+## v3.0.22-cn.19 - 2026-06-16
+
+### 变更
+- 修复添加地点报"Internal server error"（osm_id列缺失防御：CREATE TABLE添加osm_id + 运行时列检测）
+- 恢复天气温度前的"Ø"符号（气象学平均值符号）
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `server/src/db/schema.ts`
+- `server/src/services/placeService.ts`
+- `server/src/routes/places.ts`
+- `client/src/components/Weather/WeatherWidget.tsx`
+
+---
+
 ## v3.0.22-cn.18 - 2026-06-16
 
 ### 变更

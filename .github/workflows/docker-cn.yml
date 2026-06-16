@@ -73,10 +73,7 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复: 天气温度前的Ø符号**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 替换为≈（约等于），更直观表示气候平均值" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复: 搜索按钮添加地点报Internal server error**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 服务器端createPlace添加try-catch和详细错误日志" >> $GITHUB_STEP_SUMMARY
-          echo "  - 返回具体错误信息而非笼统的500" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复: AMap逆地理编码缺少await**" >> $GITHUB_STEP_SUMMARY
-          echo "  - IIFE改为async IIFE + await" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复: 添加地点报Internal server error**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: createPlace/updatePlace的SQL包含osm_id列，但数据库中该列可能不存在（迁移未运行）" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: CREATE TABLE添加osm_id列 + 运行时检测列是否存在，不存在则用不含osm_id的SQL" >> $GITHUB_STEP_SUMMARY
+          echo "- **恢复: 天气温度前的Ø符号**" >> $GITHUB_STEP_SUMMARY

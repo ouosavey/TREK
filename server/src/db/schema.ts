@@ -112,6 +112,7 @@ function createTables(db: Database.Database): void {
       notes TEXT,
       image_url TEXT,
       google_place_id TEXT,
+      osm_id TEXT,
       website TEXT,
       phone TEXT,
       transport_mode TEXT DEFAULT 'walking',
