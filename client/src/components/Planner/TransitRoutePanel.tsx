@@ -621,7 +621,7 @@ export default function TransitRoutePanel({
     }
 
     // 收集所有需要微调文字位置的元素
-    const tweakElements: { el: HTMLElement; origPt: string; origPb: string; origLh: string }[] = []
+    const tweakElements: { el: HTMLElement; origStyle: Record<string, string> }[] = []
     el.querySelectorAll('span[style], button[style]').forEach(node => {
       const elem = node as HTMLElement
       const cs = getComputedStyle(elem)
@@ -630,12 +630,10 @@ export default function TransitRoutePanel({
       const hasBg = bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent'
       const hasBorder = border && border !== '0px' && cs.borderStyle !== 'none'
       if (hasBg || hasBorder) {
-        tweakElements.push({
-          el: elem,
-          origPt: elem.style.paddingTop || '',
-          origPb: elem.style.paddingBottom || '',
-          origLh: elem.style.lineHeight || '',
-        })
+        const keys = ['display','alignItems','justifyContent','height','lineHeight']
+        const origStyle: Record<string, string> = {}
+        for (const k of keys) { origStyle[k] = elem.style.getPropertyValue(k) }
+        tweakElements.push({ el: elem, origStyle })
       }
     })
 
@@ -664,14 +662,23 @@ export default function TransitRoutePanel({
         })
       }
 
-      // 微调文字位置：补偿 SVG foreignObject 中文字基线偏下的问题
-      // 文字在 SVG 中比 HTML 偏低约 2-3px，需要增加 paddingBottom 扩展色块底部来"接住"文字
-      // 同时设置 line-height:1 减少行高
+      // 微调文字位置：用 inline-flex 强制垂直居中
+      // html-to-image 使用浏览器原生 SVG 渲染（不是 html2canvas 的 JS 引擎），
+      // 所以 inline-flex 是安全的，不会导致全白
+      // 之前用 html2canvas 时 inline-flex 会全白，但 html-to-image 没有这个问题
       tweakElements.forEach(({ el: elem }) => {
-        const pb = parseFloat(elem.style.paddingBottom) ||
-                   parseFloat(getComputedStyle(elem).paddingBottom) || 0
+        const cs = getComputedStyle(elem)
+        const fs = parseFloat(cs.fontSize) || 12
+        const pt = parseFloat(cs.paddingTop) || 0
+        const pb = parseFloat(cs.paddingBottom) || 0
+        const bt = parseFloat(cs.borderTopWidth) || 0
+        const bb = parseFloat(cs.borderBottomWidth) || 0
+        const totalH = fs + pt + pb + bt + bb
         Object.assign(elem.style, {
-          paddingBottom: `${pb + 3}px`,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: totalH + 'px',
           lineHeight: '1',
         })
       })
@@ -699,12 +706,11 @@ export default function TransitRoutePanel({
           else elem.style.removeProperty(k)
         }
       }
-      tweakElements.forEach(({ el: elem, origPt, origPb, origLh }) => {
-        Object.assign(elem.style, {
-          paddingTop: origPt,
-          paddingBottom: origPb,
-          lineHeight: origLh,
-        })
+      tweakElements.forEach(({ el: elem, origStyle }) => {
+        for (const [k, v] of Object.entries(origStyle)) {
+          if (v) elem.style.setProperty(k, v)
+          else elem.style.removeProperty(k)
+        }
       })
     }
   }, [])
