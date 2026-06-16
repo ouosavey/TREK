@@ -584,28 +584,40 @@ export default function TransitRoutePanel({
     const rootBg = getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary').trim() || '#ffffff'
     const el = contentRef.current
 
-    // ---- 1. 保存所有需要修改的元素的原始样式 ----
-    const origStyle = { ...el.style }
+    // ---- 1. 保存所有需要修改的元素的原始样式（用CSSStyleDeclaration对象）----
+    const savedStyles: { el: HTMLElement; props: Record<string, string> }[] = []
 
-    // 找到内部滚动容器（flex:1 + overflowY:auto）
+    // 外层容器：保存需要改的属性
+    const saveEl = (elem: HTMLElement, keys: (keyof CSSStyleDeclaration)[]) => {
+      const props: Record<string, string> = {}
+      for (const k of keys) { props[String(k)] = elem.style.getPropertyValue(String(k)) }
+      savedStyles.push({ el: elem, props })
+    }
+
+    // 外层容器属性
+    saveEl(el, ['position','top','left','right','bottom','transform','zIndex',
+                 'width','height','maxHeight','overflow','borderRadius'])
+
+    // 内部滚动容器
     const innerScroll = el.querySelector('[style*="overflow-y: auto"]') as HTMLElement ||
                         el.querySelector('[style*="overflowY"]') as HTMLElement
-    const origInnerStyle = innerScroll ? { ...innerScroll.style } : null
+    if (innerScroll) {
+      saveEl(innerScroll, ['overflowY','overflow','maxHeight','height'])
+    }
 
-    // 收集所有有背景色元素及其原始样式
-    const bgElements: { el: HTMLElement; orig: string }[] = []
-    const allSpans = el.querySelectorAll('span, button')
+    // 有背景色的元素
+    const allSpans = el.querySelectorAll('span[style], button[style]')
     allSpans.forEach(node => {
       const elem = node as HTMLElement
-      if (!elem.style) return
+      if (!elem.style.cssText) return
       const cs = getComputedStyle(elem)
       const bg = cs.backgroundColor.trim()
       if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
-        bgElements.push({ el: elem, orig: elem.getAttribute('style') || '' })
+        saveEl(elem, ['display','lineHeight','verticalAlign','textAlign','height'])
       }
     })
 
-    // ---- 2. 应用截图优化样式 ----
+    // ---- 2. 应用截图优化样式（用Object.assign，不用setAttribute）----
     try {
       // 外层容器：移除定位和高度限制
       Object.assign(el.style, {
@@ -630,25 +642,26 @@ export default function TransitRoutePanel({
         })
       }
 
-      // 有背景色的元素：强制紧凑行高确保文字居中
-      bgElements.forEach(({ el: elem }) => {
+      // 有背景色元素：强制 inline-block + lineHeight=height 居中
+      allSpans.forEach(node => {
+        const elem = node as HTMLElement
         const cs = getComputedStyle(elem)
+        const bg = cs.backgroundColor.trim()
+        if (!bg || bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent') return
         const fs = parseFloat(cs.fontSize) || 12
         const pt = parseFloat(cs.paddingTop) || 0
         const pb = parseFloat(cs.paddingBottom) || 0
         const totalH = fs + pt + pb
-        // 在已有内联样式基础上追加/覆盖关键属性
-        elem.setAttribute('style',
-          elem.getAttribute('style') +
-          ';line-height:' + totalH + 'px;' +
-          'display:inline-block;' +
-          'vertical-align:middle;' +
-          'text-align:center;' +
-          'height:' + totalH + 'px'
-        )
+        Object.assign(elem.style, {
+          display: 'inline-block',
+          lineHeight: totalH + 'px',
+          verticalAlign: 'middle',
+          textAlign: 'center',
+          height: totalH + 'px',
+        })
       })
 
-      // 强制浏览器重排，确保样式生效
+      // 强制浏览器重排
       void el.offsetHeight
 
       // ---- 3. 截图 ----
@@ -668,17 +681,15 @@ export default function TransitRoutePanel({
       return canvas
     } finally {
       // ---- 4. 恢复所有原始样式 ----
-      Object.assign(el.style, origStyle)
-      if (innerScroll && origInnerStyle) {
-        Object.assign(innerScroll.style, origInnerStyle)
-      }
-      bgElements.forEach(({ el: elem, orig }) => {
-        if (orig) {
-          elem.setAttribute('style', orig)
-        } else {
-          elem.removeAttribute('style')
+      for (const { el: elem, props } of savedStyles) {
+        for (const [k, v] of Object.entries(props)) {
+          if (v) {
+            elem.style.setProperty(k, v)
+          } else {
+            elem.style.removeProperty(k)
+          }
         }
-      })
+      }
     }
   }, [])
 
