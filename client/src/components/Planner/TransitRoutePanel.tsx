@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom'
-import html2canvas from 'html2canvas'
+import { toCanvas } from 'html-to-image'
 import {
   Footprints, Bus, Train as TrainIcon, ChevronDown, ChevronRight,
   MapPin, Clock, Navigation, X, ArrowRight, Plane,
@@ -577,120 +577,38 @@ export default function TransitRoutePanel({
   const [showExportMenu, setShowExportMenu] = React.useState(false)
   const contentRef = React.useRef<HTMLDivElement>(null)
 
-  // 生成截图 canvas：onclone 中修复定位 + 内联所有computed styles
+  // 生成截图 canvas（使用 html-to-image，基于 SVG foreignObject，浏览器原生渲染）
   const captureCanvas = React.useCallback(async () => {
     if (!contentRef.current) return null
 
-    // 预先收集原始元素和克隆元素的映射，在 onclone 中内联 computed styles
-    // 这是解决 html2canvas 无法正确解析 CSS 变量 + Tailwind class 的最可靠方案
     const rootBg = getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary').trim() || '#ffffff'
 
-    return html2canvas(contentRef.current, {
-      scale: 2,
+    // html-to-image 使用 SVG foreignObject + 浏览器原生渲染引擎，
+    // 不需要内联 computed style、不需要 line-height hack、不需要 onclone
+    return toCanvas(contentRef.current, {
+      pixelRatio: 2,
       backgroundColor: rootBg,
-      useCORS: true,
-      logging: false,
-      onclone: (clonedDoc, element) => {
-        // 通过 data 属性找到克隆的面板元素
-        const target = clonedDoc.querySelector('[data-transit-export]') as HTMLElement | null
-        if (!target) return
-
-        // 1. 隐藏遮罩层（fixed overlay）
-        const overlay = clonedDoc.body.firstChild as HTMLElement
-        if (overlay && overlay.style && overlay.style.position === 'fixed' && overlay.style.background?.includes('0,0,0')) {
-          overlay.style.display = 'none'
+      cacheBust: true,
+      style: {
+        position: 'relative',
+        top: 'auto',
+        left: 'auto',
+        right: 'auto',
+        bottom: 'auto',
+        transform: 'none',
+        zIndex: '0',
+        maxHeight: 'none',
+        height: 'auto',
+        overflow: 'visible',
+      },
+      filter: (node) => {
+        // 排除遮罩层（fixed overlay with dark background）
+        if (node instanceof HTMLElement) {
+          const pos = getComputedStyle(node).position
+          const bg = node.style.background || ''
+          if (pos === 'fixed' && bg.includes('0,0,0')) return false
         }
-
-        // 2. 把面板从 position:fixed 改为 relative，让 html2canvas 能正确渲染
-        target.style.position = 'relative'
-        target.style.top = ''
-        target.style.left = ''
-        target.style.right = ''
-        target.style.bottom = ''
-        target.style.transform = ''
-        target.style.zIndex = ''
-        target.style.maxHeight = ''
-        target.style.height = 'auto'
-        target.style.overflow = 'visible'
-
-        // 3. 对每个子元素内联 computed style（解决 html2canvas 无法解析 CSS 变量的问题）
-        // 遍历原始 DOM 和克隆 DOM，将原始元素的 computed style 内联到克隆元素上
-        const origWalker = document.createTreeWalker(element, NodeFilter.SHOW_ELEMENT)
-        const cloneWalker = clonedDoc.createTreeWalker(target, NodeFilter.SHOW_ELEMENT)
-        const origElements: Element[] = []
-        while (origWalker.nextNode()) origElements.push(origWalker.currentNode as Element)
-
-        let origIdx = 0
-        // 先处理 target 自身
-        const targetOrig = element
-        if (targetOrig) {
-          const cs = getComputedStyle(targetOrig as HTMLElement)
-          const propsToInline = [
-            'color', 'background', 'backgroundColor', 'backgroundImage',
-            'fontSize', 'fontWeight', 'fontFamily', 'lineHeight', 'letterSpacing',
-            'padding', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
-            'margin', 'marginTop', 'marginRight', 'marginBottom', 'marginLeft',
-            'border', 'borderRadius', 'borderColor', 'borderWidth',
-            'display', 'flexDirection', 'alignItems', 'justifyContent', 'gap',
-            'width', 'height', 'minWidth', 'maxWidth',
-            'overflow', 'whiteSpace', 'textOverflow', 'textAlign',
-            'opacity', 'boxShadow', 'textDecoration',
-          ]
-          for (const prop of propsToInline) {
-            const val = cs.getPropertyValue(prop)
-            if (val) (target as HTMLElement).style.setProperty(prop, val)
-          }
-        }
-
-        // 处理子元素
-        while (cloneWalker.nextNode()) {
-          if (origIdx >= origElements.length) break
-          const origEl = origElements[origIdx] as HTMLElement
-          const cloneEl = cloneWalker.currentNode as HTMLElement
-          origIdx++
-
-          try {
-            const cs = getComputedStyle(origEl)
-            // 内联影响布局和渲染的关键属性
-            const propsToInline = [
-              'color', 'background', 'backgroundColor', 'backgroundImage',
-              'fontSize', 'fontWeight', 'fontFamily', 'lineHeight', 'letterSpacing',
-              'padding', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
-              'margin', 'marginTop', 'marginRight', 'marginBottom', 'marginLeft',
-              'border', 'borderRadius', 'borderColor', 'borderWidth',
-              'display', 'flexDirection', 'alignItems', 'justifyContent', 'gap',
-              'width', 'height', 'minWidth', 'maxWidth',
-              'overflow', 'whiteSpace', 'textOverflow', 'textAlign',
-              'opacity', 'boxShadow', 'textDecoration',
-            ]
-            for (const prop of propsToInline) {
-              const val = cs.getPropertyValue(prop)
-              if (val) cloneEl.style.setProperty(prop, val)
-            }
-            // 修复：对有背景色的元素设置 line-height=1
-            // html2canvas 对 inline 元素的行高计算与浏览器不同，
-            // 导致文字在背景色块中偏移。设置紧凑行高可缓解。
-            // ⚠️ 经6次迭代验证：只能改纯CSS属性值，不能改display、不能改DOM结构
-            const bg = cs.getPropertyValue('background-color').trim()
-            if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
-              cloneEl.style.lineHeight = '1'
-            }
-          } catch { /* skip */ }
-        }
-
-        // 4. 兜底：对所有有背景色的元素设置 line-height=1
-        const finalFixWalker = clonedDoc.createTreeWalker(target, NodeFilter.SHOW_ELEMENT)
-        while (finalFixWalker.nextNode()) {
-          const el = finalFixWalker.currentNode as HTMLElement
-          try {
-            if (el.style.lineHeight === '1') continue
-            const cs = getComputedStyle(el)
-            const bg = cs.getPropertyValue('background-color').trim()
-            if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
-              el.style.lineHeight = '1'
-            }
-          } catch { /* skip */ }
-        }
+        return true
       },
     })
   }, [])
