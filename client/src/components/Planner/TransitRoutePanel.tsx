@@ -582,14 +582,27 @@ export default function TransitRoutePanel({
     if (!contentRef.current) return null
 
     const rootBg = getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary').trim() || '#ffffff'
+    const el = contentRef.current
 
-    // html-to-image 使用 SVG foreignObject + 浏览器原生渲染引擎，
-    // 不需要内联 computed style、不需要 line-height hack、不需要 onclone
-    return toCanvas(contentRef.current, {
-      pixelRatio: 2,
-      backgroundColor: rootBg,
-      cacheBust: true,
-      style: {
+    // 保存原始样式
+    const origStyle = {
+      position: el.style.position,
+      top: el.style.top,
+      left: el.style.left,
+      right: el.style.right,
+      bottom: el.style.bottom,
+      transform: el.style.transform,
+      zIndex: el.style.zIndex,
+      width: el.style.width,
+      height: el.style.height,
+      maxHeight: el.style.maxHeight,
+      overflow: el.style.overflow,
+      borderRadius: el.style.borderRadius,
+    }
+
+    // 临时移除定位和高度限制，确保完整内容被渲染到图片中
+    try {
+      Object.assign(el.style, {
         position: 'relative',
         top: 'auto',
         left: 'auto',
@@ -597,20 +610,32 @@ export default function TransitRoutePanel({
         bottom: 'auto',
         transform: 'none',
         zIndex: '0',
-        maxHeight: 'none',
+        width: 'min(520px, calc(100vw - 32px))',
         height: 'auto',
+        maxHeight: 'none',
         overflow: 'visible',
-      },
-      filter: (node) => {
-        // 排除遮罩层（fixed overlay with dark background）
-        if (node instanceof HTMLElement) {
-          const pos = getComputedStyle(node).position
-          const bg = node.style.background || ''
-          if (pos === 'fixed' && bg.includes('0,0,0')) return false
-        }
-        return true
-      },
-    })
+        borderRadius: '16px',
+      })
+
+      // html-to-image 使用 SVG foreignObject + 浏览器原生渲染引擎
+      const canvas = await toCanvas(el, {
+        pixelRatio: 2,
+        backgroundColor: rootBg,
+        cacheBust: true,
+        filter: (node) => {
+          if (node instanceof HTMLElement) {
+            const pos = getComputedStyle(node).position
+            const bg = node.style.background || ''
+            if (pos === 'fixed' && bg.includes('0,0,0')) return false
+          }
+          return true
+        },
+      })
+      return canvas
+    } finally {
+      // 恢复原始样式（无论成功失败都要恢复）
+      Object.assign(el.style, origStyle)
+    }
   }, [])
 
   // 保存图片到本地
