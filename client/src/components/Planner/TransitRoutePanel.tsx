@@ -611,7 +611,7 @@ export default function TransitRoutePanel({
         return true
       },
     })
-  }, []))
+  }, [])
 
   // 保存图片到本地
   const handleSaveLocal = React.useCallback(async () => {
