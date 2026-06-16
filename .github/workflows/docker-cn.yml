@@ -73,20 +73,12 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复: 手机端点击公交/地铁按钮白屏**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: TripPlannerPage移动端setRoute传入一维数组导致地图渲染崩溃(TypeError: number is not iterable)" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 坐标数据多层清洗防御+onRouteCalculated回调增加验证+try-catch" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复: 桌面端公交面板内容截断无法滚动**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 重构面板布局为flex三段式(标题固定+内容区独立滚动)" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复: 方案选中边框不跟随切换**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 点击方案时同时触发onSelect+onToggle" >> $GITHUB_STEP_SUMMARY
-          echo "- **新增: 公交面板时间线式导航布局**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 绿色起点+红色终点+彩色时间轴+可折叠方案卡片" >> $GITHUB_STEP_SUMMARY
-          echo "  - 方案标题简洁显示'地铁N条，公交N条'，点击展开详情" >> $GITHUB_STEP_SUMMARY
-          echo "- **新增: 导出为图片功能**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 绿色相机按钮弹出菜单: 保存图片到本地 / 添加到旅行文件" >> $GITHUB_STEP_SUMMARY
-          echo "- **新增: 图片预览缩放功能**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 鼠标滚轮/双指捏合缩放、双击放大、拖拽平移、键盘快捷键" >> $GITHUB_STEP_SUMMARY
-          echo "- **去掉模拟占位数据**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 移除列车到站时间/拥挤度/强冷弱冷/首末班/票价估算(高德API不提供)" >> $GITHUB_STEP_SUMMARY
-          echo "  - 去掉金额显示" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复: 恢复公交地铁路线导出图片到完美版本**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 恢复到commit 77b7623版本的captureCanvas函数" >> $GITHUB_STEP_SUMMARY
+          echo "  - DOM操作：position:fixed→relative、移除maxHeight/overflow限制" >> $GITHUB_STEP_SUMMARY
+          echo "  - 遮罩层隐藏（data-transit-overlay属性精确定位）" >> $GITHUB_STEP_SUMMARY
+          echo "  - 内部滚动容器移除溢出隐藏，解决底部截断" >> $GITHUB_STEP_SUMMARY
+          echo "  - inline-flex微调文字位置（强制垂直居中+防止换行）" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复: F12控制台CSP报错**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: CSP connectSrc缺少fonts.loli.net和gstatic.loli.net" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: 在connectSrc中添加字体CDN域名，html-to-image截图时不再被阻止" >> $GITHUB_STEP_SUMMARY

@@ -1,5 +1,21 @@
 # VERSION
 
+## v3.0.22-cn.14 - 2026-06-16
+
+### 变更
+- 恢复公交地铁路线导出图片到commit 77b7623完美版本（DOM操作+遮罩隐藏+滚动容器+inline-flex文字居中）
+- 修复F12控制台CSP报错（connectSrc添加fonts.loli.net和gstatic.loli.net）
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Planner/TransitRoutePanel.tsx`
+- `server/src/app.ts`
+
+---
+
 ## v3.0.22-cn.13 - 2026-06-15
 
 ### 变更

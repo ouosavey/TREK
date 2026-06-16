@@ -128,6 +128,7 @@ export function createApp(): express.Application {
         imgSrc: ["'self'", "data:", "blob:", "https:"],
         connectSrc: [
           "'self'", "ws:", "wss:",
+          "https://fonts.loli.net", "https://gstatic.loli.net",
           "https://nominatim.openstreetmap.org", "https://overpass-api.de",
           "https://places.googleapis.com", "https://api.openweathermap.org",
           "https://en.wikipedia.org", "https://zh.wikipedia.org", "https://commons.wikimedia.org",

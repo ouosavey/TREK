@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## 2026-06-16 恢复完美导出图片 + 修复CSP控制台报错 v3.0.22-cn.14
+
+### Bug修复
+
+#### 1. 恢复公交地铁路线导出图片到完美版本
+- **问题**: 导出图片顶部文字和截图不完整（回退到2071584版本后丢失了DOM操作逻辑）
+- **根因**: 2071584版本只使用style选项，无法解决内部滚动容器截断和遮罩层问题
+- **修复**: 恢复到commit 77b7623版本的captureCanvas函数，该版本导出图片完美：
+  - 操作真实DOM：移除position:fixed→relative、移除maxHeight/overflow限制
+  - 隐藏遮罩层（通过data-transit-overlay属性精确定位）
+  - 内部滚动容器移除溢出隐藏
+  - inline-flex微调文字位置（强制垂直居中+防止换行）
+  - finally块恢复所有原始样式
+- **涉及文件**: `client/src/components/Planner/TransitRoutePanel.tsx`
+
+#### 2. 修复F12控制台CSP报错
+- **问题**: 点击导出后控制台报错 "Connecting to 'https://fonts.loli.net' violates Content Security Policy directive: connect-src"
+- **根因**: CSP的connectSrc缺少fonts.loli.net和gstatic.loli.net，html-to-image截图时尝试fetch远程CSS字体被阻止
+- **修复**: 在CSP connectSrc中添加 `https://fonts.loli.net` 和 `https://gstatic.loli.net`
+- **涉及文件**: `server/src/app.ts`
+
 ## 2026-06-15 修复导出图片文字溢出(inline-flex方案) v3.0.22-cn.13
 
 ### Bug修复
