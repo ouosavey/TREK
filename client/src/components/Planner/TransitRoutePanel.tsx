@@ -667,62 +667,27 @@ export default function TransitRoutePanel({
               const val = cs.getPropertyValue(prop)
               if (val) cloneEl.style.setProperty(prop, val)
             }
-            // 关键修复：对有背景色的元素修正文字垂直位置（第6次迭代）
-            // html2canvas 对 inline 元素的文本基线计算与浏览器不同，
-            // 导致 span 内文字下移、溢出背景色块底部。
-            //
-            // ⚠️ 硬约束（经5次迭代验证）：
-            //   - 绝对不能改 display（inline-flex→全白，inline-block→几乎全白）
-            //   - 不能用 transform（html2canvas 不支持）
-            //   - padding-top 补偿方向错误（文字已偏低，加top更偏）
-            //
-            // 最终策略：保持外层 inline 不变 + 内部包裹子span调整文字位置
-            //   1. 外层：line-height=1 + padding-bottom+2px（扩展底部接住文字）
-            //   2. 将所有子节点包裹到新的 <span> 中，设置 vertical-align:middle
-            //      让 html2canvas 在渲染内部文本时使用中间对齐而非基线对齐
+            // 修复：对有背景色的元素设置 line-height=1
+            // html2canvas 对 inline 元素的行高计算与浏览器不同，
+            // 导致文字在背景色块中偏移。设置紧凑行高可缓解。
+            // ⚠️ 经6次迭代验证：只能改纯CSS属性值，不能改display、不能改DOM结构
             const bg = cs.getPropertyValue('background-color').trim()
             if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
               cloneEl.style.lineHeight = '1'
-              const pb = parseFloat(cs.getPropertyValue('padding-bottom')) || 0
-              cloneEl.style.paddingBottom = `${pb + 2}px`
-
-              // 将所有子节点包裹到一个新 span 中，用 vertical-align 调整文字基线
-              const innerSpan = clonedDoc.createElement('span')
-              innerSpan.style.display = 'inline-block'
-              innerSpan.style.verticalAlign = 'middle'
-              innerSpan.style.lineHeight = '1'
-              // 把现有子节点移入 innerSpan
-              while (cloneEl.firstChild) {
-                innerSpan.appendChild(cloneEl.firstChild)
-              }
-              cloneEl.appendChild(innerSpan)
             }
           } catch { /* skip */ }
         }
 
-        // 4. 最终兜底修复：对所有有背景色的元素包裹内部span
+        // 4. 兜底：对所有有背景色的元素设置 line-height=1
         const finalFixWalker = clonedDoc.createTreeWalker(target, NodeFilter.SHOW_ELEMENT)
         while (finalFixWalker.nextNode()) {
           const el = finalFixWalker.currentNode as HTMLElement
           try {
-            // 已在上面处理过的元素会有 innerSpan 子节点，跳过
-            if (el.children.length === 1 && el.children[0].style.display === 'inline-block') continue
-            // 已设置 line-height:1 的也跳过（可能已被处理）
             if (el.style.lineHeight === '1') continue
             const cs = getComputedStyle(el)
             const bg = cs.getPropertyValue('background-color').trim()
             if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
               el.style.lineHeight = '1'
-              const pb = parseFloat(cs.getPropertyValue('padding-bottom')) || 0
-              el.style.paddingBottom = `${pb + 2}px`
-              const innerSpan = clonedDoc.createElement('span')
-              innerSpan.style.display = 'inline-block'
-              innerSpan.style.verticalAlign = 'middle'
-              innerSpan.style.lineHeight = '1'
-              while (el.firstChild) {
-                innerSpan.appendChild(el.firstChild)
-              }
-              el.appendChild(innerSpan)
             }
           } catch { /* skip */ }
         }
