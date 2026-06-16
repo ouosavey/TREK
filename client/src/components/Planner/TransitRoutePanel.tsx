@@ -584,30 +584,33 @@ export default function TransitRoutePanel({
     const rootBg = getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary').trim() || '#ffffff'
     const el = contentRef.current
 
-    // 保存原始样式
-    const origStyle = {
-      position: el.style.position,
-      top: el.style.top,
-      left: el.style.left,
-      right: el.style.right,
-      bottom: el.style.bottom,
-      transform: el.style.transform,
-      zIndex: el.style.zIndex,
-      width: el.style.width,
-      height: el.style.height,
-      maxHeight: el.style.maxHeight,
-      overflow: el.style.overflow,
-      borderRadius: el.style.borderRadius,
-    }
+    // ---- 1. 保存所有需要修改的元素的原始样式 ----
+    const origStyle = { ...el.style }
 
-    // 临时移除定位和高度限制，确保完整内容被渲染到图片中
+    // 找到内部滚动容器（flex:1 + overflowY:auto）
+    const innerScroll = el.querySelector('[style*="overflow-y: auto"]') as HTMLElement ||
+                        el.querySelector('[style*="overflowY"]') as HTMLElement
+    const origInnerStyle = innerScroll ? { ...innerScroll.style } : null
+
+    // 收集所有有背景色元素及其原始样式
+    const bgElements: { el: HTMLElement; orig: string }[] = []
+    const allSpans = el.querySelectorAll('span, button')
+    allSpans.forEach(node => {
+      const elem = node as HTMLElement
+      if (!elem.style) return
+      const cs = getComputedStyle(elem)
+      const bg = cs.backgroundColor.trim()
+      if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+        bgElements.push({ el: elem, orig: elem.getAttribute('style') || '' })
+      }
+    })
+
+    // ---- 2. 应用截图优化样式 ----
     try {
+      // 外层容器：移除定位和高度限制
       Object.assign(el.style, {
         position: 'relative',
-        top: 'auto',
-        left: 'auto',
-        right: 'auto',
-        bottom: 'auto',
+        top: 'auto', left: 'auto', right: 'auto', bottom: 'auto',
         transform: 'none',
         zIndex: '0',
         width: 'min(520px, calc(100vw - 32px))',
@@ -617,7 +620,38 @@ export default function TransitRoutePanel({
         borderRadius: '16px',
       })
 
-      // html-to-image 使用 SVG foreignObject + 浏览器原生渲染引擎
+      // 内部滚动容器：移除溢出隐藏
+      if (innerScroll) {
+        Object.assign(innerScroll.style, {
+          overflowY: 'visible',
+          overflow: 'visible',
+          maxHeight: 'none',
+          height: 'auto',
+        })
+      }
+
+      // 有背景色的元素：强制紧凑行高确保文字居中
+      bgElements.forEach(({ el: elem }) => {
+        const cs = getComputedStyle(elem)
+        const fs = parseFloat(cs.fontSize) || 12
+        const pt = parseFloat(cs.paddingTop) || 0
+        const pb = parseFloat(cs.paddingBottom) || 0
+        const totalH = fs + pt + pb
+        // 在已有内联样式基础上追加/覆盖关键属性
+        elem.setAttribute('style',
+          elem.getAttribute('style') +
+          ';line-height:' + totalH + 'px;' +
+          'display:inline-block;' +
+          'vertical-align:middle;' +
+          'text-align:center;' +
+          'height:' + totalH + 'px'
+        )
+      })
+
+      // 强制浏览器重排，确保样式生效
+      void el.offsetHeight
+
+      // ---- 3. 截图 ----
       const canvas = await toCanvas(el, {
         pixelRatio: 2,
         backgroundColor: rootBg,
@@ -633,8 +667,18 @@ export default function TransitRoutePanel({
       })
       return canvas
     } finally {
-      // 恢复原始样式（无论成功失败都要恢复）
+      // ---- 4. 恢复所有原始样式 ----
       Object.assign(el.style, origStyle)
+      if (innerScroll && origInnerStyle) {
+        Object.assign(innerScroll.style, origInnerStyle)
+      }
+      bgElements.forEach(({ el: elem, orig }) => {
+        if (orig) {
+          elem.setAttribute('style', orig)
+        } else {
+          elem.removeAttribute('style')
+        }
+      })
     }
   }, [])
 
