@@ -597,18 +597,17 @@ export default function TransitRoutePanel({
     saveEl(el, ['position','top','left','right','bottom','transform','zIndex',
                  'width','height','maxHeight','overflow','borderRadius'])
 
-    // 遮罩层：通过父元素查找所有 fixed 定位的半透明遮罩（更可靠）
-    const parent = el.parentElement
+    // 遮罩层：在 document.body 中查找所有 fixed 定位 + 半透明背景的元素并隐藏
+    // 面板通过 Portal 渲染到 body，遮罩是面板的兄弟元素
     const overlays: HTMLElement[] = []
-    if (parent) {
-      parent.querySelectorAll(':scope > *').forEach(child => {
-        if (child === el) return
-        const cs = getComputedStyle(child as HTMLElement)
-        if (cs.position === 'fixed' && cs.zIndex !== 'auto') {
-          overlays.push(child as HTMLElement)
-        }
-      })
-    }
+    document.body.querySelectorAll(':scope > *').forEach(child => {
+      if (child === el) return
+      const cs = getComputedStyle(child as HTMLElement)
+      // 匹配遮罩层特征：fixed + 半透明黑色背景
+      if (cs.position === 'fixed' && cs.backgroundColor.includes('0, 0, 0')) {
+        overlays.push(child as HTMLElement)
+      }
+    })
     overlays.forEach(ov => {
       saveEl(ov, ['display'])
       ov.style.display = 'none'
@@ -621,10 +620,7 @@ export default function TransitRoutePanel({
       saveEl(innerScroll, ['overflowY','overflow','maxHeight','height'])
     }
 
-    // 收集所有需要微调文字位置的元素：
-    // - 有背景色（非透明）的 span/button：线路名标签等
-    // - 有可见边框的 button：策略选择按钮（最省钱/最少换乘/少步行）
-    // 这些元素在 SVG foreignObject 中文字基线偏移，需要补偿
+    // 收集所有需要微调文字位置的元素
     const tweakElements: { el: HTMLElement; origPt: string; origPb: string; origLh: string }[] = []
     el.querySelectorAll('span[style], button[style]').forEach(node => {
       const elem = node as HTMLElement
@@ -668,20 +664,19 @@ export default function TransitRoutePanel({
         })
       }
 
-      // 强制浏览器重排
-      void el.offsetHeight
-
-      // 微调文字位置：增加 paddingTop + 紧凑行高 补偿 SVG foreignObject 文字偏移
+      // 微调文字位置：补偿 SVG foreignObject 中文字基线偏下的问题
+      // 文字在 SVG 中比 HTML 偏低约 2-3px，需要增加 paddingBottom 扩展色块底部来"接住"文字
+      // 同时设置 line-height:1 减少行高
       tweakElements.forEach(({ el: elem }) => {
-        const pt = parseFloat(elem.style.paddingTop) ||
-                   parseFloat(getComputedStyle(elem).paddingTop) || 0
+        const pb = parseFloat(elem.style.paddingBottom) ||
+                   parseFloat(getComputedStyle(elem).paddingBottom) || 0
         Object.assign(elem.style, {
-          paddingTop: `${pt + 3}px`,
+          paddingBottom: `${pb + 3}px`,
           lineHeight: '1',
         })
       })
 
-      // 再次重排确保样式生效
+      // 强制浏览器重排
       void el.offsetHeight
 
       // ---- 3. 截图 ----
@@ -690,7 +685,7 @@ export default function TransitRoutePanel({
         backgroundColor: rootBg,
         cacheBust: true,
         filter: (node) => {
-          // 排除遮罩层（已被隐藏，filter 兜底）
+          // 排除遮罩层
           if (overlays.includes(node as HTMLElement)) return false
           return true
         },
@@ -704,7 +699,6 @@ export default function TransitRoutePanel({
           else elem.style.removeProperty(k)
         }
       }
-      // 恢复被微调元素的原始样式
       tweakElements.forEach(({ el: elem, origPt, origPb, origLh }) => {
         Object.assign(elem.style, {
           paddingTop: origPt,
