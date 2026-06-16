@@ -73,12 +73,9 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复: 恢复公交地铁路线导出图片到完美版本**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 恢复到commit 77b7623版本的captureCanvas函数" >> $GITHUB_STEP_SUMMARY
-          echo "  - DOM操作：position:fixed→relative、移除maxHeight/overflow限制" >> $GITHUB_STEP_SUMMARY
-          echo "  - 遮罩层隐藏（data-transit-overlay属性精确定位）" >> $GITHUB_STEP_SUMMARY
-          echo "  - 内部滚动容器移除溢出隐藏，解决底部截断" >> $GITHUB_STEP_SUMMARY
-          echo "  - inline-flex微调文字位置（强制垂直居中+防止换行）" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复: F12控制台CSP报错**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: CSP connectSrc缺少fonts.loli.net和gstatic.loli.net" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 在connectSrc中添加字体CDN域名，html-to-image截图时不再被阻止" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复: 导出时面板跳动和遮罩层残留**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: 旧方案直接修改真实DOM的position/display，导致面板位置变化和遮罩状态异常" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: 重写captureCanvas，用style选项覆盖克隆节点+filter排除遮罩，不再修改真实DOM" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复: F12控制台fonts.loli.net CSS跨域读取报错**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: 字体link标签缺少crossorigin属性，浏览器以no-cors模式加载" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: 添加crossorigin属性，浏览器以CORS模式加载字体CSS" >> $GITHUB_STEP_SUMMARY

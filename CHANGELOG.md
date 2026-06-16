@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## 2026-06-16 修复导出面板跳动+遮罩残留+控制台报错 v3.0.22-cn.15
+
+### Bug修复
+
+#### 1. 修复导出时面板跳动和遮罩层残留
+- **问题**: 点击导出后，面板先跳到左侧再跳回中间，灰色半透明遮罩不消失
+- **根因**: 旧方案直接修改真实DOM的position(display:none等)，导致面板位置变化和遮罩状态异常
+- **修复**: 重写captureCanvas函数，核心策略变更：
+  - 外层容器定位：不再修改真实DOM，改用html-to-image的`style`选项覆盖克隆节点
+  - 遮罩层：不再修改display属性，改用`filter`回调排除（data-transit-overlay属性匹配）
+  - 内部滚动容器：仍需临时修改真实DOM（移除overflow限制），但不影响面板位置
+  - 移除所有inline-flex文字微调代码（之前多次验证在SVG foreignObject中导致全白）
+- **涉及文件**: `client/src/components/Planner/TransitRoutePanel.tsx`
+
+#### 2. 修复F12控制台fonts.loli.net CSS跨域读取报错
+- **问题**: "Error inlining remote css file SecurityError: Failed to read the 'cssRules' property from 'CSSStyleSheet': Cannot access rules"
+- **根因**: 字体CSS的`<link>`标签缺少`crossorigin`属性，浏览器以no-cors模式加载，JS无法读取跨域样式表的cssRules
+- **修复**: 在`<link>`标签添加`crossorigin`属性，浏览器以CORS模式加载，fonts.loli.net CDN会返回Access-Control-Allow-Origin头
+- **涉及文件**: `client/index.html`
+
+#### 3. CSP connectSrc已添加fonts.loli.net（上一版本）
+- 上一版本(v3.0.22-cn.14)已在CSP connectSrc中添加`https://fonts.loli.net`和`https://gstatic.loli.net`
+
 ## 2026-06-16 恢复完美导出图片 + 修复CSP控制台报错 v3.0.22-cn.14
 
 ### Bug修复

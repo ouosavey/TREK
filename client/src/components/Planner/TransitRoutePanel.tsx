@@ -578,130 +578,69 @@ export default function TransitRoutePanel({
   const contentRef = React.useRef<HTMLDivElement>(null)
 
   // 生成截图 canvas（使用 html-to-image，基于 SVG foreignObject，浏览器原生渲染）
+  // 策略：不操作外层容器和遮罩层的真实DOM（避免面板跳动+遮罩残留），
+  // 只临时修改内部滚动容器（不影响面板位置），其余通过 style/filter 选项处理
   const captureCanvas = React.useCallback(async () => {
     if (!contentRef.current) return null
 
     const rootBg = getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary').trim() || '#ffffff'
     const el = contentRef.current
 
-    // ---- 1. 保存所有需要修改的元素的原始样式 ----
-    const savedStyles: { el: HTMLElement; props: Record<string, string> }[] = []
-
-    const saveEl = (elem: HTMLElement, keys: string[]) => {
-      const props: Record<string, string> = {}
-      for (const k of keys) { props[k] = elem.style.getPropertyValue(k) }
-      savedStyles.push({ el: elem, props })
-    }
-
-    // 外层容器
-    saveEl(el, ['position','top','left','right','bottom','transform','zIndex',
-                 'width','height','maxHeight','overflow','borderRadius'])
-
-    // 遮罩层：通过 data 属性精确定位（最可靠，不依赖 DOM 结构）
-    const overlay = document.querySelector('[data-transit-overlay]') as HTMLElement | null
-    if (overlay) {
-      saveEl(overlay, ['display'])
-      overlay.style.display = 'none'
-    }
-
-    // 内部滚动容器
+    // 只保存内部滚动容器的原始样式（修改它不会导致面板跳动）
     const innerScroll = el.querySelector('[style*="overflow-y: auto"]') as HTMLElement ||
                         el.querySelector('[style*="overflowY"]') as HTMLElement
+    const savedScrollStyle: Record<string, string> = {}
     if (innerScroll) {
-      saveEl(innerScroll, ['overflowY','overflow','maxHeight','height'])
+      for (const k of ['overflowY','overflow','maxHeight','height']) {
+        savedScrollStyle[k] = innerScroll.style.getPropertyValue(k)
+      }
+      // 临时移除滚动容器的溢出限制，让截图包含完整内容
+      Object.assign(innerScroll.style, {
+        overflowY: 'visible',
+        overflow: 'visible',
+        maxHeight: 'none',
+        height: 'auto',
+      })
     }
 
-    // 收集所有需要微调文字位置的元素
-    const tweakElements: { el: HTMLElement; origStyle: Record<string, string> }[] = []
-    el.querySelectorAll('span[style], button[style]').forEach(node => {
-      const elem = node as HTMLElement
-      const cs = getComputedStyle(elem)
-      const bg = cs.backgroundColor.trim()
-      const border = cs.borderWidth.trim()
-      const hasBg = bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent'
-      const hasBorder = border && border !== '0px' && cs.borderStyle !== 'none'
-      if (hasBg || hasBorder) {
-        const keys = ['display','alignItems','justifyContent','height','lineHeight','whiteSpace']
-        const origStyle: Record<string, string> = {}
-        for (const k of keys) { origStyle[k] = elem.style.getPropertyValue(k) }
-        tweakElements.push({ el: elem, origStyle })
-      }
-    })
-
-    // ---- 2. 应用截图优化样式 ----
     try {
-      // 外层容器：移除定位和高度限制
-      Object.assign(el.style, {
-        position: 'relative',
-        top: 'auto', left: 'auto', right: 'auto', bottom: 'auto',
-        transform: 'none',
-        zIndex: '0',
-        width: 'min(520px, calc(100vw - 32px))',
-        height: 'auto',
-        maxHeight: 'none',
-        overflow: 'visible',
-        borderRadius: '16px',
-      })
-
-      // 内部滚动容器：移除溢出隐藏
-      if (innerScroll) {
-        Object.assign(innerScroll.style, {
-          overflowY: 'visible',
-          overflow: 'visible',
-          maxHeight: 'none',
-          height: 'auto',
-        })
-      }
-
-      // 微调文字位置：用 inline-flex 强制垂直居中 + 防止文字换行
-      // html-to-image 使用浏览器原生 SVG 渲染（不是 html2canvas 的 JS 引擎），inline-flex 安全
-      tweakElements.forEach(({ el: elem }) => {
-        const cs = getComputedStyle(elem)
-        const fs = parseFloat(cs.fontSize) || 12
-        const pt = parseFloat(cs.paddingTop) || 0
-        const pb = parseFloat(cs.paddingBottom) || 0
-        const bt = parseFloat(cs.borderTopWidth) || 0
-        const bb = parseFloat(cs.borderBottomWidth) || 0
-        const totalH = fs + pt + pb + bt + bb
-        Object.assign(elem.style, {
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: totalH + 'px',
-          lineHeight: '1',
-          whiteSpace: 'nowrap',       // 防止策略按钮等文字换行
-        })
-      })
-
-      // 强制浏览器重排
-      void el.offsetHeight
-
-      // ---- 3. 截图 ----
       const canvas = await toCanvas(el, {
         pixelRatio: 2,
         backgroundColor: rootBg,
         cacheBust: true,
+        style: {
+          // 覆盖克隆节点的定位（不影响真实DOM）
+          position: 'relative',
+          top: 'auto',
+          left: 'auto',
+          right: 'auto',
+          bottom: 'auto',
+          transform: 'none',
+          zIndex: '0',
+          maxHeight: 'none',
+          height: 'auto',
+          overflow: 'visible',
+        },
         filter: (node) => {
-          // 排除遮罩层
-          if (node === overlay) return false
+          // 排除遮罩层（不修改真实DOM的display，用filter跳过）
+          if (node instanceof HTMLElement) {
+            if ((node as HTMLElement).hasAttribute('data-transit-overlay')) return false
+            const pos = getComputedStyle(node).position
+            const bg = node.style.background || ''
+            if (pos === 'fixed' && bg.includes('0,0,0')) return false
+          }
           return true
         },
       })
       return canvas
     } finally {
-      // ---- 4. 恢复所有原始样式 ----
-      for (const { el: elem, props } of savedStyles) {
-        for (const [k, v] of Object.entries(props)) {
-          if (v) elem.style.setProperty(k, v)
-          else elem.style.removeProperty(k)
+      // 恢复内部滚动容器的原始样式
+      if (innerScroll) {
+        for (const [k, v] of Object.entries(savedScrollStyle)) {
+          if (v) innerScroll.style.setProperty(k, v)
+          else innerScroll.style.removeProperty(k)
         }
       }
-      tweakElements.forEach(({ el: elem, origStyle }) => {
-        for (const [k, v] of Object.entries(origStyle)) {
-          if (v) elem.style.setProperty(k, v)
-          else elem.style.removeProperty(k)
-        }
-      })
     }
   }, [])
 

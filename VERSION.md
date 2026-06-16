@@ -1,5 +1,21 @@
 # VERSION
 
+## v3.0.22-cn.15 - 2026-06-16
+
+### 变更
+- 修复导出时面板跳动和遮罩层残留（重写captureCanvas：style选项覆盖克隆节点+filter排除遮罩，不再修改真实DOM的position/display）
+- 修复F12控制台fonts.loli.net CSS跨域读取报错（字体link标签添加crossorigin属性）
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Planner/TransitRoutePanel.tsx`
+- `client/index.html`
+
+---
+
 ## v3.0.22-cn.14 - 2026-06-16
 
 ### 变更
