@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 2026-06-16 修复导出图片全白（回退克隆方案，改用height参数）v3.0.22-cn.17
+
+### Bug修复
+
+#### 1. 修复导出图片全白
+- **问题**: 克隆节点方案导致导出图片全白
+- **根因**: html-to-image内部也会cloneNode，双重克隆+离屏定位(position:absolute;top:-9999px)导致SVG foreignObject渲染失败
+- **修复**: 回退到直接在原面板上调用toCanvas（commit 2071584方案），但增加height/width参数：
+  - 临时移除maxHeight获取scrollHeight（完整内容高度）
+  - 立即恢复maxHeight（面板跳动极短，几乎不可见）
+  - 将获取的完整尺寸作为width/height参数传给toCanvas
+  - style选项覆盖克隆节点渲染，filter排除遮罩层
+- **涉及文件**: `client/src/components/Planner/TransitRoutePanel.tsx`
+
 ## 2026-06-16 修复导出图片截断+策略按钮换行（克隆节点方案）v3.0.22-cn.16
 
 ### Bug修复

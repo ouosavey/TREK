@@ -1,5 +1,20 @@
 # VERSION
 
+## v3.0.22-cn.17 - 2026-06-16
+
+### 变更
+- 修复导出图片全白（回退克隆节点方案，改用height参数覆盖canvas尺寸）
+- 临时移除maxHeight获取scrollHeight，立即恢复，用完整尺寸作为toCanvas的width/height参数
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Planner/TransitRoutePanel.tsx`
+
+---
+
 ## v3.0.22-cn.16 - 2026-06-16
 
 ### 变更

@@ -578,72 +578,56 @@ export default function TransitRoutePanel({
   const contentRef = React.useRef<HTMLDivElement>(null)
 
   // 生成截图 canvas（使用 html-to-image，基于 SVG foreignObject，浏览器原生渲染）
-  // 策略：克隆面板节点到屏幕外，在克隆上做所有样式修改，截图后删除克隆
-  // 真实DOM完全不受影响 → 无面板跳动、无遮罩残留
+  // 策略：临时移除maxHeight获取完整高度，用height参数覆盖canvas尺寸，style选项覆盖克隆节点渲染
   const captureCanvas = React.useCallback(async () => {
     if (!contentRef.current) return null
 
     const rootBg = getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary').trim() || '#ffffff'
     const el = contentRef.current
 
-    // 1. 深克隆面板节点
-    const clone = el.cloneNode(true) as HTMLElement
+    // 1. 保存并临时移除maxHeight，获取完整内容高度
+    const savedMaxHeight = el.style.maxHeight
+    el.style.maxHeight = 'none'
+    
+    // 获取完整内容高度（scrollHeight包含溢出内容）
+    const fullHeight = el.scrollHeight + 20  // 加一点padding防止边缘截断
+    const fullWidth = el.scrollWidth || el.clientWidth
+    
+    // 2. 立即恢复maxHeight（面板跳动时间极短）
+    el.style.maxHeight = savedMaxHeight || ''
 
-    // 2. 修改克隆节点样式：移除固定定位和高度限制
-    Object.assign(clone.style, {
-      position: 'absolute',
-      top: '-9999px',
-      left: '0',
-      transform: 'none',
-      zIndex: '0',
-      maxHeight: 'none',
-      height: 'auto',
-      overflow: 'visible',
-    })
-
-    // 3. 修改克隆中内部滚动容器：移除溢出限制
-    const innerScroll = clone.querySelector('[style*="overflow-y: auto"]') as HTMLElement ||
-                        clone.querySelector('[style*="overflowY"]') as HTMLElement
-    if (innerScroll) {
-      Object.assign(innerScroll.style, {
-        overflowY: 'visible',
-        overflow: 'visible',
+    // 3. 截图（用获取的完整尺寸作为canvas尺寸）
+    const canvas = await toCanvas(el, {
+      pixelRatio: 2,
+      backgroundColor: rootBg,
+      cacheBust: true,
+      width: fullWidth,
+      height: fullHeight,
+      style: {
+        // 克隆节点上的样式（不影响真实DOM）
+        position: 'relative',
+        top: 'auto',
+        left: 'auto',
+        right: 'auto',
+        bottom: 'auto',
+        transform: 'none',
+        zIndex: '0',
         maxHeight: 'none',
         height: 'auto',
-      })
-    }
-
-    // 4. 修复克隆中策略按钮文字换行
-    clone.querySelectorAll('button').forEach(btn => {
-      (btn as HTMLElement).style.whiteSpace = 'nowrap'
+        overflow: 'visible',
+      },
+      filter: (node) => {
+        // 排除遮罩层
+        if (node instanceof HTMLElement) {
+          if ((node as HTMLElement).hasAttribute('data-transit-overlay')) return false
+          const pos = getComputedStyle(node).position
+          const bg = node.style.background || ''
+          if (pos === 'fixed' && bg.includes('0,0,0')) return false
+        }
+        return true
+      },
     })
-
-    // 5. 将克隆添加到body，让浏览器计算布局
-    document.body.appendChild(clone)
-
-    try {
-      // 等待浏览器完成布局
-      void clone.offsetHeight
-
-      const canvas = await toCanvas(clone, {
-        pixelRatio: 2,
-        backgroundColor: rootBg,
-        cacheBust: true,
-        filter: (node) => {
-          if (node instanceof HTMLElement) {
-            if ((node as HTMLElement).hasAttribute('data-transit-overlay')) return false
-            const pos = getComputedStyle(node).position
-            const bg = node.style.background || ''
-            if (pos === 'fixed' && bg.includes('0,0,0')) return false
-          }
-          return true
-        },
-      })
-      return canvas
-    } finally {
-      // 6. 删除克隆节点
-      document.body.removeChild(clone)
-    }
+    return canvas
   }, [])
 
   // 保存图片到本地
