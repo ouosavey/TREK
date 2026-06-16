@@ -597,21 +597,12 @@ export default function TransitRoutePanel({
     saveEl(el, ['position','top','left','right','bottom','transform','zIndex',
                  'width','height','maxHeight','overflow','borderRadius'])
 
-    // 遮罩层：在 document.body 中查找所有 fixed 定位 + 半透明背景的元素并隐藏
-    // 面板通过 Portal 渲染到 body，遮罩是面板的兄弟元素
-    const overlays: HTMLElement[] = []
-    document.body.querySelectorAll(':scope > *').forEach(child => {
-      if (child === el) return
-      const cs = getComputedStyle(child as HTMLElement)
-      // 匹配遮罩层特征：fixed + 半透明黑色背景
-      if (cs.position === 'fixed' && cs.backgroundColor.includes('0, 0, 0')) {
-        overlays.push(child as HTMLElement)
-      }
-    })
-    overlays.forEach(ov => {
-      saveEl(ov, ['display'])
-      ov.style.display = 'none'
-    })
+    // 遮罩层：通过 data 属性精确定位（最可靠，不依赖 DOM 结构）
+    const overlay = document.querySelector('[data-transit-overlay]') as HTMLElement | null
+    if (overlay) {
+      saveEl(overlay, ['display'])
+      overlay.style.display = 'none'
+    }
 
     // 内部滚动容器
     const innerScroll = el.querySelector('[style*="overflow-y: auto"]') as HTMLElement ||
@@ -630,7 +621,7 @@ export default function TransitRoutePanel({
       const hasBg = bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent'
       const hasBorder = border && border !== '0px' && cs.borderStyle !== 'none'
       if (hasBg || hasBorder) {
-        const keys = ['display','alignItems','justifyContent','height','lineHeight']
+        const keys = ['display','alignItems','justifyContent','height','lineHeight','whiteSpace']
         const origStyle: Record<string, string> = {}
         for (const k of keys) { origStyle[k] = elem.style.getPropertyValue(k) }
         tweakElements.push({ el: elem, origStyle })
@@ -662,10 +653,8 @@ export default function TransitRoutePanel({
         })
       }
 
-      // 微调文字位置：用 inline-flex 强制垂直居中
-      // html-to-image 使用浏览器原生 SVG 渲染（不是 html2canvas 的 JS 引擎），
-      // 所以 inline-flex 是安全的，不会导致全白
-      // 之前用 html2canvas 时 inline-flex 会全白，但 html-to-image 没有这个问题
+      // 微调文字位置：用 inline-flex 强制垂直居中 + 防止文字换行
+      // html-to-image 使用浏览器原生 SVG 渲染（不是 html2canvas 的 JS 引擎），inline-flex 安全
       tweakElements.forEach(({ el: elem }) => {
         const cs = getComputedStyle(elem)
         const fs = parseFloat(cs.fontSize) || 12
@@ -680,6 +669,7 @@ export default function TransitRoutePanel({
           justifyContent: 'center',
           height: totalH + 'px',
           lineHeight: '1',
+          whiteSpace: 'nowrap',       // 防止策略按钮等文字换行
         })
       })
 
@@ -693,7 +683,7 @@ export default function TransitRoutePanel({
         cacheBust: true,
         filter: (node) => {
           // 排除遮罩层
-          if (overlays.includes(node as HTMLElement)) return false
+          if (node === overlay) return false
           return true
         },
       })
@@ -784,6 +774,7 @@ export default function TransitRoutePanel({
     <>
       {/* 遮罩层 */}
       <div
+        data-transit-overlay
         onClick={() => { setShowExportMenu(false); onClose() }}
         style={{
           position: 'fixed', inset: 0,
