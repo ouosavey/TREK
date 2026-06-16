@@ -582,123 +582,36 @@ export default function TransitRoutePanel({
     if (!contentRef.current) return null
 
     const rootBg = getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary').trim() || '#ffffff'
-    const el = contentRef.current
 
-    // ---- 1. 保存所有需要修改的元素的原始样式 ----
-    const savedStyles: { el: HTMLElement; props: Record<string, string> }[] = []
-
-    const saveEl = (elem: HTMLElement, keys: string[]) => {
-      const props: Record<string, string> = {}
-      for (const k of keys) { props[k] = elem.style.getPropertyValue(k) }
-      savedStyles.push({ el: elem, props })
-    }
-
-    // 外层容器：只保存需要改的属性（不改position！）
-    saveEl(el, ['height','maxHeight','overflow'])
-
-    // 遮罩层：通过 data 属性精确定位
-    const overlay = document.querySelector('[data-transit-overlay]') as HTMLElement | null
-    if (overlay) {
-      saveEl(overlay, ['display'])
-      overlay.style.display = 'none'
-    }
-
-    // 内部滚动容器
-    const innerScroll = el.querySelector('[style*="overflow-y: auto"]') as HTMLElement ||
-                        el.querySelector('[style*="overflowY"]') as HTMLElement
-    if (innerScroll) {
-      saveEl(innerScroll, ['overflowY','overflow','maxHeight','height'])
-    }
-
-    // 收集所有需要微调文字位置的元素
-    const tweakElements: { el: HTMLElement; origStyle: Record<string, string> }[] = []
-    el.querySelectorAll('span[style], button[style]').forEach(node => {
-      const elem = node as HTMLElement
-      const cs = getComputedStyle(elem)
-      const bg = cs.backgroundColor.trim()
-      const border = cs.borderWidth.trim()
-      const hasBg = bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent'
-      const hasBorder = border && border !== '0px' && cs.borderStyle !== 'none'
-      if (hasBg || hasBorder) {
-        const keys = ['display','alignItems','justifyContent','height','lineHeight','whiteSpace']
-        const origStyle: Record<string, string> = {}
-        for (const k of keys) { origStyle[k] = elem.style.getPropertyValue(k) }
-        tweakElements.push({ el: elem, origStyle })
-      }
-    })
-
-    // ---- 2. 应用截图优化样式 ----
-    try {
-      // 关键：保持 position:fixed 不变！只移除高度限制，避免面板跳动和遮罩暴露
-      Object.assign(el.style, {
+    // html-to-image 使用 SVG foreignObject + 浏览器原生渲染引擎，
+    // 不需要内联 computed style、不需要 line-height hack、不需要 onclone
+    return toCanvas(contentRef.current, {
+      pixelRatio: 2,
+      backgroundColor: rootBg,
+      cacheBust: true,
+      style: {
+        position: 'relative',
+        top: 'auto',
+        left: 'auto',
+        right: 'auto',
+        bottom: 'auto',
+        transform: 'none',
+        zIndex: '0',
         maxHeight: 'none',
         height: 'auto',
         overflow: 'visible',
-      })
-
-      // 内部滚动容器：移除溢出隐藏
-      if (innerScroll) {
-        Object.assign(innerScroll.style, {
-          overflowY: 'visible',
-          overflow: 'visible',
-          maxHeight: 'none',
-          height: 'auto',
-        })
-      }
-
-      // 微调文字位置：inline-flex 强制垂直居中 + 防止换行
-      // ⚠️ 已禁用：inline-flex 在 html-to-image 的 SVG foreignObject 中导致全白
-      // 文字偏移问题需要通过其他方式解决，目前保持原样
-      /*
-      tweakElements.forEach(({ el: elem }) => {
-        const cs = getComputedStyle(elem)
-        const fs = parseFloat(cs.fontSize) || 12
-        const pt = parseFloat(cs.paddingTop) || 0
-        const pb = parseFloat(cs.paddingBottom) || 0
-        const bt = parseFloat(cs.borderTopWidth) || 0
-        const bb = parseFloat(cs.borderBottomWidth) || 0
-        const totalH = fs + pt + pb + bt + bb
-        Object.assign(elem.style, {
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: totalH + 'px',
-          lineHeight: '1',
-          whiteSpace: 'nowrap',
-        })
-      })
-      */
-
-      // 强制浏览器重排
-      void el.offsetHeight
-
-      // ---- 3. 截图 ----
-      const canvas = await toCanvas(el, {
-        pixelRatio: 2,
-        backgroundColor: rootBg,
-        cacheBust: true,
-        filter: (node) => {
-          if (node === overlay) return false
-          return true
-        },
-      })
-      return canvas
-    } finally {
-      // ---- 4. 恢复所有原始样式 ----
-      for (const { el: elem, props } of savedStyles) {
-        for (const [k, v] of Object.entries(props)) {
-          if (v) elem.style.setProperty(k, v)
-          else elem.style.removeProperty(k)
+      },
+      filter: (node) => {
+        // 排除遮罩层（fixed overlay with dark background）
+        if (node instanceof HTMLElement) {
+          const pos = getComputedStyle(node).position
+          const bg = node.style.background || ''
+          if (pos === 'fixed' && bg.includes('0,0,0')) return false
         }
-      }
-      tweakElements.forEach(({ el: elem, origStyle }) => {
-        for (const [k, v] of Object.entries(origStyle)) {
-          if (v) elem.style.setProperty(k, v)
-          else elem.style.removeProperty(k)
-        }
-      })
-    }
-  }, [])
+        return true
+      },
+    })
+  }, []))
 
   // 保存图片到本地
   const handleSaveLocal = React.useCallback(async () => {
