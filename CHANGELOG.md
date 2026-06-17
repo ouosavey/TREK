@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2026-06-17 修复地铁图JS API加载失败 v3.0.22-cn.31
+
+### Bug修复
+
+#### 地铁图JS API加载失败（"subway global not found"）
+- **根因**: 高德地铁图 JS API 是 JSONP 风格脚本，`subway` 全局函数仅在 `cbk` 回调函数内可用。脚本 `onload` 触发后 `window.subway` 并不存在，导致 "subway global not found" 错误
+- **修复**: 完全重写 `SubwayMapView.tsx`，改用 iframe 加载完整 HTML 页面：
+  1. 严格遵循官方示例模式：在 `window.cbk` 回调内创建 `subway("mysubway", {adcode, easy:1})` 实例
+  2. 通过 `postMessage` 通知父窗口加载状态（`subway_ready`/`subway_complete`/`subway_fail`/`subway_error`）
+  3. iframe 隔离全局变量，避免与主应用的 AMap JS API 2.0 冲突
+  4. 15秒超时兜底
+- **涉及文件**: `client/src/components/Map/SubwayMapView.tsx`
+
 ## 2026-06-17 修复高德新功能第四轮测试反馈 v3.0.22-cn.30
 
 ### Bug修复

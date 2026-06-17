@@ -1,5 +1,19 @@
 # VERSION
 
+## v3.0.22-cn.31 - 2026-06-17
+
+### 变更
+修复地铁图 JS API 加载失败问题：
+- 根因：高德地铁图 JS API 是 JSONP 风格，`subway` 全局函数仅在 `cbk` 回调内可用，脚本加载后 `window.subway` 不存在
+- 修复：改用 iframe 加载完整 HTML 页面，严格遵循官方示例模式，在 `cbk` 回调内创建 subway 实例，通过 postMessage 通知父窗口加载状态
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+
 ## v3.0.22-cn.30 - 2026-06-17
 
 ### 变更

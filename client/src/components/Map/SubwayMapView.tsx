@@ -42,166 +42,120 @@ interface SubwayMapViewProps {
   onClose: () => void
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-type SubwayInstance = any
-
-// 全局脚本加载状态管理（避免重复加载）
-let scriptLoadPromise: Promise<void> | null = null
-let scriptLoaded = false
-
-function loadSubwayScript(key: string): Promise<void> {
-  if (scriptLoaded) return Promise.resolve()
-  if (scriptLoadPromise) return scriptLoadPromise
-
-  scriptLoadPromise = new Promise<void>((resolve, reject) => {
-    // 高德地铁图 JS API：https://webapi.amap.com/subway?v=1.0&key=xxx&callback=cbk
-    // 加载完成后会调用 window.cbk 回调，全局对象为 subway（小写）
-    // 使用固定回调名 cbk（官方示例使用），同时用 onload 作为后备
-    const script = document.createElement('script')
-    script.src = `https://webapi.amap.com/subway?v=1.0&key=${encodeURIComponent(key)}&callback=cbk`
-    script.async = true
-
-    let resolved = false
-
-    const finish = () => {
-      if (resolved) return
-      resolved = true
-      // 检查 subway 全局对象是否存在
-      if ((window as any).subway || (window as any).Subway) {
-        scriptLoaded = true
-        resolve()
-      } else {
-        // 脚本加载了但 subway 对象不存在，延迟检查（可能需要一点时间初始化）
-        setTimeout(() => {
-          if ((window as any).subway || (window as any).Subway) {
-            scriptLoaded = true
-            resolve()
-          } else {
-            console.error('[SubwayMapView] Script loaded but subway global not found')
-            reject(new Error('subway global not found after script load'))
-          }
-        }, 100)
-      }
-    }
-
-    // 官方回调
-    ;(window as any).cbk = finish
-
-    // onload 后备（某些浏览器可能不触发 callback）
-    script.onload = finish
-
-    script.onerror = () => {
-      if (resolved) return
-      resolved = true
-      scriptLoadPromise = null
-      reject(new Error('Failed to load subway script (network error)'))
-    }
-
-    // 超时兜底（15秒）
-    setTimeout(() => {
-      if (!resolved) {
-        resolved = true
-        scriptLoadPromise = null
-        // 超时后也尝试检查 subway 是否存在
-        if ((window as any).subway || (window as any).Subway) {
-          scriptLoaded = true
-          resolve()
-        } else {
-          reject(new Error('Subway script load timeout'))
-        }
-      }
-    }, 15000)
-
-    document.head.appendChild(script)
-  })
-
-  return scriptLoadPromise
-}
-
+/**
+ * 高德地铁图 JS API 组件
+ *
+ * 官方文档：https://lbs.amap.com/api/subway-api/subway-summary
+ *
+ * 实现方式：使用 iframe 加载完整的 HTML 页面，严格遵循官方示例模式。
+ * 地铁图 JS API 是 JSONP 风格，subway 全局函数在 cbk 回调内可用。
+ * 使用 iframe 可以隔离全局变量，避免与主应用的 AMap JS API 冲突。
+ */
 export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
   const amapKey = useSettingsStore(s => s.settings.amap_key || '')
   const amapSecurityCode = useSettingsStore(s => s.settings.amap_security_code || '')
 
   const [selectedAdcode, setSelectedAdcode] = useState<string>(SUBWAY_CITIES[0].adcode)
-  const [loading, setLoading] = useState<boolean>(false)
+  const [loading, setLoading] = useState<boolean>(true)
   const [errorMsg, setErrorMsg] = useState<string>('')
 
-  const containerRef = useRef<HTMLDivElement>(null)
-  const subwayRef = useRef<SubwayInstance | null>(null)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
 
-  useEffect(() => {
-    if (!amapKey || !containerRef.current) return
+  // ── 生成地铁图 HTML 内容（严格遵循官方示例）──────────────────────────
+  function generateSubwayHtml(adcode: string): string {
+    return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<!--重要meta, 必须!-->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, shrink-to-fit=no"/>
+<title>地铁图</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  #mysubway { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<div id="mysubway"></div>
+<script type="text/javascript">
+  // 安全密钥配置（如果有的话）
+  ${amapSecurityCode ? `window._AMapSecurityConfig = { securityJsCode: '${amapSecurityCode}' };` : ''}
 
-    if (amapSecurityCode) {
-      ;(window as any)._AMapSecurityConfig = { securityJsCode: amapSecurityCode }
+  // 开启 easy 模式，直接完成地铁图基本功能
+  // adcode 参数指定城市
+  window.cbk = function() {
+    try {
+      var mysubway = subway("mysubway", {
+        adcode: "${adcode}",
+        easy: 1
+      });
+      // 地铁图加载完成事件
+      mysubway.event.on("subway.complete", function() {
+        // 通知父窗口加载完成
+        window.parent.postMessage({ type: 'subway_complete' }, '*');
+      });
+      mysubway.event.on("subway.fail", function() {
+        window.parent.postMessage({ type: 'subway_fail' }, '*');
+      });
+      // 通知父窗口 subway 已就绪
+      window.parent.postMessage({ type: 'subway_ready' }, '*');
+    } catch (err) {
+      window.parent.postMessage({ type: 'subway_error', message: String(err) }, '*');
     }
+  };
+</script>
+<script type="text/javascript" src="https://webapi.amap.com/subway?v=1.0&key=${amapKey}&callback=cbk"></script>
+</body>
+</html>`
+  }
 
-    let destroyed = false
+  // ── 监听 iframe 的 postMessage 事件 ─────────────────────────────────
+  useEffect(() => {
+    function handleMessage(e: MessageEvent) {
+      if (!e.data || typeof e.data !== 'object') return
+      const msg = e.data as { type: string; message?: string }
+      if (msg.type === 'subway_ready' || msg.type === 'subway_complete') {
+        setLoading(false)
+        setErrorMsg('')
+      } else if (msg.type === 'subway_fail') {
+        setLoading(false)
+        setErrorMsg('地铁图数据加载失败，该城市可能暂不支持')
+      } else if (msg.type === 'subway_error') {
+        setLoading(false)
+        setErrorMsg('地铁图加载失败：' + (msg.message || '未知错误'))
+      }
+    }
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [])
+
+  // ── 当城市切换时，重新加载 iframe ────────────────────────────────────
+  useEffect(() => {
+    if (!amapKey || !iframeRef.current) return
+
     setLoading(true)
     setErrorMsg('')
 
-    loadSubwayScript(amapKey)
-      .then(() => {
-        if (destroyed || !containerRef.current) return
+    const html = generateSubwayHtml(selectedAdcode)
+    const iframe = iframeRef.current
 
-        // 地铁图全局对象为 subway（小写，不是 AMap.Subway，也不是 Subway）
-        const subwayNS = (window as any).subway || (window as any).Subway
-        if (!subwayNS || typeof subwayNS !== 'function') {
-          console.error('[SubwayMapView] subway global not found. window keys:', Object.keys(window).filter(k => k.toLowerCase().includes('subway')))
-          setErrorMsg('地铁图组件未就绪，请检查密钥配置或刷新重试')
-          setLoading(false)
-          return
-        }
+    // 使用 srcdoc 加载 HTML 内容
+    iframe.srcdoc = html
 
-        try {
-          // 清理旧实例
-          if (subwayRef.current) {
-            try { subwayRef.current.destroy?.() } catch { /* 忽略 */ }
-            subwayRef.current = null
-          }
-          // 清空容器
-          containerRef.current.innerHTML = ''
-
-          // 创建地铁图实例：subway(container, { adcode: 'xxx', easy: 1 })
-          const subway = subwayNS(containerRef.current, {
-            adcode: selectedAdcode,
-            easy: 1,
-          })
-          subwayRef.current = subway
-
-          // 注意：事件名是 "subway.complete"（带点），不是 "subwayComplete"
-          subway.event.on('subway.complete', () => {
-            if (destroyed) return
-            setLoading(false)
-          })
-
-          subway.event.on('subway.fail', () => {
-            if (destroyed) return
-            setErrorMsg('地铁图数据加载失败，该城市可能暂不支持')
-            setLoading(false)
-          })
-        } catch (err) {
-          if (destroyed) return
-          console.error('[SubwayMapView] Failed to create subway instance:', err)
-          setErrorMsg('地铁图加载失败，请检查密钥配置是否正确')
-          setLoading(false)
-        }
+    // 超时兜底（15秒）
+    const timeoutId = setTimeout(() => {
+      setLoading(prev => {
+        // 如果还在 loading，说明没有收到 subway_ready 消息
+        return prev
       })
-      .catch((err: any) => {
-        if (destroyed) return
-        console.error('[SubwayMapView] Script load failed:', err)
-        setErrorMsg('地铁图加载失败，请检查网络或密钥配置')
-        setLoading(false)
-      })
+      setErrorMsg('地铁图加载超时，请检查网络或密钥配置')
+      setLoading(false)
+    }, 15000)
 
-    return () => {
-      destroyed = true
-      if (subwayRef.current) {
-        try { subwayRef.current.destroy?.() } catch { /* 忽略销毁异常 */ }
-        subwayRef.current = null
-      }
-    }
-  }, [amapKey, amapSecurityCode, selectedAdcode])
+    return () => clearTimeout(timeoutId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [amapKey, selectedAdcode, amapSecurityCode])
 
   // ── 未配置 amap_key：显示提示信息 ──────────────────────────────────
   if (!amapKey) {
@@ -316,12 +270,22 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
         </button>
       </div>
 
-      {/* ── 地铁图显示区域 ──────────────────────────────────────────── */}
+      {/* ── 地铁图显示区域（iframe）──────────────────────────────────── */}
       <div style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
-        <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+        <iframe
+          ref={iframeRef}
+          title="地铁图"
+          style={{
+            width: '100%',
+            height: '100%',
+            border: 'none',
+            display: errorMsg ? 'none' : 'block',
+          }}
+          sandbox="allow-scripts allow-same-origin allow-popups"
+        />
 
         {/* 加载中遮罩 */}
-        {loading && (
+        {loading && !errorMsg && (
           <div
             style={{
               position: 'absolute',
@@ -343,21 +307,26 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
         )}
 
         {/* 加载错误提示 */}
-        {!loading && errorMsg && (
+        {errorMsg && (
           <div
             style={{
               position: 'absolute',
               top: 0, left: 0, right: 0, bottom: 0,
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#ef4444',
               fontSize: 13,
               textAlign: 'center',
               padding: 20,
+              gap: 12,
             }}
           >
-            {errorMsg}
+            <div>{errorMsg}</div>
+            <div style={{ fontSize: 11, color: '#9ca3af' }}>
+              请确认已配置高德 JS API 密钥（amap_key），且密钥已开通地铁图服务
+            </div>
           </div>
         )}
       </div>
