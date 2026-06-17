@@ -125,6 +125,9 @@ export function createPlace(
     transport_mode?: string; tags?: number[];
   },
 ) {
+  console.log('[placeService] createPlace called with tripId:', tripId, 'body keys:', Object.keys(body));
+  console.log('[placeService] createPlace body:', JSON.stringify(body, null, 2));
+
   const {
     name, description, lat, lng, address, category_id, price, currency,
     place_time, end_time,

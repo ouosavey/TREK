@@ -475,7 +475,10 @@ export interface ApiError {
 export function getApiErrorMessage(err: unknown, fallback: string): string {
   if (typeof err === 'object' && err !== null && 'response' in err) {
     const apiErr = err as ApiError
-    if (apiErr.response?.data?.error) return apiErr.response.data.error
+    if (apiErr.response?.data?.error) {
+      const detail = apiErr.response.data.detail
+      return detail ? `${apiErr.response.data.error}: ${detail}` : apiErr.response.data.error
+    }
   }
   if (err instanceof Error) return err.message
   return fallback

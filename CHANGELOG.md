@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2026-06-17 添加搜索按钮添加地点错误详情显示 v3.0.22-cn.21
+
+### 调试改进
+- 前端 `getApiErrorMessage` 现在会显示服务端返回的 `detail` 字段，方便定位根因
+- 服务端 `createPlace` 入口添加请求体日志，便于排查
+
 ## 2026-06-16 修复搜索按钮添加地点报Failed to create place（数据库列缺失）v3.0.22-cn.20
 
 ### Bug修复

@@ -1,5 +1,13 @@
 # VERSION
 
+## v3.0.22-cn.21 - 2026-06-17
+
+### 变更
+- 前端 getApiErrorMessage 显示服务端错误详情（detail字段）
+- 服务端 createPlace 入口添加请求体日志
+
+---
+
 ## v3.0.22-cn.20 - 2026-06-16
 
 ### 变更
