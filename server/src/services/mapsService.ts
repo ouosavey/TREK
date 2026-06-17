@@ -1611,104 +1611,103 @@ export async function getAmapBusLineInfo(
   stops: { name: string; lat: number; lng: number }[];
   basicStops: { name: string; lat: number; lng: number }[];
 }> {
-  const amapKey = getAmapKey(userId);
-  if (!amapKey) return { lineName: null, totalDistance: null, totalStops: null, firstTime: null, lastTime: null, stops: [], basicStops: [] };
+  const emptyResult = { lineName: null, totalDistance: null, totalStops: null, firstTime: null, lastTime: null, stops: [], basicStops: [] };
 
-  const params = new URLSearchParams({
-    key: amapKey,
-    city,
-    keywords: lineName,
-    output: 'JSON',
-    extensions: 'all',
-  });
-
-  let response: Response;
   try {
-    response = await fetch(`https://restapi.amap.com/v3/bus/linename?${params}`);
-  } catch (fetchErr) {
-    console.warn('[AMap] bus line fetch error:', fetchErr);
-    return { lineName: null, totalDistance: null, totalStops: null, firstTime: null, lastTime: null, stops: [], basicStops: [] };
-  }
-  if (!response.ok) {
-    console.warn('[AMap] bus line API HTTP error:', response.status);
-    return { lineName: null, totalDistance: null, totalStops: null, firstTime: null, lastTime: null, stops: [], basicStops: [] };
-  }
-  let data = await response.json() as {
-    status: string;
-    info?: string;
-    buslines?: Array<{
-      name?: string;
-      total_distance?: number;
-      total_price?: string;
-      bounds?: string;
-      start_time?: string;
-      end_time?: string;
-      via_stops?: string;
-      busstops?: Array<{ name?: string; location?: string }>;
-      departure_stops?: Array<{ name?: string; location?: string }>;
-      arrival_stops?: Array<{ name?: string; location?: string }>;
-    }>;
-  };
+    const amapKey = getAmapKey(userId);
+    if (!amapKey) return emptyResult;
 
-  // 如果第一次查询失败，尝试去掉括号等方向信息后重试
-  if (data.status !== '1' || !data.buslines?.length) {
-    const cleanedLineName = lineName
-      .replace(/\([^)]*\)/g, '')
-      .replace(/——.*$/, '')
-      .replace(/--.*$/, '')
-      .trim();
-    if (cleanedLineName && cleanedLineName !== lineName) {
-      const retryParams = new URLSearchParams({
-        key: amapKey,
-        city,
-        keywords: cleanedLineName,
-        output: 'JSON',
-        extensions: 'all',
-      });
-      try {
-        const retryResponse = await fetch(`https://restapi.amap.com/v3/bus/linename?${retryParams}`);
-        if (retryResponse.ok) {
-          data = await retryResponse.json() as typeof data;
+    const params = new URLSearchParams({
+      key: amapKey,
+      city,
+      keywords: lineName,
+      output: 'JSON',
+      extensions: 'all',
+    });
+
+    let response: Response;
+    try {
+      response = await fetch(`https://restapi.amap.com/v3/bus/linename?${params}`);
+    } catch (fetchErr) {
+      console.warn('[AMap] bus line fetch error:', fetchErr);
+      return emptyResult;
+    }
+    if (!response.ok) {
+      console.warn('[AMap] bus line API HTTP error:', response.status);
+      return emptyResult;
+    }
+
+    let data: any;
+    try {
+      data = await response.json();
+    } catch (jsonErr) {
+      console.warn('[AMap] bus line response JSON parse error:', jsonErr);
+      return emptyResult;
+    }
+
+    // 如果第一次查询失败，尝试去掉括号等方向信息后重试
+    if (data.status !== '1' || !data.buslines?.length) {
+      const cleanedLineName = lineName
+        .replace(/\([^)]*\)/g, '')
+        .replace(/——.*$/, '')
+        .replace(/--.*$/, '')
+        .trim();
+      if (cleanedLineName && cleanedLineName !== lineName) {
+        const retryParams = new URLSearchParams({
+          key: amapKey,
+          city,
+          keywords: cleanedLineName,
+          output: 'JSON',
+          extensions: 'all',
+        });
+        try {
+          const retryResponse = await fetch(`https://restapi.amap.com/v3/bus/linename?${retryParams}`);
+          if (retryResponse.ok) {
+            data = await retryResponse.json();
+          }
+        } catch (retryErr) {
+          console.warn('[AMap] bus line retry error:', retryErr);
         }
-      } catch (retryErr) {
-        console.warn('[AMap] bus line retry error:', retryErr);
       }
     }
+
+    if (data.status !== '1' || !data.buslines?.length) {
+      return emptyResult;
+    }
+
+    const line = data.buslines[0];
+    const parseStops = (stops: Array<{ name?: string; location?: string }>) =>
+      (stops || []).map(s => {
+        const [lngStr, latStr] = (s.location || ',').split(',');
+        return { name: s.name || '', lat: parseFloat(latStr) || 0, lng: parseFloat(lngStr) || 0 };
+      }).filter(s => s.lat && s.lng);
+
+    // via_stops 是 "站名1,站名2,..." 格式的字符串
+    let viaStopNames: string[] = [];
+    if (line.via_stops) {
+      viaStopNames = line.via_stops.split(',').map((s: string) => s.trim()).filter(Boolean);
+    }
+
+    const allStops = parseStops(line.busstops || []);
+    const basicStops = [
+      ...parseStops(line.departure_stops || []),
+      ...viaStopNames.map((name: string) => ({ name, lat: 0, lng: 0 })),
+      ...parseStops(line.arrival_stops || []),
+    ].filter(s => s.name);
+
+    return {
+      lineName: line.name || lineName,
+      totalDistance: line.total_distance || null,
+      totalStops: allStops.length || viaStopNames.length + 2,
+      firstTime: line.start_time ? line.start_time.replace(/^(\d{1,2})(\d{2})$/, '$1:$2') : null,
+      lastTime: line.end_time ? line.end_time.replace(/^(\d{1,2})(\d{2})$/, '$1:$2') : null,
+      stops: allStops,
+      basicStops,
+    };
+  } catch (err) {
+    console.error('[AMap] getAmapBusLineInfo unexpected error:', err);
+    return emptyResult;
   }
-
-  if (data.status !== '1' || !data.buslines?.length) {
-    return { lineName: null, totalDistance: null, totalStops: null, firstTime: null, lastTime: null, stops: [], basicStops: [] };
-  }
-
-  const line = data.buslines[0];
-  const parseStops = (stops: Array<{ name?: string; location?: string }>) =>
-    (stops || []).map(s => {
-      const [lngStr, latStr] = (s.location || ',').split(',');
-      return { name: s.name || '', lat: parseFloat(latStr) || 0, lng: parseFloat(lngStr) || 0 };
-    }).filter(s => s.lat && s.lng);
-
-  // via_stops 是 "站名1,站名2,..." 格式的字符串
-  let viaStopNames: string[] = [];
-  if (line.via_stops) {
-    viaStopNames = line.via_stops.split(',').map(s => s.trim()).filter(Boolean);
-  }
-
-  const allStops = parseStops(line.busstops || []);
-  const basicStops = [
-    ...parseStops(line.departure_stops || []),
-    ...viaStopNames.map((name, i) => ({ name, lat: 0, lng: 0 })),
-    ...parseStops(line.arrival_stops || []),
-  ].filter(s => s.name);
-
-  return {
-    lineName: line.name || lineName,
-    totalDistance: line.total_distance || null,
-    totalStops: allStops.length || viaStopNames.length + 2,
-    firstTime: line.start_time ? line.start_time.replace(/^(\d{1,2})(\d{2})$/, '$1:$2') : null,
-    lastTime: line.end_time ? line.end_time.replace(/^(\d{1,2})(\d{2})$/, '$1:$2') : null,
-    stops: allStops,
-    basicStops,
-  };
 }
 
 // ── AMap 多边形区域搜索 ──────────────────────────────────────────────────────

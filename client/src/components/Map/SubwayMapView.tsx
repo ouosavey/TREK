@@ -55,47 +55,62 @@ function loadSubwayScript(key: string): Promise<void> {
 
   scriptLoadPromise = new Promise<void>((resolve, reject) => {
     // 高德地铁图 JS API：https://webapi.amap.com/subway?v=1.0&key=xxx&callback=cbk
-    // 加载完成后会调用 window[callback] 回调，全局对象为 subway（小写）
-    const callbackName = '__subway_cb_' + Date.now()
+    // 加载完成后会调用 window.cbk 回调，全局对象为 subway（小写）
+    // 使用固定回调名 cbk（官方示例使用），同时用 onload 作为后备
     const script = document.createElement('script')
-    script.src = `https://webapi.amap.com/subway?v=1.0&key=${encodeURIComponent(key)}&callback=${callbackName}`
+    script.src = `https://webapi.amap.com/subway?v=1.0&key=${encodeURIComponent(key)}&callback=cbk`
     script.async = true
 
-    // 高德地铁图 JS 通过 callback 回调通知脚本加载完成
-    ;(window as any)[callbackName] = () => {
-      scriptLoaded = true
-      try { delete (window as any)[callbackName] } catch { (window as any)[callbackName] = undefined }
-      resolve()
+    let resolved = false
+
+    const finish = () => {
+      if (resolved) return
+      resolved = true
+      // 检查 subway 全局对象是否存在
+      if ((window as any).subway || (window as any).Subway) {
+        scriptLoaded = true
+        resolve()
+      } else {
+        // 脚本加载了但 subway 对象不存在，延迟检查（可能需要一点时间初始化）
+        setTimeout(() => {
+          if ((window as any).subway || (window as any).Subway) {
+            scriptLoaded = true
+            resolve()
+          } else {
+            console.error('[SubwayMapView] Script loaded but subway global not found')
+            reject(new Error('subway global not found after script load'))
+          }
+        }, 100)
+      }
     }
+
+    // 官方回调
+    ;(window as any).cbk = finish
+
+    // onload 后备（某些浏览器可能不触发 callback）
+    script.onload = finish
 
     script.onerror = () => {
+      if (resolved) return
+      resolved = true
       scriptLoadPromise = null
-      try { delete (window as any)[callbackName] } catch { (window as any)[callbackName] = undefined }
-      reject(new Error('Failed to load subway script'))
+      reject(new Error('Failed to load subway script (network error)'))
     }
 
-    // 超时兜底（10秒）
-    const timeoutId = setTimeout(() => {
-      if (!scriptLoaded) {
+    // 超时兜底（15秒）
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true
         scriptLoadPromise = null
-        // 即使超时也尝试继续（脚本可能已加载但回调未触发）
-        if ((window as any).subway) {
+        // 超时后也尝试检查 subway 是否存在
+        if ((window as any).subway || (window as any).Subway) {
           scriptLoaded = true
-          try { delete (window as any)[callbackName] } catch { (window as any)[callbackName] = undefined }
           resolve()
         } else {
-          try { delete (window as any)[callbackName] } catch { (window as any)[callbackName] = undefined }
           reject(new Error('Subway script load timeout'))
         }
       }
-    }, 10000)
-
-    // 清理超时定时器（加载成功后）
-    const originalResolve = resolve
-    resolve = ((v: void) => {
-      clearTimeout(timeoutId)
-      originalResolve(v)
-    }) as typeof resolve
+    }, 15000)
 
     document.head.appendChild(script)
   })

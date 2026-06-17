@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## 2026-06-17 修复高德新功能第四轮测试反馈 v3.0.22-cn.30
+
+### Bug修复
+
+#### 1. 公交线路查询500错误（彻底修复）
+- **根因**: 上一版只包裹了fetch异常，但 `response.json()` 解析异常（AMap返回非JSON时）仍会抛错导致500
+- **修复**: 整个 `getAmapBusLineInfo` 函数体包裹 try-catch，JSON解析也单独 try-catch，任何异常都返回空结果
+- **涉及文件**: `server/src/services/mapsService.ts`
+
+#### 2. 地铁图JS API加载失败
+- **根因**: 使用动态回调名 `__subway_cb_<timestamp>`，高德地铁图脚本可能不支持任意回调名
+- **修复**: 使用官方示例的固定回调名 `cbk`，同时添加 `script.onload` 作为后备触发机制，超时延长至15秒
+- **涉及文件**: `client/src/components/Map/SubwayMapView.tsx`
+
+#### 3. 多边形搜索结果被底部tab栏遮挡
+- **根因**: 手机端弹窗 `bottom: 12px` 被底部tab栏（约56px高）遮挡
+- **修复**: 手机端弹窗 `bottom: 64px`（tab栏上方），最大高度170px（约3个结果）
+- **涉及文件**: `client/src/components/Map/MapViewAMap.tsx`
+
+#### 4. 多边形搜索点击结果不居中
+- **根因**: 搜索结果是WGS-84坐标，直接传给高德地图 `setZoomAndCenter` 会有偏移
+- **修复**: 点击结果时先用 `wgs84ToGcj02` 转换坐标，再定位地图
+- **涉及文件**: `client/src/components/Map/MapViewAMap.tsx`
+
 ## 2026-06-17 修复高德新功能第三轮测试反馈 v3.0.22-cn.29
 
 ### Bug修复

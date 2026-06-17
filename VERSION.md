@@ -1,5 +1,23 @@
 # VERSION
 
+## v3.0.22-cn.30 - 2026-06-17
+
+### 变更
+修复高德新功能第四轮测试反馈问题：
+1. 修复公交线路查询500错误（整个函数包裹try-catch，JSON解析异常也返回空结果）
+2. 修复地铁图JS API加载失败（使用固定回调名cbk + onload后备 + 15秒超时）
+3. 修复多边形搜索结果UI：手机端弹窗定位在底部tab栏上方（bottom:64px），高度限制3个结果
+4. 修复多边形搜索点击结果不居中（WGS-84坐标转换为GCJ-02后再定位）
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `server/src/services/mapsService.ts`
+- `client/src/components/Map/SubwayMapView.tsx`
+- `client/src/components/Map/MapViewAMap.tsx`
+
 ## v3.0.22-cn.29 - 2026-06-17
 
 ### 变更

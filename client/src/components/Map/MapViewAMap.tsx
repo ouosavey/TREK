@@ -1665,7 +1665,9 @@ export const MapViewAMap = memo(function MapViewAMap({
     const map = mapRef.current
     if (!AMap || !map || !place.lat || !place.lng) return
     try {
-      map.setZoomAndCenter(16, [place.lng, place.lat])
+      // 搜索结果是 WGS-84 坐标，需要转换为 GCJ-02 才能在高德地图上正确定位
+      const [gcjLng, gcjLat] = wgs84ToGcj02(place.lat, place.lng)
+      map.setZoomAndCenter(16, [gcjLng, gcjLat])
       // 打开信息窗口
       if (polygonInfoWindowRef.current) {
         const html = `
@@ -1676,7 +1678,7 @@ export const MapViewAMap = memo(function MapViewAMap({
           </div>
         `
         polygonInfoWindowRef.current.setContent(html)
-        polygonInfoWindowRef.current.open(map, new AMap.LngLat(place.lng, place.lat))
+        polygonInfoWindowRef.current.open(map, new AMap.LngLat(gcjLng, gcjLat))
       }
     } catch { /* ignore */ }
   }
@@ -1894,18 +1896,20 @@ export const MapViewAMap = memo(function MapViewAMap({
           </div>
         )}
 
-        {/* 搜索结果列表面板 - 底部居中弹窗（类似地点详情弹窗，避免被左右栏遮挡） */}
+        {/* 搜索结果列表面板 - 底部居中弹窗（位于底部tab栏上方，避免被遮挡） */}
         {searchResults.length > 0 && !polygonSearchActive && (
           <div style={{
             position: 'absolute',
-            bottom: isMobile ? 12 : 20,
+            // 手机端：底部tab栏高度约56px，弹窗定位在tab栏上方
+            // 电脑端：底部无tab栏，定位在底部20px
+            bottom: isMobile ? 64 : 20,
             left: '50%',
             transform: 'translateX(-50%)',
             zIndex: 150,
             width: isMobile ? 'calc(100% - 24px)' : 420,
-            // 手机端：限制为约3个结果的高度（每项约44px + 头部约40px ≈ 170px）
+            // 手机端：限制为约3个结果的高度（每项约44px + 头部约36px ≈ 170px）
             // 电脑端：最多显示6个结果
-            maxHeight: isMobile ? 180 : 360,
+            maxHeight: isMobile ? 170 : 360,
             background: 'rgba(255,255,255,0.98)',
             borderRadius: 12,
             boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
