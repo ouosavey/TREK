@@ -1368,7 +1368,13 @@ export async function calculateAmapTransitRoute(
   };
 
   if (data.status !== '1' || !data.route?.transits?.length) {
-    throw new Error(data.info || 'No transit route found');
+    // 不抛错，返回空结果（让前端优雅处理"无路线"的情况）
+    return {
+      origin: [origin.lat, origin.lng],
+      destination: [destination.lat, destination.lng],
+      options: [],
+      source: 'amap',
+    };
   }
 
   const options: TransitRouteOption[] = [];
@@ -1616,9 +1622,9 @@ export async function getAmapBusLineInfo(
     extensions: 'all',
   });
 
-  const response = await fetch(`https://restapi.amap.com/v3/bus/linename?${params}`);
+  let response = await fetch(`https://restapi.amap.com/v3/bus/linename?${params}`);
   if (!response.ok) throw new Error('AMap bus line API error');
-  const data = await response.json() as {
+  let data = await response.json() as {
     status: string;
     info?: string;
     buslines?: Array<{
@@ -1634,6 +1640,28 @@ export async function getAmapBusLineInfo(
       arrival_stops?: Array<{ name?: string; location?: string }>;
     }>;
   };
+
+  // 如果第一次查询失败，尝试去掉括号等方向信息后重试
+  if (data.status !== '1' || !data.buslines?.length) {
+    const cleanedLineName = lineName
+      .replace(/\([^)]*\)/g, '')
+      .replace(/——.*$/, '')
+      .replace(/--.*$/, '')
+      .trim();
+    if (cleanedLineName && cleanedLineName !== lineName) {
+      const retryParams = new URLSearchParams({
+        key: amapKey,
+        city,
+        keywords: cleanedLineName,
+        output: 'JSON',
+        extensions: 'all',
+      });
+      const retryResponse = await fetch(`https://restapi.amap.com/v3/bus/linename?${retryParams}`);
+      if (retryResponse.ok) {
+        data = await retryResponse.json() as typeof data;
+      }
+    }
+  }
 
   if (data.status !== '1' || !data.buslines?.length) {
     return { lineName: null, totalDistance: null, totalStops: null, firstTime: null, lastTime: null, stops: [], basicStops: [] };

@@ -1,5 +1,52 @@
 # CHANGELOG
 
+## 2026-06-17 修复高德新功能第二轮测试反馈 v3.0.22-cn.28
+
+### Bug修复
+
+#### 1. 点击地点黑屏（严重）
+- **根因**: `place.website` 字段可能为 `null`/`undefined`/数字等非字符串类型，调用 `.trim()` 时抛出 `TypeError: Ie.website.trim is not a function`，导致整个组件树崩溃、页面全黑
+- **修复**: 使用 `typeof rawWebsite === 'string'` 类型检查后再调用 `.trim()`，非字符串类型直接返回空
+- **涉及文件**: `client/src/components/Planner/PlaceInspector.tsx`
+
+#### 2. "打开网站"按钮无网址时仍显示
+- **根因**: 与黑屏问题同源，website 字段类型不确定
+- **修复**: 统一使用类型安全的 IIFE 模式，非字符串或空字符串时不渲染按钮
+- **涉及文件**: `client/src/components/Planner/PlaceInspector.tsx`
+
+#### 3. 删除3D地图视图功能
+- **原因**: 用户反馈不实用，且按钮位置容易遮挡其他功能
+- **修复**: 移除 `is3D` 状态、`setPitch` useEffect、3D按钮、`viewMode:'3D'` 初始化参数、`Box` 图标导入
+- **涉及文件**: `client/src/components/Map/MapViewAMap.tsx`
+
+#### 4. 公交线路查询500错误
+- **根因**: 线路名包含方向信息如 `轨道3号线(沌阳大道--宏图大道)`，高德 `/v3/bus/linename` API 无法匹配
+- **修复**:
+  - 前端：去除所有括号内容及破折号方向描述（`/\([^)]*\)/g` + `/--.*$/`）
+  - 后端：第一次查询失败后自动用清理后的线路名重试
+- **涉及文件**: `client/src/components/Planner/TransitRoutePanel.tsx`, `server/src/services/mapsService.ts`
+
+#### 5. 公交路线查询500错误
+- **根因**: `calculateAmapTransitRoute` 在高德API返回无路线时 `throw new Error()`，被路由catch后返回500
+- **修复**: 改为返回空 `options` 数组，让前端优雅处理"无路线"情况
+- **涉及文件**: `server/src/services/mapsService.ts`
+
+#### 6. 地铁图JS API加载失败
+- **根因**: `AMap.Subway` 不是通过 `AMap.plugin('AMap.Subway')` 加载的插件，而是需要独立加载 `https://webapi.amap.com/subway?v=1.0&key=xxx&callback=xxx` 脚本，全局对象为 `Subway`（非 `AMap.Subway`）
+- **修复**: 重写 `SubwayMapView.tsx`，使用动态 `<script>` 标签加载地铁图JS，通过 callback 回调通知加载完成，全局状态管理避免重复加载
+- **涉及文件**: `client/src/components/Map/SubwayMapView.tsx`
+
+#### 7. 多边形区域搜索UI遮挡问题
+- **根因**:
+  - 手机端：搜索栏在 `bottom: 20` 被底部tab栏遮挡
+  - 电脑端：结果面板在 `right: 12` 被添加地点右边栏遮挡
+- **修复**:
+  - 搜索栏从底部移到顶部（按钮栏下方，`top: 48/56`）
+  - 结果面板从右侧移到左侧（`left: 8/12`），避免被右侧栏遮挡
+  - 手机端宽度 `calc(100% - 16px)`，桌面端固定 280px
+  - 所有字体/间距按 `isMobile` 分别适配
+- **涉及文件**: `client/src/components/Map/MapViewAMap.tsx`
+
 ## 2026-06-17 修复高德新功能测试反馈 v3.0.22-cn.27
 
 ### Bug修复

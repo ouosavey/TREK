@@ -657,14 +657,20 @@ export default function PlaceInspector({
                 label={<span className="hidden sm:inline">导航</span>} />
             )
           })()}
-          {((place.website && place.website.trim()) || (googleDetails?.website && googleDetails.website.trim())) && (
-            <ActionButton onClick={() => {
-              let url = (place.website && place.website.trim()) || (googleDetails?.website && googleDetails.website.trim()) || ''
-              if (url && !/^https?:\/\//i.test(url)) url = 'http://' + url
-              window.open(url, '_blank', 'noopener')
-            }} variant="ghost" icon={<ExternalLink size={13} />}
-              label={<span className="hidden sm:inline">{t('inspector.website')}</span>} />
-          )}
+          {(() => {
+            // 安全地获取 website 字符串（字段可能为 null/undefined/数字等非字符串类型）
+            const rawWebsite = place.website ?? googleDetails?.website
+            const websiteStr = typeof rawWebsite === 'string' ? rawWebsite.trim() : ''
+            if (!websiteStr) return null
+            return (
+              <ActionButton onClick={() => {
+                let url = websiteStr
+                if (url && !/^https?:\/\//i.test(url)) url = 'http://' + url
+                window.open(url, '_blank', 'noopener')
+              }} variant="ghost" icon={<ExternalLink size={13} />}
+                label={<span className="hidden sm:inline">{t('inspector.website')}</span>} />
+            )
+          })()}
           <div style={{ flex: 1 }} />
           <ActionButton onClick={onEdit} variant="ghost" icon={<Edit2 size={13} />} label={<span className="hidden sm:inline">{t('common.edit')}</span>} />
           <ActionButton onClick={onDelete} variant="danger" icon={<Trash2 size={13} />} label={<span className="hidden sm:inline">{t('common.delete')}</span>} />

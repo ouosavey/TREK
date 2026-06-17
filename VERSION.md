@@ -1,5 +1,28 @@
 # VERSION
 
+## v3.0.22-cn.28 - 2026-06-17
+
+### 变更
+修复高德新功能第二轮测试反馈问题：
+1. 修复点击地点黑屏（website字段非字符串时调用.trim()崩溃）
+2. 修复"打开网站"按钮：无网址时不显示（类型安全检查）
+3. 完全删除3D地图视图功能（不实用）
+4. 修复公交线路查询500错误（线路名去除所有括号方向信息 + 服务端重试机制）
+5. 修复公交路线查询500错误（无路线时返回空结果而非抛错）
+6. 修复地铁图JS API加载失败（改用独立script标签加载subway.js，非AMap.plugin）
+7. 修复多边形区域搜索UI：搜索栏从底部移到顶部（避免被tab栏遮挡），结果面板从右侧移到左侧（避免被添加地点栏遮挡），电脑/手机分别适配
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Planner/PlaceInspector.tsx`
+- `client/src/components/Map/MapViewAMap.tsx`
+- `client/src/components/Map/SubwayMapView.tsx`
+- `client/src/components/Planner/TransitRoutePanel.tsx`
+- `server/src/services/mapsService.ts`
+
 ## v3.0.22-cn.27 - 2026-06-17
 
 ### 变更

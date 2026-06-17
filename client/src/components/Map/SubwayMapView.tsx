@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import AMapLoader from '@amap/amap-jsapi-loader'
 import { X, Loader2 } from 'lucide-react'
 import { useSettingsStore } from '../../store/settingsStore'
 
@@ -42,31 +41,58 @@ interface SubwayMapViewProps {
   onClose: () => void
 }
 
-// ── AMap 命名空间类型简写（loader 注入的全局对象）─────────────────────
 /* eslint-disable @typescript-eslint/no-explicit-any */
-type AMapNS = any
 type SubwayInstance = any
 
+// 全局脚本加载状态管理（避免重复加载）
+let scriptLoadPromise: Promise<void> | null = null
+let scriptLoaded = false
+
+function loadSubwayScript(key: string): Promise<void> {
+  if (scriptLoaded) return Promise.resolve()
+  if (scriptLoadPromise) return scriptLoadPromise
+
+  scriptLoadPromise = new Promise<void>((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = `https://webapi.amap.com/subway?v=1.0&key=${key}&callback=initSubway`
+    script.async = true
+
+    // 高德地铁图 JS 通过 callback 回调通知加载完成
+    ;(window as any).initSubway = () => {
+      scriptLoaded = true
+      resolve()
+    }
+
+    script.onerror = () => {
+      scriptLoadPromise = null
+      reject(new Error('Failed to load subway script'))
+    }
+
+    // 超时兜底（10秒）
+    setTimeout(() => {
+      if (!scriptLoaded) {
+        scriptLoadPromise = null
+        reject(new Error('Subway script load timeout'))
+      }
+    }, 10000)
+
+    document.head.appendChild(script)
+  })
+
+  return scriptLoadPromise
+}
+
 export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
-  // 从设置 store 获取高德密钥与安全密钥
   const amapKey = useSettingsStore(s => s.settings.amap_key || '')
   const amapSecurityCode = useSettingsStore(s => s.settings.amap_security_code || '')
 
-  // 默认选择第一个城市（北京）
   const [selectedAdcode, setSelectedAdcode] = useState<string>(SUBWAY_CITIES[0].adcode)
-  // 加载状态：true 表示正在加载地铁图
   const [loading, setLoading] = useState<boolean>(false)
-  // 加载错误信息（如有）
   const [errorMsg, setErrorMsg] = useState<string>('')
 
-  // 地铁图容器 DOM 引用
   const containerRef = useRef<HTMLDivElement>(null)
-  // 当前地铁图实例引用（用于卸载时清理）
   const subwayRef = useRef<SubwayInstance | null>(null)
-  // AMap 命名空间引用（用于卸载时清理）
-  const AMapRef = useRef<AMapNS | null>(null)
 
-  // ── 加载地铁图的核心 effect：依赖 amapKey 与 selectedAdcode ──────────
   useEffect(() => {
     if (!amapKey || !containerRef.current) return
 
@@ -78,74 +104,62 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
     setLoading(true)
     setErrorMsg('')
 
-    AMapLoader.load({
-      key: amapKey,
-      version: '2.0',
-      plugins: [],
-    })
-      .then((AMap: AMapNS) => {
+    loadSubwayScript(amapKey)
+      .then(() => {
         if (destroyed || !containerRef.current) return
-        AMapRef.current = AMap
 
-        // Load Subway plugin separately
-        AMap.plugin('AMap.Subway', () => {
-          if (destroyed || !containerRef.current) return
-
-          try {
-            const subway = new AMap.Subway(containerRef.current, selectedAdcode, {
-              easy: 1,
-            })
-            subwayRef.current = subway
-
-            subway.event.on('subwayComplete', () => {
-              if (destroyed) return
-              setLoading(false)
-            })
-
-            subway.event.on('subwayFail', () => {
-              if (destroyed) return
-              setErrorMsg('地铁图数据加载失败，该城市可能暂不支持')
-              setLoading(false)
-            })
-
-            subway.event.on('subwayClick', (_ev: any) => {
-              // 点击站点时的回调占位
-            })
-          } catch (err) {
-            if (destroyed) return
-            console.error('[SubwayMapView] Failed to create Subway instance:', err)
-            setErrorMsg('地铁图加载失败，请检查密钥配置是否正确')
-            setLoading(false)
-          }
-        })
-
-        // Timeout fallback: if subway doesn't load in 10 seconds, show error
-        const timeout = setTimeout(() => {
-          if (destroyed) return
-          if (subwayRef.current) return // already loaded
+        // 地铁图全局对象为 Subway（不是 AMap.Subway）
+        const SubwayNS = (window as any).Subway
+        if (!SubwayNS) {
+          setErrorMsg('地铁图组件未就绪，请刷新重试')
           setLoading(false)
-          setErrorMsg('地铁图加载超时，请检查网络连接')
-        }, 10000)
-        // Store timeout for cleanup
-        ;(containerRef.current as any).__subwayTimeout = timeout
+          return
+        }
+
+        try {
+          // 清理旧实例
+          if (subwayRef.current) {
+            try { subwayRef.current.destroy?.() } catch { /* 忽略 */ }
+            subwayRef.current = null
+          }
+          // 清空容器
+          containerRef.current.innerHTML = ''
+
+          const subway = new SubwayNS(containerRef.current, selectedAdcode, {
+            easy: 1,
+          })
+          subwayRef.current = subway
+
+          subway.event.on('subwayComplete', () => {
+            if (destroyed) return
+            setLoading(false)
+          })
+
+          subway.event.on('subwayFail', () => {
+            if (destroyed) return
+            setErrorMsg('地铁图数据加载失败，该城市可能暂不支持')
+            setLoading(false)
+          })
+        } catch (err) {
+          if (destroyed) return
+          console.error('[SubwayMapView] Failed to create Subway instance:', err)
+          setErrorMsg('地铁图加载失败，请检查密钥配置是否正确')
+          setLoading(false)
+        }
       })
       .catch((err: any) => {
         if (destroyed) return
-        console.error('[SubwayMapView] AMap load failed:', err)
+        console.error('[SubwayMapView] Script load failed:', err)
         setErrorMsg('地铁图加载失败，请检查网络或密钥配置')
         setLoading(false)
       })
 
     return () => {
       destroyed = true
-      if (containerRef.current && (containerRef.current as any).__subwayTimeout) {
-        clearTimeout((containerRef.current as any).__subwayTimeout)
-      }
       if (subwayRef.current) {
         try { subwayRef.current.destroy?.() } catch { /* 忽略销毁异常 */ }
         subwayRef.current = null
       }
-      AMapRef.current = null
     }
   }, [amapKey, amapSecurityCode, selectedAdcode])
 
@@ -155,10 +169,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       <div
         style={{
           position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
+          top: 0, left: 0, right: 0, bottom: 0,
           zIndex: 2000,
           background: '#ffffff',
           display: 'flex',
@@ -197,10 +208,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
     <div
       style={{
         position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
+        top: 0, left: 0, right: 0, bottom: 0,
         zIndex: 2000,
         background: '#ffffff',
         display: 'flex',
@@ -272,15 +280,12 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       <div style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
         <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 
-        {/* 加载中遮罩：显示 loading 动画 */}
+        {/* 加载中遮罩 */}
         {loading && (
           <div
             style={{
               position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
+              top: 0, left: 0, right: 0, bottom: 0,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -302,10 +307,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
           <div
             style={{
               position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
+              top: 0, left: 0, right: 0, bottom: 0,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',

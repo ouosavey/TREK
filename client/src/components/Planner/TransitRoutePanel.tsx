@@ -245,8 +245,15 @@ function TimelineTransit({ segment }: { segment: TransitSegment }) {
     setLineDetailError(null)
     try {
       const city = await getCityFromSegment()
-      // 去掉线路名中的方向信息，如"地铁1号线(四惠东方向)" → "地铁1号线"
-      const cleanLineName = (segment.lineName || '').replace(/\([^)]*方向\)$/, '').replace(/\([^)]*路\)$/, '')
+      // 去掉线路名中的所有括号及方向信息
+      // 如 "地铁1号线(四惠东方向)" → "地铁1号线"
+      // 如 "轨道3号线(沌阳大道--宏图大道)" → "轨道3号线"
+      // 如 "夜行518路(佳园路光谷创业街--武昌火车站综合体)" → "夜行518路"
+      const cleanLineName = (segment.lineName || '')
+        .replace(/\([^)]*\)/g, '')  // 去掉所有括号内容
+        .replace(/——.*$/, '')        // 去掉破折号后的方向描述
+        .replace(/--.*$/, '')        // 去掉双横线后的方向描述
+        .trim()
       const data = await mapsApi.busLineAmap(city, cleanLineName) as BusLineInfo
       setLineDetail(data)
       setLineDetailExpanded(true)

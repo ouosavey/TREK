@@ -1,7 +1,7 @@
 import { useEffect, useRef, useMemo, useState, createElement, memo } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import AMapLoader from '@amap/amap-jsapi-loader'
-import { Plane, Train, Ship, Car, Box, Search, X, Loader2 } from 'lucide-react'
+import { Plane, Train, Ship, Car, Search, X, Loader2 } from 'lucide-react'
 import SubwayMapView from './SubwayMapView'
 import { useSettingsStore } from '../../store/settingsStore'
 import { useAuthStore } from '../../store/authStore'
@@ -523,8 +523,6 @@ export const MapViewAMap = memo(function MapViewAMap({
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
   const isTouchDevice = typeof window !== 'undefined' && navigator.maxTouchPoints > 0
 
-  // 3D 视图状态
-  const [is3D, setIs3D] = useState(false)
   // IP 定位标记（只执行一次）
   const ipLocatedRef = useRef(false)
   // 地铁图视图
@@ -538,19 +536,6 @@ export const MapViewAMap = memo(function MapViewAMap({
   const [searchLoading, setSearchLoading] = useState(false)                   // 搜索中
   const [showKeywordInput, setShowKeywordInput] = useState(false)             // 是否显示关键词输入框
   const [showResultsPanel, setShowResultsPanel] = useState(true)              // 结果面板是否展开
-
-  // 3D 视图切换
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map) return
-    try {
-      if (is3D) {
-        map.setPitch(55)
-      } else {
-        map.setPitch(0)
-      }
-    } catch { /* 地图未就绪时忽略 */ }
-  }, [is3D])
 
   // 同步 polygonSearchActive 到 ref，供地图事件回调使用
   useEffect(() => {
@@ -686,7 +671,6 @@ export const MapViewAMap = memo(function MapViewAMap({
         center: gcj,
         zoom,
         resizeEnable: true,
-        viewMode: '3D',
         mapStyle: 'amap://styles/normal',
       })
       mapRef.current = map
@@ -1736,26 +1720,6 @@ export const MapViewAMap = memo(function MapViewAMap({
           padding: isMobile ? '3px 4px' : '4px 6px',
           boxShadow: '0 2px 12px rgba(0,0,0,0.12)',
         }}>
-          {/* 3D button */}
-          <button
-            onClick={() => setIs3D(v => !v)}
-            style={{
-              width: isMobile ? 32 : 36,
-              height: isMobile ? 32 : 36,
-              borderRadius: 6,
-              border: 'none',
-              background: is3D ? '#3b82f6' : 'transparent',
-              color: is3D ? 'white' : '#374151',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              transition: 'background 0.2s',
-            }}
-            title={is3D ? '切换到2D视图' : '切换到3D视图'}
-          >
-            <Box size={isMobile ? 16 : 18} />
-          </button>
           {/* Polygon search button */}
           <button
             onClick={handleTogglePolygonSearch}
@@ -1806,39 +1770,41 @@ export const MapViewAMap = memo(function MapViewAMap({
           />
         )}
 
-        {/* 多边形区域搜索 - 底部工具栏 */}
+        {/* 多边形区域搜索 - 顶部工具栏（在按钮栏下方，避免被底部tab栏和右侧栏遮挡） */}
         {polygonSearchActive && (
           <div style={{
             position: 'absolute',
-            bottom: 20,
+            top: isMobile ? 48 : 56,
             left: '50%',
             transform: 'translateX(-50%)',
             zIndex: 200,
             background: 'rgba(255,255,255,0.98)',
-            borderRadius: 12,
+            borderRadius: 10,
             boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
-            padding: '10px 14px',
+            padding: isMobile ? '8px 10px' : '10px 14px',
             display: 'flex',
             alignItems: 'center',
-            gap: 10,
+            gap: isMobile ? 6 : 10,
             fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif",
-            maxWidth: '90%',
+            maxWidth: isMobile ? '92%' : '90%',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
           }}>
             {!showKeywordInput ? (
               <>
-                <span style={{ fontSize: 13, color: '#374151', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                  已添加 {polygonPoints.length} 个顶点{polygonPoints.length < 3 ? '（至少需要3个）' : ''}
+                <span style={{ fontSize: isMobile ? 11 : 13, color: '#374151', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                  已添加 {polygonPoints.length} 个顶点{polygonPoints.length < 3 ? '（至少3个）' : ''}
                 </span>
                 <button
                   onClick={handleCompletePolygonSearch}
                   disabled={polygonPoints.length < 3}
                   style={{
-                    padding: '6px 14px',
+                    padding: isMobile ? '5px 10px' : '6px 14px',
                     borderRadius: 6,
                     border: 'none',
                     background: polygonPoints.length >= 3 ? '#3b82f6' : '#d1d5db',
                     color: 'white',
-                    fontSize: 13,
+                    fontSize: isMobile ? 11 : 13,
                     fontWeight: 600,
                     cursor: polygonPoints.length >= 3 ? 'pointer' : 'not-allowed',
                     display: 'flex',
@@ -1846,18 +1812,18 @@ export const MapViewAMap = memo(function MapViewAMap({
                     gap: 4,
                   }}
                 >
-                  <Search size={14} />
+                  <Search size={isMobile ? 12 : 14} />
                   完成搜索
                 </button>
                 <button
                   onClick={handleCancelPolygonSearch}
                   style={{
-                    padding: '6px 14px',
+                    padding: isMobile ? '5px 10px' : '6px 14px',
                     borderRadius: 6,
                     border: '1px solid #d1d5db',
                     background: 'white',
                     color: '#374151',
-                    fontSize: 13,
+                    fontSize: isMobile ? 11 : 13,
                     fontWeight: 500,
                     cursor: 'pointer',
                     display: 'flex',
@@ -1865,7 +1831,7 @@ export const MapViewAMap = memo(function MapViewAMap({
                     gap: 4,
                   }}
                 >
-                  <X size={14} />
+                  <X size={isMobile ? 12 : 14} />
                   取消
                 </button>
               </>
@@ -1876,15 +1842,15 @@ export const MapViewAMap = memo(function MapViewAMap({
                   value={searchKeywords}
                   onChange={e => setSearchKeywords(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && searchKeywords.trim() && !searchLoading) handlePerformSearch() }}
-                  placeholder="输入关键词，如：餐厅、酒店、景点"
+                  placeholder="输入关键词，如：餐厅、酒店"
                   autoFocus
                   style={{
                     flex: 1,
-                    minWidth: 200,
-                    padding: '6px 10px',
+                    minWidth: isMobile ? 120 : 200,
+                    padding: isMobile ? '5px 8px' : '6px 10px',
                     borderRadius: 6,
                     border: '1px solid #d1d5db',
-                    fontSize: 13,
+                    fontSize: isMobile ? 12 : 13,
                     outline: 'none',
                   }}
                 />
@@ -1892,12 +1858,12 @@ export const MapViewAMap = memo(function MapViewAMap({
                   onClick={handlePerformSearch}
                   disabled={!searchKeywords.trim() || searchLoading}
                   style={{
-                    padding: '6px 14px',
+                    padding: isMobile ? '5px 10px' : '6px 14px',
                     borderRadius: 6,
                     border: 'none',
                     background: searchKeywords.trim() && !searchLoading ? '#3b82f6' : '#d1d5db',
                     color: 'white',
-                    fontSize: 13,
+                    fontSize: isMobile ? 11 : 13,
                     fontWeight: 600,
                     cursor: searchKeywords.trim() && !searchLoading ? 'pointer' : 'not-allowed',
                     display: 'flex',
@@ -1905,18 +1871,18 @@ export const MapViewAMap = memo(function MapViewAMap({
                     gap: 4,
                   }}
                 >
-                  {searchLoading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Search size={14} />}
+                  {searchLoading ? <Loader2 size={isMobile ? 12 : 14} style={{ animation: 'spin 1s linear infinite' }} /> : <Search size={isMobile ? 12 : 14} />}
                   {searchLoading ? '搜索中' : '搜索'}
                 </button>
                 <button
                   onClick={() => { setShowKeywordInput(false); setSearchKeywords('') }}
                   style={{
-                    padding: '6px 14px',
+                    padding: isMobile ? '5px 10px' : '6px 14px',
                     borderRadius: 6,
                     border: '1px solid #d1d5db',
                     background: 'white',
                     color: '#374151',
-                    fontSize: 13,
+                    fontSize: isMobile ? 11 : 13,
                     fontWeight: 500,
                     cursor: 'pointer',
                   }}
@@ -1928,15 +1894,15 @@ export const MapViewAMap = memo(function MapViewAMap({
           </div>
         )}
 
-        {/* 搜索结果列表面板（可折叠） */}
+        {/* 搜索结果列表面板 - 左侧显示（避免被右侧添加地点栏遮挡） */}
         {searchResults.length > 0 && !polygonSearchActive && (
           <div style={{
             position: 'absolute',
-            top: 100,
-            right: 12,
+            top: isMobile ? 48 : 56,
+            left: isMobile ? 8 : 12,
             zIndex: 150,
-            width: 280,
-            maxHeight: '60%',
+            width: isMobile ? 'calc(100% - 16px)' : 280,
+            maxHeight: isMobile ? '40%' : '60%',
             background: 'rgba(255,255,255,0.98)',
             borderRadius: 10,
             boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
@@ -1982,29 +1948,29 @@ export const MapViewAMap = memo(function MapViewAMap({
               </div>
             </div>
             {showResultsPanel && (
-              <div style={{ overflowY: 'auto', flex: 1 }}>
+              <div style={{ overflowY: 'auto', flex: 1, WebkitOverflowScrolling: 'touch' }}>
                 {searchResults.map((place, idx) => (
                   <div
                     key={idx}
                     onClick={() => handleResultItemClick(place)}
                     style={{
-                      padding: '8px 14px',
+                      padding: isMobile ? '6px 12px' : '8px 14px',
                       cursor: 'pointer',
                       borderBottom: '1px solid #f5f5f5',
                     }}
                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#f0f7ff'}
                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
                   >
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: isMobile ? 12 : 12, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {place.name || '未知'}
                     </div>
                     {place.address && (
-                      <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: isMobile ? 10 : 10, color: '#6b7280', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {place.address}
                       </div>
                     )}
                     {place.category && (
-                      <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 1 }}>
+                      <div style={{ fontSize: isMobile ? 9 : 10, color: '#9ca3af', marginTop: 1 }}>
                         {place.category}
                       </div>
                     )}
