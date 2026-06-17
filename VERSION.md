@@ -1,5 +1,23 @@
 # VERSION
 
+## v3.0.22-cn.34 - 2026-06-18
+
+### 变更
+修复地铁图 JS API 加载失败（subway 实例创建失败 - querySelector 选择器无效）：
+- 根因：`subway(id, opts)` 第一个参数应为容器的 **id 字符串**，而非 DOM 元素。代码错误传入了 `containerRef.current`（DOM 元素），高德 API 内部做 `'#' + container` 拼接得到 `'#[object HTMLDivElement]'`，导致 `document.querySelector('#[object HTMLDivElement]')` 抛出 SyntaxError
+- 修复：
+  1. 给容器 div 添加固定 `id="subway-map-container"`
+  2. `subway()` 调用改为传入 id 字符串：`subwayFn('subway-map-container', { adcode, easy: 1 })`
+  3. 修复超时逻辑闭包 bug：用局部变量 `loadCompleted` 跟踪加载状态，避免闭包里 `loading` 永远为 `true` 导致误报超时
+- 官方文档参考：https://lbs.amap.com/api/subway-api/mobility-reference（subway(id,opts) 其中 id 为容器的 id）
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+
 ## v3.0.22-cn.33 - 2026-06-17
 
 ### 变更

@@ -44,13 +44,20 @@ interface SubwayMapViewProps {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+// 容器 id（高德地铁图 API 的 subway() 第一个参数要求传入容器的 id 字符串，不是 DOM 元素）
+const SUBWAY_CONTAINER_ID = 'subway-map-container'
+
 /**
  * 高德地铁图 JS API 组件
  *
  * 官方文档：https://lbs.amap.com/api/subway-api/subway-summary
+ * 参考手册：https://lbs.amap.com/api/subway-api/mobility-reference
  *
  * 实现方式：直接在主文档中加载地铁图脚本（不用 iframe，避免 sandbox 和 frameSrc CSP 问题）。
- * 关键点：subway 全局函数仅在 cbk 回调内可用，必须在 cbk 内创建实例。
+ * 关键点：
+ * 1. subway 全局函数仅在 cbk 回调内可用，必须在 cbk 内创建实例。
+ * 2. subway(id, opts) 的第一个参数是容器的 **id 字符串**（不是 DOM 元素），
+ *    官方示例：var mysubway = subway("mysubway", {easy: 1});
  */
 export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
   const amapKey = useSettingsStore(s => s.settings.amap_key || '')
@@ -73,6 +80,8 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
     }
 
     let destroyed = false
+    // 用局部变量跟踪加载是否完成，避免闭包过期问题（setLoading 是异步的，闭包里的 loading 值不会更新）
+    let loadCompleted = false
     setLoading(true)
     setErrorMsg('')
 
@@ -100,6 +109,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
         if (!subwayFn || typeof subwayFn !== 'function') {
           console.error('[SubwayMapView] subway function not found in cbk callback')
           setErrorMsg('地铁图组件未就绪，请检查密钥是否已开通地铁图服务')
+          loadCompleted = true
           setLoading(false)
           return
         }
@@ -107,8 +117,11 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
         // 清空容器
         containerRef.current.innerHTML = ''
 
-        // 创建地铁图实例：subway(container, { adcode, easy: 1 })
-        const subway = subwayFn(containerRef.current, {
+        // 创建地铁图实例：subway(id, opts)
+        // ⚠️ 重要：第一个参数是容器的 **id 字符串**，不是 DOM 元素！
+        // 官方示例：var mysubway = subway("mysubway", {easy: 1});
+        // 参考手册：subway(id,opts) 其中id为容器的id
+        const subway = subwayFn(SUBWAY_CONTAINER_ID, {
           adcode: selectedAdcode,
           easy: 1,
         })
@@ -117,18 +130,21 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
         // 地铁图加载完成事件（事件名是 "subway.complete"，带点）
         subway.event.on('subway.complete', () => {
           if (destroyed) return
+          loadCompleted = true
           setLoading(false)
           setErrorMsg('')
         })
 
         subway.event.on('subway.fail', () => {
           if (destroyed) return
+          loadCompleted = true
           setErrorMsg('地铁图数据加载失败，该城市可能暂不支持')
           setLoading(false)
         })
       } catch (err) {
         if (destroyed) return
         console.error('[SubwayMapView] Failed to create subway instance:', err)
+        loadCompleted = true
         setErrorMsg('地铁图加载失败：' + String(err))
         setLoading(false)
       }
@@ -145,6 +161,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
     script.onerror = () => {
       if (destroyed) return
       console.error('[SubwayMapView] Script load error (network)')
+      loadCompleted = true
       setErrorMsg('地铁图脚本加载失败，请检查网络连接')
       setLoading(false)
     }
@@ -152,10 +169,12 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
     document.head.appendChild(script)
 
     // ── 超时兜底（15秒）────────────────────────────────────────────
+    // 用局部变量 loadCompleted 判断，而不是闭包里的 loading（loading 不会随 setState 更新）
     const timeoutId = setTimeout(() => {
       if (destroyed) return
-      if (loading) {
+      if (!loadCompleted) {
         console.error('[SubwayMapView] Load timeout (15s)')
+        loadCompleted = true
         setErrorMsg('地铁图加载超时，请检查网络或密钥配置')
         setLoading(false)
       }
@@ -295,7 +314,8 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
 
       {/* ── 地铁图显示区域 ──────────────────────────────────────────── */}
       <div style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
-        <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+        {/* 容器必须有 id，高德地铁图 API 的 subway(id, opts) 通过 id 查找此元素 */}
+        <div id={SUBWAY_CONTAINER_ID} ref={containerRef} style={{ width: '100%', height: '100%' }} />
 
         {/* 加载中遮罩 */}
         {loading && !errorMsg && (
