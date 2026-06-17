@@ -1,5 +1,15 @@
 # VERSION
 
+## v3.0.22-cn.23 - 2026-06-17
+
+### 变更
+- 自动补全选择后异步调用详情接口获取完整信息（website/phone/image_url/category）
+- 自动分类匹配：高德一级分类 → 项目分类映射表（20个分类）
+- 添加地点时自动匹配已有分类或创建新分类
+- 服务端searchAmap/getPlaceDetails新增amap_typecode字段
+
+---
+
 ## v3.0.22-cn.22 - 2026-06-17
 
 ### 变更

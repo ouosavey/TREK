@@ -12,6 +12,31 @@ import { useTranslation } from '../../i18n'
 import CustomTimePicker from '../shared/CustomTimePicker'
 import type { Place, Category, Assignment } from '../../types'
 
+// 高德一级分类 → 项目分类映射表（方案C：预置映射）
+// 高德共23个一级分类，这里映射旅行相关的分类
+const AMAP_CATEGORY_MAP: Record<string, { name: string; icon: string; color: string }> = {
+  '餐饮服务': { name: '餐饮', icon: 'UtensilsCrossed', color: '#f97316' },
+  '住宿服务': { name: '住宿', icon: 'BedDouble', color: '#8b5cf6' },
+  '风景名胜': { name: '景点', icon: 'Landmark', color: '#eab308' },
+  '购物服务': { name: '购物', icon: 'ShoppingBag', color: '#ec4899' },
+  '交通设施服务': { name: '交通', icon: 'Bus', color: '#3b82f6' },
+  '生活服务': { name: '生活', icon: 'Home', color: '#14b8a6' },
+  '体育休闲服务': { name: '休闲', icon: 'Activity', color: '#22c55e' },
+  '医疗保健服务': { name: '医疗', icon: 'Cross', color: '#ef4444' },
+  '文化体育服务': { name: '文化', icon: 'Theater', color: '#a855f7' },
+  '科教文化服务': { name: '教育', icon: 'Library', color: '#6366f1' },
+  '金融保险服务': { name: '金融', icon: 'CreditCard', color: '#0ea5e9' },
+  '汽车服务': { name: '汽车', icon: 'Car', color: '#64748b' },
+  '汽车维修': { name: '汽车', icon: 'Car', color: '#64748b' },
+  '汽车销售': { name: '汽车', icon: 'Car', color: '#64748b' },
+  '商务住宅': { name: '商务', icon: 'Building2', color: '#475569' },
+  '政府机构及社会团体': { name: '政府', icon: 'Flag', color: '#78716c' },
+  '公司企业': { name: '公司', icon: 'Building2', color: '#475569' },
+  '公共设施': { name: '设施', icon: 'MapPin', color: '#94a3b8' },
+  '宗教': { name: '宗教', icon: 'Church', color: '#a16207' },
+  '自然地物': { name: '自然', icon: 'TreePine', color: '#16a34a' },
+}
+
 interface PlaceFormData {
   name: string
   description: string
@@ -315,7 +340,7 @@ export default function PlaceFormModal({
     }
   }
 
-  const handleSelectMapsResult = (result) => {
+  const handleSelectMapsResult = async (result) => {
     // 确保 phone 是字符串（AMap 可能返回数组）
     const phoneStr = Array.isArray(result.phone) ? result.phone.join(',') : (result.phone || '')
     setForm(prev => ({
@@ -330,6 +355,30 @@ export default function PlaceFormModal({
       phone: phoneStr,
       image_url: result.photo_url || result.image_url || prev.image_url,
     }))
+
+    // 自动分类匹配：根据高德一级分类匹配已有分类或创建新分类
+    const amapCategory = result.category
+    if (amapCategory && !form.category_id) {
+      const mapping = AMAP_CATEGORY_MAP[amapCategory]
+      if (mapping) {
+        // 1. 先在已有分类中查找名称匹配的
+        const existingCat = categories?.find(c => c.name === mapping.name)
+        if (existingCat) {
+          setForm(prev => ({ ...prev, category_id: String(existingCat.id) }))
+        } else {
+          // 2. 没有匹配的分类，自动创建
+          try {
+            const newCat = await onCategoryCreated?.({ name: mapping.name, color: mapping.color, icon: mapping.icon })
+            if (newCat) {
+              setForm(prev => ({ ...prev, category_id: String(newCat.id) }))
+            }
+          } catch (err) {
+            console.warn('[PlaceFormModal] Failed to auto-create category:', err)
+          }
+        }
+      }
+    }
+
     setMapsResults([])
     setMapsSearch('')
   }
@@ -339,7 +388,7 @@ export default function PlaceFormModal({
     setAcHighlight(-1)
     const previousSearch = mapsSearch
     setMapsSearch('')
-    // 高德建议：直接从建议数据填充（已包含lat/lng/address）
+    // 高德建议：先快速填充基本信息，再异步获取详情补全 website/phone/image_url 等
     if (suggestion.placeId.startsWith('amap:') && (suggestion.lat != null || suggestion.address)) {
       setForm(prev => ({
         ...prev,
@@ -349,6 +398,19 @@ export default function PlaceFormModal({
         lng: suggestion.lng != null ? String(suggestion.lng) : prev.lng,
         osm_id: suggestion.placeId,
       }))
+      // 异步获取详情补全缺失字段
+      setIsSearchingMaps(true)
+      try {
+        const result = await mapsApi.details(suggestion.placeId, language)
+        if (result.place) {
+          handleSelectMapsResult(result.place)
+        }
+      } catch (err) {
+        // 详情获取失败不影响已填充的基本信息
+        console.warn('[PlaceFormModal] Failed to fetch AMap place details:', err)
+      } finally {
+        setIsSearchingMaps(false)
+      }
       return
     }
     // Google/OSM 建议：调用详情接口

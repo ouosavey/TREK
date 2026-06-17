@@ -527,6 +527,8 @@ export async function getPlaceDetails(userId: number, placeId: string, lang?: st
         opening_hours: poi.biz_ext?.open_time ? [poi.biz_ext.open_time] : null,
         open_now: null,
         google_maps_url: null,
+        category: poi.type ? poi.type.split(';')[0] : null,
+        amap_typecode: poi.typecode || null,
         summary: poi.type || null,
         reviews: [],
         source: 'amap',
@@ -939,6 +941,7 @@ export async function searchAmap(query: string, city?: string, lang?: string, us
       website: poi.website || null,
       phone: (Array.isArray(poi.tel) ? poi.tel.join(',') : poi.tel) || null,
       category: poi.type ? poi.type.split(';')[0] : null,
+      amap_typecode: poi.typecode || null,
       photo_url: poi.photos?.[0]?.url || null,
       source: 'amap',
     }

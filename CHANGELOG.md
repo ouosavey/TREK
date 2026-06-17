@@ -1,5 +1,25 @@
 # CHANGELOG
 
+## 2026-06-17 自动补全获取完整信息+自动分类匹配 v3.0.22-cn.23
+
+### 新功能
+
+#### 1. 自动补全选择后获取完整信息（方案B）
+- **问题**: 自动补全（输入文字下拉建议）选择地点后只填充基本信息（名称/地址/坐标），缺少 website/phone/image_url 等
+- **修复**: 选择 AMap 建议后，先用建议数据快速填充基本信息，再异步调用 `/v3/place/detail` 获取完整信息（website/phone/image_url/category 等），用 `handleSelectMapsResult` 补全缺失字段
+- **效果**: 两种搜索方式现在都能获取到完整信息，包括网址、电话、图片
+- **涉及文件**: `client/src/components/Planner/PlaceFormModal.tsx`
+
+#### 2. 自动分类匹配（方案C：预置映射表）
+- **功能**: 添加地点时，根据高德返回的一级分类自动匹配或创建项目分类
+- **映射表**: 20个高德一级分类 → 项目分类映射（餐饮/住宿/景点/购物/交通/生活/休闲/医疗/文化/教育/金融/汽车/商务/政府/公司/设施/宗教/自然）
+- **逻辑**:
+  1. 先在已有分类中查找名称匹配的 → 自动选中
+  2. 没有匹配 → 自动创建新分类（名称/图标/颜色按映射表）→ 自动选中
+  3. 仅在用户未手动选择分类时自动填充
+- **服务端**: `searchAmap` 和 `getPlaceDetails` 新增返回 `amap_typecode` 字段
+- **涉及文件**: `client/src/components/Planner/PlaceFormModal.tsx`, `server/src/services/mapsService.ts`
+
 ## 2026-06-17 修复搜索按钮添加地点报Failed to create place（phone字段为数组）v3.0.22-cn.22
 
 ### Bug修复
