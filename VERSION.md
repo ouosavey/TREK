@@ -1,5 +1,30 @@
 # VERSION
 
+## v3.0.22-cn.25 - 2026-06-17
+
+### 变更
+- 修复网址跳转将http强制改为https的问题，保留原始协议
+- 扩展分类映射：新增飞机/火车/船舶/轨道交通分类（基于高德typecode二级分类精确匹配）
+- 修复左侧计划栏地点显示分类图标而非图片（assignmentService/dayService缺少osm_id字段）
+- mapsService返回完整category字符串（不再截取一级分类）
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Planner/PlaceInspector.tsx`
+- `client/src/constants/amapCategories.ts`
+- `client/src/components/Planner/PlaceFormModal.tsx`
+- `client/src/pages/TripPlannerPage.tsx`
+- `server/src/services/mapsService.ts`
+- `server/src/services/assignmentService.ts`
+- `server/src/services/dayService.ts`
+- `server/src/services/queryHelpers.ts`
+- `server/src/types.ts`
+
+---
+
 ## v3.0.22-cn.24 - 2026-06-17
 
 ### 变更

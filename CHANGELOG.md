@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## 2026-06-17 修复网址协议+扩展分类映射+修复左侧图片 v3.0.22-cn.25
+
+### Bug修复
+
+#### 1. 修复网址跳转将http强制改为https的问题
+- **问题**: 黄鹤楼等网站的网址是http://，项目强制改为https://导致无法打开
+- **修复**: 保留原始协议，只在完全没有协议前缀时才添加http://
+- **涉及文件**: `client/src/components/Planner/PlaceInspector.tsx`
+
+#### 2. 扩展分类映射（二级分类精确匹配）
+- **需求**: 飞机场→飞机、火车站→火车、码头→船舶、汽车站→汽车、地铁→轨道交通
+- **实现**:
+  - 新增`AMAP_TYPECODE_MAP`二级分类映射表，基于高德typecode前4位精确匹配
+  - 新增`findAmapCategoryMapping()`函数，优先按typecode匹配，回退到一级分类
+  - mapsService返回完整category字符串（不再截取一级分类），保留二级分类信息
+- **新增分类**: 飞机、火车、船舶、轨道交通
+- **涉及文件**: `client/src/constants/amapCategories.ts`, `client/src/components/Planner/PlaceFormModal.tsx`, `server/src/services/mapsService.ts`, `client/src/pages/TripPlannerPage.tsx`
+
+#### 3. 修复左侧计划栏地点显示分类图标而非图片
+- **根因**: `assignmentService.ts`和`dayService.ts`的SQL查询和返回对象缺少`osm_id`字段
+- **影响**: 左侧DayPlanSidebar中的PlaceAvatar无法通过photoService获取AMap地点图片（因为缺少`amap:BVXXX`格式的osm_id）
+- **修复**: 在所有返回assignment.place的SQL查询和格式化函数中添加osm_id字段
+- **涉及文件**: `server/src/services/assignmentService.ts`, `server/src/services/dayService.ts`, `server/src/services/queryHelpers.ts`, `server/src/types.ts`
+
 ## 2026-06-17 修复网址跳转+地址省市区+分类自动创建 v3.0.22-cn.24
 
 ### Bug修复
