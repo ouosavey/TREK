@@ -635,7 +635,11 @@ export default function PlaceInspector({
               label={<span className="hidden sm:inline">高德地图</span>} />
           )}
           {(place.website || googleDetails?.website) && (
-            <ActionButton onClick={() => window.open(place.website || googleDetails?.website, '_blank')} variant="ghost" icon={<ExternalLink size={13} />}
+            <ActionButton onClick={() => {
+              let url = place.website || googleDetails?.website || ''
+              if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url
+              window.open(url, '_blank')
+            }} variant="ghost" icon={<ExternalLink size={13} />}
               label={<span className="hidden sm:inline">{t('inspector.website')}</span>} />
           )}
           <div style={{ flex: 1 }} />

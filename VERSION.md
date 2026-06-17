@@ -1,5 +1,28 @@
 # VERSION
 
+## v3.0.22-cn.24 - 2026-06-17
+
+### 变更
+- 修复地点网站跳转打开项目本身网址（添加https://前缀检查）
+- 修复详细地址缺少省市区信息（searchAmap统一拼接完整地址）
+- 修复高德一级分类未自动创建（TripPlannerPage加载时自动创建缺失分类）
+- 提取AMAP_CATEGORY_MAP到共享文件amapCategories.ts
+- 清理placeService.ts调试日志
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Planner/PlaceInspector.tsx`
+- `server/src/services/mapsService.ts`
+- `client/src/constants/amapCategories.ts` (新建)
+- `client/src/components/Planner/PlaceFormModal.tsx`
+- `client/src/pages/TripPlannerPage.tsx`
+- `server/src/services/placeService.ts`
+
+---
+
 ## v3.0.22-cn.23 - 2026-06-17
 
 ### 变更

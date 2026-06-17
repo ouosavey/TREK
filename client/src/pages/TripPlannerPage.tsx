@@ -41,6 +41,7 @@ import { usePlaceSelection } from '../hooks/usePlaceSelection'
 import { usePlannerHistory } from '../hooks/usePlannerHistory'
 import type { Accommodation, TripMember, Day, Place, Reservation, PackingItem, TodoItem } from '../types'
 import { ListTodo, Upload, Plus, Trash2, FolderPlus } from 'lucide-react'
+import { AMAP_CATEGORY_MAP } from '../constants/amapCategories'
 
 function ListsContainer({ tripId, packingItems, todoItems }: { tripId: number; packingItems: PackingItem[]; todoItems: TodoItem[] }) {
   const [subTab, setSubTab] = useState<'packing' | 'todo'>(() => {
@@ -207,6 +208,25 @@ export default function TripPlannerPage(): React.ReactElement | null {
   const [tripAccommodations, setTripAccommodations] = useState<Accommodation[]>([])
   const [allowedFileTypes, setAllowedFileTypes] = useState<string | null>(null)
   const [tripMembers, setTripMembers] = useState<TripMember[]>([])
+
+  // Auto-create AMap category mappings that don't exist yet
+  const amapCategoriesInitialized = useRef(false)
+  useEffect(() => {
+    if (amapCategoriesInitialized.current || !categories || !tripId) return
+    // Wait for categories to be loaded (non-empty or explicitly empty after load)
+    if (categories.length === 0 && !trip) return
+    amapCategoriesInitialized.current = true
+
+    const existingNames = new Set(categories.map(c => c.name))
+    const missingMappings = Object.values(AMAP_CATEGORY_MAP).filter(m => !existingNames.has(m.name))
+    // Deduplicate by name (multiple AMap categories may map to same project category)
+    const seen = new Set<string>()
+    for (const mapping of missingMappings) {
+      if (seen.has(mapping.name)) continue
+      seen.add(mapping.name)
+      tripActions.addCategory?.({ name: mapping.name, color: mapping.color, icon: mapping.icon }).catch(() => {})
+    }
+  }, [categories, tripId, trip])
 
   const loadAccommodations = useCallback(() => {
     if (tripId) {

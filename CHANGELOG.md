@@ -1,5 +1,38 @@
 # CHANGELOG
 
+## 2026-06-17 修复网址跳转+地址省市区+分类自动创建 v3.0.22-cn.24
+
+### Bug修复
+
+#### 1. 修复地点网站跳转打开的是项目本身网址
+- **问题**: 点击地点弹窗中的"打开网站"按钮，跳转到项目网址后面拼接地点网址（相对路径）
+- **根因**: AMap返回的website字段缺少`http://`前缀，浏览器当作相对路径处理
+- **修复**: `PlaceInspector.tsx`中`window.open`前添加URL协议前缀检查，缺少`https://`时自动补全
+- **涉及文件**: `client/src/components/Planner/PlaceInspector.tsx`
+
+#### 2. 修复详细地址缺少省市区信息
+- **问题**: 两种搜索方式选择地点后，详细地址都缺少省市区信息
+- **根因**: `searchAmap`中address字段使用`poi.address || poi.pname + poi.cityname + poi.adname + poi.address`，当`poi.address`存在时跳过了省市区前缀
+- **修复**: 统一改为`[poi.pname, poi.cityname, poi.adname, poi.address].filter(Boolean).join('')`，始终拼接完整地址
+- **涉及文件**: `server/src/services/mapsService.ts`
+
+#### 3. 修复高德一级分类未自动创建
+- **问题**: 方案C只在添加地点时触发分类创建，用户期望更新后就能看到分类里自动创建了高德的一级分类
+- **修复**:
+  - 将`AMAP_CATEGORY_MAP`从`PlaceFormModal.tsx`提取到共享文件`client/src/constants/amapCategories.ts`
+  - 在`TripPlannerPage.tsx`中添加`useEffect`，在分类列表加载后自动检查并创建缺失的映射分类
+  - 使用`useRef`确保只初始化一次，避免重复创建
+- **涉及文件**: `client/src/constants/amapCategories.ts`(新建), `client/src/components/Planner/PlaceFormModal.tsx`, `client/src/pages/TripPlannerPage.tsx`
+
+#### 4. 清理调试日志
+- 移除`placeService.ts`中`createPlace`入口的`console.log`调试日志
+
+### 关于左侧计划栏地点图片
+- 方案B修复后，新添加的地点会有`image_url`（AMap照片URL）
+- 旧数据没有`image_url`，`PlaceAvatar`会通过`photoService`异步获取（通过`amap:`前缀的osm_id调用服务端`getPlacePhoto`）
+- 如果AMap照片URL因CORS/防盗链无法直接加载，`PlaceAvatar`的`onError`会自动回退到`photoService`代理获取
+- 新添加的地点应该能正常显示图片，旧地点可能需要重新添加
+
 ## 2026-06-17 自动补全获取完整信息+自动分类匹配 v3.0.22-cn.23
 
 ### 新功能
