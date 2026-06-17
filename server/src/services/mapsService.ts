@@ -1663,8 +1663,8 @@ export async function getAmapBusLineInfo(
     lineName: line.name || lineName,
     totalDistance: line.total_distance || null,
     totalStops: allStops.length || viaStopNames.length + 2,
-    firstTime: line.start_time || null,
-    lastTime: line.end_time || null,
+    firstTime: line.start_time ? line.start_time.replace(/^(\d{1,2})(\d{2})$/, '$1:$2') : null,
+    lastTime: line.end_time ? line.end_time.replace(/^(\d{1,2})(\d{2})$/, '$1:$2') : null,
     stops: allStops,
     basicStops,
   };

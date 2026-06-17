@@ -68,10 +68,8 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
 
   // ── 加载地铁图的核心 effect：依赖 amapKey 与 selectedAdcode ──────────
   useEffect(() => {
-    // 未配置 amap_key 时直接返回，由渲染分支显示提示
     if (!amapKey || !containerRef.current) return
 
-    // 加载前设置安全密钥配置
     if (amapSecurityCode) {
       ;(window as any)._AMapSecurityConfig = { securityJsCode: amapSecurityCode }
     }
@@ -83,29 +81,53 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
     AMapLoader.load({
       key: amapKey,
       version: '2.0',
-      plugins: ['AMap.Subway'],
+      plugins: [],
     })
       .then((AMap: AMapNS) => {
-        // 组件已卸载则放弃后续操作
         if (destroyed || !containerRef.current) return
         AMapRef.current = AMap
 
-        // 创建地铁图实例：传入容器、adcode 与 easy 模式
-        const subway = new AMap.Subway(containerRef.current, selectedAdcode, {
-          easy: 1,
-        })
-        subwayRef.current = subway
+        // Load Subway plugin separately
+        AMap.plugin('AMap.Subway', () => {
+          if (destroyed || !containerRef.current) return
 
-        // 地铁图加载完成事件
-        subway.event.on('subwayComplete', () => {
+          try {
+            const subway = new AMap.Subway(containerRef.current, selectedAdcode, {
+              easy: 1,
+            })
+            subwayRef.current = subway
+
+            subway.event.on('subwayComplete', () => {
+              if (destroyed) return
+              setLoading(false)
+            })
+
+            subway.event.on('subwayFail', () => {
+              if (destroyed) return
+              setErrorMsg('地铁图数据加载失败，该城市可能暂不支持')
+              setLoading(false)
+            })
+
+            subway.event.on('subwayClick', (_ev: any) => {
+              // 点击站点时的回调占位
+            })
+          } catch (err) {
+            if (destroyed) return
+            console.error('[SubwayMapView] Failed to create Subway instance:', err)
+            setErrorMsg('地铁图加载失败，请检查密钥配置是否正确')
+            setLoading(false)
+          }
+        })
+
+        // Timeout fallback: if subway doesn't load in 10 seconds, show error
+        const timeout = setTimeout(() => {
           if (destroyed) return
+          if (subwayRef.current) return // already loaded
           setLoading(false)
-        })
-
-        // 站点点击事件（保留钩子，便于后续扩展）
-        subway.event.on('subwayClick', (_ev: any) => {
-          // 点击站点时的回调占位
-        })
+          setErrorMsg('地铁图加载超时，请检查网络连接')
+        }, 10000)
+        // Store timeout for cleanup
+        ;(containerRef.current as any).__subwayTimeout = timeout
       })
       .catch((err: any) => {
         if (destroyed) return
@@ -114,9 +136,11 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
         setLoading(false)
       })
 
-    // ── 卸载清理：销毁地铁图实例，避免内存泄漏 ──────────────────────
     return () => {
       destroyed = true
+      if (containerRef.current && (containerRef.current as any).__subwayTimeout) {
+        clearTimeout((containerRef.current as any).__subwayTimeout)
+      }
       if (subwayRef.current) {
         try { subwayRef.current.destroy?.() } catch { /* 忽略销毁异常 */ }
         subwayRef.current = null

@@ -1,5 +1,29 @@
 # VERSION
 
+## v3.0.22-cn.27 - 2026-06-17
+
+### 变更
+修复6项高德新功能的测试反馈问题：
+1. 修复"打开网站"按钮无网址时仍显示（增加空字符串/空白检查）
+2. 修复URI API导航在HarmonyOS 6.1无法调起高德APP（优先使用androidamap://深度链接，降级到uri.amap.com）
+3. 修复3D地图视图不生效（地图初始化添加viewMode:'3D'）+ 按钮被右侧栏遮挡
+4. 修复公交首末班时间格式（"0600"→"06:00"）+ 站点列表标注上/下车站 + 北京线路查不到（去掉"市"后缀+去掉方向信息）
+5. 修复地铁图JS API加载失败（改用AMap.plugin单独加载+超时兜底+subwayFail事件）
+6. 功能按钮从右侧纵向移到顶部居中横向排列（毛玻璃背景+移动端适配）
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Planner/PlaceInspector.tsx`
+- `client/src/components/Map/MapViewAMap.tsx`
+- `client/src/components/Map/SubwayMapView.tsx`
+- `client/src/components/Planner/TransitRoutePanel.tsx`
+- `server/src/services/mapsService.ts`
+
+---
+
 ## v3.0.22-cn.26 - 2026-06-17
 
 ### 变更

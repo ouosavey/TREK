@@ -686,6 +686,7 @@ export const MapViewAMap = memo(function MapViewAMap({
         center: gcj,
         zoom,
         resizeEnable: true,
+        viewMode: '3D',
         mapStyle: 'amap://styles/normal',
       })
       mapRef.current = map
@@ -1719,81 +1720,83 @@ export const MapViewAMap = memo(function MapViewAMap({
     <>
       <div className="w-full h-full relative" style={{ isolation: 'isolate', transform: 'translateZ(0)' }}>
         <div ref={containerRef} className="w-full h-full" />
-        {/* 3D 视图切换按钮 */}
-        <button
-          onClick={() => setIs3D(v => !v)}
-          style={{
-            position: 'absolute',
-            right: 12,
-            top: 12,
-            zIndex: 100,
-            width: 36,
-            height: 36,
-            borderRadius: 8,
-            border: 'none',
-            background: is3D ? '#3b82f6' : 'rgba(255,255,255,0.95)',
-            color: is3D ? 'white' : '#374151',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-            transition: 'background 0.2s',
-          }}
-          title={is3D ? '切换到2D视图' : '切换到3D视图'}
-        >
-          <Box size={18} />
-        </button>
-        {/* 区域搜索按钮（3D按钮下方） */}
-        <button
-          onClick={handleTogglePolygonSearch}
-          style={{
-            position: 'absolute',
-            right: 12,
-            top: 56,
-            zIndex: 100,
-            width: 36,
-            height: 36,
-            borderRadius: 8,
-            border: 'none',
-            background: polygonSearchActive ? '#3b82f6' : 'rgba(255,255,255,0.95)',
-            color: polygonSearchActive ? 'white' : '#374151',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-            transition: 'background 0.2s',
-          }}
-          title={polygonSearchActive ? '退出区域搜索' : '区域搜索'}
-        >
-          <Search size={18} />
-        </button>
-        {/* 地铁图按钮（区域搜索按钮下方） */}
-        <button
-          onClick={() => setShowSubway(true)}
-          style={{
-            position: 'absolute',
-            right: 12,
-            top: 100,
-            zIndex: 100,
-            width: 36,
-            height: 36,
-            borderRadius: 8,
-            border: 'none',
-            background: 'rgba(255,255,255,0.95)',
-            color: '#374151',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-            transition: 'background 0.2s',
-          }}
-          title="地铁图"
-        >
-          <Train size={18} />
-        </button>
+        {/* 功能按钮栏 - 顶部居中横向排列 */}
+        <div style={{
+          position: 'absolute',
+          top: isMobile ? 8 : 12,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 100,
+          display: 'flex',
+          gap: 4,
+          background: 'rgba(255,255,255,0.92)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          borderRadius: isMobile ? 8 : 10,
+          padding: isMobile ? '3px 4px' : '4px 6px',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.12)',
+        }}>
+          {/* 3D button */}
+          <button
+            onClick={() => setIs3D(v => !v)}
+            style={{
+              width: isMobile ? 32 : 36,
+              height: isMobile ? 32 : 36,
+              borderRadius: 6,
+              border: 'none',
+              background: is3D ? '#3b82f6' : 'transparent',
+              color: is3D ? 'white' : '#374151',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'background 0.2s',
+            }}
+            title={is3D ? '切换到2D视图' : '切换到3D视图'}
+          >
+            <Box size={isMobile ? 16 : 18} />
+          </button>
+          {/* Polygon search button */}
+          <button
+            onClick={handleTogglePolygonSearch}
+            style={{
+              width: isMobile ? 32 : 36,
+              height: isMobile ? 32 : 36,
+              borderRadius: 6,
+              border: 'none',
+              background: polygonSearchActive ? '#3b82f6' : 'transparent',
+              color: polygonSearchActive ? 'white' : '#374151',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'background 0.2s',
+            }}
+            title={polygonSearchActive ? '退出区域搜索' : '区域搜索'}
+          >
+            <Search size={isMobile ? 16 : 18} />
+          </button>
+          {/* Subway button */}
+          <button
+            onClick={() => setShowSubway(true)}
+            style={{
+              width: isMobile ? 32 : 36,
+              height: isMobile ? 32 : 36,
+              borderRadius: 6,
+              border: 'none',
+              background: 'transparent',
+              color: '#374151',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'background 0.2s',
+            }}
+            title="地铁图"
+          >
+            <Train size={isMobile ? 16 : 18} />
+          </button>
+        </div>
         {isMobile && (
           <LocationButton
             mode={trackingMode}

@@ -221,11 +221,14 @@ function TimelineTransit({ segment }: { segment: TransitSegment }) {
     try {
       const [gcjLng, gcjLat] = wgs84ToGcj02(lng, lat)
       const regeo = await mapsApi.reverseAmap(gcjLat, gcjLng)
-      if (regeo.city) return regeo.city
+      let city = regeo.city || ''
+      // 去掉"市"后缀（高德API有时返回"北京市"，但公交线路查询需要"北京"）
+      city = city.replace(/市$/, '')
+      if (city) return city
       // 从完整地址中正则提取城市名
       if (regeo.address) {
-        const cityMatch = regeo.address.match(/^([\u4e00-\u9fa5]+(?:市|自治州|地区|盟))/)
-        if (cityMatch) return cityMatch[1].replace(/市$/, '')
+        const cityMatch = regeo.address.match(/^([\u4e00-\u9fa5]+?)(?:市|自治州|地区|盟)/)
+        if (cityMatch) return cityMatch[1]
       }
     } catch { /* 忽略，回退到默认值 */ }
     return '全国'
@@ -242,7 +245,9 @@ function TimelineTransit({ segment }: { segment: TransitSegment }) {
     setLineDetailError(null)
     try {
       const city = await getCityFromSegment()
-      const data = await mapsApi.busLineAmap(city, segment.lineName!) as BusLineInfo
+      // 去掉线路名中的方向信息，如"地铁1号线(四惠东方向)" → "地铁1号线"
+      const cleanLineName = (segment.lineName || '').replace(/\([^)]*方向\)$/, '').replace(/\([^)]*路\)$/, '')
+      const data = await mapsApi.busLineAmap(city, cleanLineName) as BusLineInfo
       setLineDetail(data)
       setLineDetailExpanded(true)
     } catch (err: unknown) {
@@ -424,19 +429,25 @@ function TimelineTransit({ segment }: { segment: TransitSegment }) {
                       {lineDetail.stops.map((stop, i) => {
                         const isFirst = i === 0
                         const isLast = i === lineDetail.stops.length - 1
+                        const isBoarding = stop.name === segment.departureStop
+                        const isAlighting = stop.name === segment.arrivalStop
+                        const isSegmentEnd = isBoarding || isAlighting
+                        const isHighlight = isFirst || isLast || isSegmentEnd
                         return (
                           <div key={i} style={{
                             display: 'flex', alignItems: 'center', gap: 6,
                             padding: '3px 0', fontSize: 11,
-                            color: isFirst || isLast ? 'var(--text-primary)' : 'var(--text-secondary)',
-                            fontWeight: isFirst || isLast ? 600 : 400,
+                            color: isHighlight ? 'var(--text-primary)' : 'var(--text-secondary)',
+                            fontWeight: isHighlight ? 600 : 400,
                           }}>
                             <span style={{
                               width: 6, height: 6, borderRadius: '50%',
-                              background: isFirst ? '#22c55e' : isLast ? '#ef4444' : color,
+                              background: isBoarding ? '#22c55e' : isAlighting ? '#ef4444' : isFirst ? '#22c55e' : isLast ? '#ef4444' : color,
                               flexShrink: 0,
                             }} />
                             <span>{stop.name}</span>
+                            {isBoarding && <span style={{ fontSize: 9, color: '#22c55e', fontWeight: 500, marginLeft: 2 }}>上车</span>}
+                            {isAlighting && <span style={{ fontSize: 9, color: '#ef4444', fontWeight: 500, marginLeft: 2 }}>下车</span>}
                           </div>
                         )
                       })}

@@ -1,5 +1,46 @@
 # CHANGELOG
 
+## 2026-06-17 修复高德新功能测试反馈 v3.0.22-cn.27
+
+### Bug修复
+
+#### 1. "打开网站"按钮无网址时仍显示
+- **根因**: `googleDetails?.website` 可能为空字符串，条件判断 `place.website || googleDetails?.website` 对空字符串为 truthy
+- **修复**: 增加 `.trim()` 检查，确保空字符串和纯空白字符串不触发按钮显示
+- **涉及文件**: `client/src/components/Planner/PlaceInspector.tsx`
+
+#### 2. URI API导航在HarmonyOS 6.1无法调起高德APP
+- **根因**: `https://uri.amap.com/navigation?callnative=1` 在 HarmonyOS 浏览器中无法调起高德APP
+- **修复**: 移动端优先使用 `androidamap://route/plan/` 深度链接，1.5秒后若未跳转则降级到 uri.amap.com 网页版
+- **涉及文件**: `client/src/components/Planner/PlaceInspector.tsx`
+
+#### 3. 3D地图视图不生效 + 按钮被遮挡
+- **根因1**: AMap `setPitch()` 需要 `viewMode: '3D'` 初始化参数才能生效
+- **修复1**: 地图初始化时添加 `viewMode: '3D'`
+- **根因2**: 3个功能按钮在右侧纵向排列，被添加地点右边栏遮挡
+- **修复2**: 按钮移到顶部居中横向排列，毛玻璃背景，移动端适配（按钮32x32，桌面36x36）
+- **涉及文件**: `client/src/components/Map/MapViewAMap.tsx`
+
+#### 4. 公交信息查询多项修复
+- **首末班时间格式**: AMap返回"0600"格式，正则替换为"06:00"
+- **站点列表标注**: 本段行程的上车站/下车站用绿色/红色圆点+"上车"/"下车"标签特别标注
+- **北京线路查不到**: 逆地理编码返回"北京市"但API需要"北京"（去掉"市"后缀）+ 线路名去掉方向信息如"地铁1号线(四惠东方向)"
+- **涉及文件**: `server/src/services/mapsService.ts`, `client/src/components/Planner/TransitRoutePanel.tsx`
+
+#### 5. 地铁图JS API加载失败
+- **根因**: `AMap.Subway` 是独立插件，不能通过 `AMapLoader.load({plugins: ['AMap.Subway']})` 加载
+- **修复**: 先加载AMap主库，再用 `AMap.plugin('AMap.Subway', callback)` 单独加载插件
+- **增强**: 添加10秒超时兜底 + `subwayFail` 事件监听 + try-catch异常捕获
+- **涉及文件**: `client/src/components/Map/SubwayMapView.tsx`
+
+#### 6. 功能按钮布局优化
+- 按钮从右侧纵向排列改为顶部居中横向排列
+- 毛玻璃背景效果（`backdropFilter: 'blur(8px)'`）
+- 移动端适配：按钮32x32，图标16px；桌面端36x36，图标18px
+- **涉及文件**: `client/src/components/Map/MapViewAMap.tsx`
+
+---
+
 ## 2026-06-17 新增6项高德地图功能 v3.0.22-cn.26
 
 ### 新功能

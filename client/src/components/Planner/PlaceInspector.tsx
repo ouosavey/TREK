@@ -633,15 +633,33 @@ export default function PlaceInspector({
           )}
           {place.lat && place.lng && (() => {
             const [gcjLng, gcjLat] = wgs84ToGcj02(place.lat, place.lng)
-            const navUrl = `https://uri.amap.com/navigation?to=${gcjLng},${gcjLat},${encodeURIComponent(place.name || '')}&mode=car&src=TREK&callnative=1`
+            const name = encodeURIComponent(place.name || '')
+            const deepLink = `androidamap://route/plan/?dlat=${gcjLat}&dlon=${gcjLng}&dname=${name}&dev=0&t=0&source=TREK`
+            const webUrl = `https://uri.amap.com/navigation?to=${gcjLng},${gcjLat},${name}&mode=car&src=TREK&callnative=1`
+            const isMobile = typeof window !== 'undefined' && /Mobi|Android|HarmonyOS/i.test(navigator.userAgent)
+            const handleNavigate = () => {
+              if (isMobile) {
+                // Try deep link first, fall back to web URL
+                const start = Date.now()
+                window.open(deepLink, '_blank')
+                setTimeout(() => {
+                  // If deep link didn't navigate away (app not installed), open web URL
+                  if (!document.hidden && Date.now() - start < 2000) {
+                    window.open(webUrl, '_blank')
+                  }
+                }, 1500)
+              } else {
+                window.open(webUrl, '_blank')
+              }
+            }
             return (
-              <ActionButton onClick={() => window.open(navUrl, '_blank')} variant="ghost" icon={<Navigation size={13} />}
+              <ActionButton onClick={handleNavigate} variant="ghost" icon={<Navigation size={13} />}
                 label={<span className="hidden sm:inline">导航</span>} />
             )
           })()}
-          {(place.website || googleDetails?.website) && (
+          {((place.website && place.website.trim()) || (googleDetails?.website && googleDetails.website.trim())) && (
             <ActionButton onClick={() => {
-              let url = place.website || googleDetails?.website || ''
+              let url = (place.website && place.website.trim()) || (googleDetails?.website && googleDetails.website.trim()) || ''
               if (url && !/^https?:\/\//i.test(url)) url = 'http://' + url
               window.open(url, '_blank', 'noopener')
             }} variant="ghost" icon={<ExternalLink size={13} />}
