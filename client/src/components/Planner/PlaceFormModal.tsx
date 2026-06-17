@@ -316,6 +316,8 @@ export default function PlaceFormModal({
   }
 
   const handleSelectMapsResult = (result) => {
+    // 确保 phone 是字符串（AMap 可能返回数组）
+    const phoneStr = Array.isArray(result.phone) ? result.phone.join(',') : (result.phone || '')
     setForm(prev => ({
       ...prev,
       name: result.name || prev.name,
@@ -325,7 +327,7 @@ export default function PlaceFormModal({
       google_place_id: result.google_place_id || prev.google_place_id,
       osm_id: result.osm_id || prev.osm_id,
       website: result.website || prev.website,
-      phone: result.phone || prev.phone,
+      phone: phoneStr,
       image_url: result.photo_url || result.image_url || prev.image_url,
     }))
     setMapsResults([])

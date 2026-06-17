@@ -1,5 +1,15 @@
 # VERSION
 
+## v3.0.22-cn.22 - 2026-06-17
+
+### 变更
+- 修复搜索按钮添加地点报"Failed to create place"（AMap tel字段返回数组导致SQL参数不匹配）
+- searchAmap: phone字段添加Array.isArray检查
+- createPlace/updatePlace: 添加sanitize()函数做类型安全处理
+- 前端handleSelectMapsResult: phone字段添加数组检查
+
+---
+
 ## v3.0.22-cn.21 - 2026-06-17
 
 ### 变更

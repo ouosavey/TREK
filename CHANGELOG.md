@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 2026-06-17 修复搜索按钮添加地点报Failed to create place（phone字段为数组）v3.0.22-cn.22
+
+### Bug修复
+
+#### 1. 修复搜索按钮添加地点报"Failed to create place"
+- **根因**: AMap搜索API返回的`poi.tel`字段可能是空数组`[]`，`[] || null` = `[]`（空数组是truthy），导致：
+  - 前端发送`phone: []`到服务端
+  - `better-sqlite3`无法正确处理数组参数，导致`RangeError: Too few parameter values were provided`
+- **修复**:
+  - `searchAmap`函数：`phone`字段添加`Array.isArray`检查，数组转为逗号分隔字符串
+  - `createPlace`/`updatePlace`：添加`sanitize()`函数，对所有值做类型安全处理（数组→字符串，空字符串→null）
+  - 前端`handleSelectMapsResult`：`phone`字段添加数组检查
+- **涉及文件**: `server/src/services/mapsService.ts`, `server/src/services/placeService.ts`, `client/src/components/Planner/PlaceFormModal.tsx`
+
 ## 2026-06-17 添加搜索按钮添加地点错误详情显示 v3.0.22-cn.21
 
 ### 调试改进

@@ -141,21 +141,29 @@ export function createPlace(
   const hasWebsite = placesHasColumn('website');
   const hasPhone = placesHasColumn('phone');
 
+  // 类型安全处理：确保所有值都是 string | number | null
+  const sanitize = (v: unknown): string | number | null => {
+    if (v === null || v === undefined || v === '') return null;
+    if (typeof v === 'string' || typeof v === 'number') return v;
+    if (Array.isArray(v)) return v.length > 0 ? v.join(',') : null;
+    return String(v);
+  };
+
   const columns = [
     'trip_id', 'name', 'description', 'lat', 'lng', 'address', 'category_id', 'price', 'currency',
     'place_time', 'end_time',
     'duration_minutes', 'notes', 'image_url',
   ];
   const values: (string | number | null)[] = [
-    tripId, name, description || null, lat || null, lng || null, address || null,
-    category_id || null, price || null, currency || null,
-    place_time || null, end_time || null, duration_minutes || 60, notes || null, image_url || null,
+    tripId, name, sanitize(description), sanitize(lat), sanitize(lng), sanitize(address),
+    sanitize(category_id), sanitize(price), sanitize(currency),
+    sanitize(place_time), sanitize(end_time), duration_minutes || 60, sanitize(notes), sanitize(image_url),
   ];
 
-  if (hasGooglePlaceId) { columns.push('google_place_id'); values.push(google_place_id || null); }
-  if (hasOsmId) { columns.push('osm_id'); values.push(osm_id || null); }
-  if (hasWebsite) { columns.push('website'); values.push(website || null); }
-  if (hasPhone) { columns.push('phone'); values.push(phone || null); }
+  if (hasGooglePlaceId) { columns.push('google_place_id'); values.push(sanitize(google_place_id)); }
+  if (hasOsmId) { columns.push('osm_id'); values.push(sanitize(osm_id)); }
+  if (hasWebsite) { columns.push('website'); values.push(sanitize(website)); }
+  if (hasPhone) { columns.push('phone'); values.push(sanitize(phone)); }
 
   columns.push('transport_mode');
   values.push(transport_mode || 'walking');
@@ -228,6 +236,14 @@ export function updatePlace(
   const hasWebsite = placesHasColumn('website');
   const hasPhone = placesHasColumn('phone');
 
+  // 类型安全处理：确保所有值都是 string | number | null
+  const sanitize = (v: unknown): string | number | null => {
+    if (v === null || v === undefined || v === '') return null;
+    if (typeof v === 'string' || typeof v === 'number') return v;
+    if (Array.isArray(v)) return v.length > 0 ? v.join(',') : null;
+    return String(v);
+  };
+
   const setClauses: string[] = [
     'name = COALESCE(?, name)',
     'description = ?',
@@ -244,36 +260,36 @@ export function updatePlace(
     'image_url = ?',
   ];
   const values: (string | number | null)[] = [
-    name || null,
-    description !== undefined ? description : existingPlace.description,
-    lat !== undefined ? lat : existingPlace.lat,
-    lng !== undefined ? lng : existingPlace.lng,
-    address !== undefined ? address : existingPlace.address,
-    category_id !== undefined ? category_id : existingPlace.category_id,
-    price !== undefined ? price : existingPlace.price,
-    currency || null,
-    place_time !== undefined ? place_time : existingPlace.place_time,
-    end_time !== undefined ? end_time : existingPlace.end_time,
+    sanitize(name),
+    description !== undefined ? sanitize(description) : existingPlace.description,
+    lat !== undefined ? sanitize(lat) : existingPlace.lat,
+    lng !== undefined ? sanitize(lng) : existingPlace.lng,
+    address !== undefined ? sanitize(address) : existingPlace.address,
+    category_id !== undefined ? sanitize(category_id) : existingPlace.category_id,
+    price !== undefined ? sanitize(price) : existingPlace.price,
+    sanitize(currency),
+    place_time !== undefined ? sanitize(place_time) : existingPlace.place_time,
+    end_time !== undefined ? sanitize(end_time) : existingPlace.end_time,
     duration_minutes || null,
-    notes !== undefined ? notes : existingPlace.notes,
-    image_url !== undefined ? image_url : existingPlace.image_url,
+    notes !== undefined ? sanitize(notes) : existingPlace.notes,
+    image_url !== undefined ? sanitize(image_url) : existingPlace.image_url,
   ];
 
   if (hasGooglePlaceId) {
     setClauses.push('google_place_id = ?');
-    values.push(google_place_id !== undefined ? google_place_id : existingPlace.google_place_id);
+    values.push(google_place_id !== undefined ? sanitize(google_place_id) : existingPlace.google_place_id);
   }
   if (hasOsmId) {
     setClauses.push('osm_id = ?');
-    values.push(osm_id !== undefined ? osm_id : existingPlace.osm_id);
+    values.push(osm_id !== undefined ? sanitize(osm_id) : existingPlace.osm_id);
   }
   if (hasWebsite) {
     setClauses.push('website = ?');
-    values.push(website !== undefined ? website : existingPlace.website);
+    values.push(website !== undefined ? sanitize(website) : existingPlace.website);
   }
   if (hasPhone) {
     setClauses.push('phone = ?');
-    values.push(phone !== undefined ? phone : existingPlace.phone);
+    values.push(phone !== undefined ? sanitize(phone) : existingPlace.phone);
   }
 
   setClauses.push('transport_mode = COALESCE(?, transport_mode)');
