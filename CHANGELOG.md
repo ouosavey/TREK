@@ -1,5 +1,53 @@
 # CHANGELOG
 
+## 2026-06-17 新增6项高德地图功能 v3.0.22-cn.26
+
+### 新功能
+
+#### 1. 功能8：URI API（调起高德地图APP导航）
+- 在地点弹窗中添加"导航"按钮，点击后调起高德地图APP或网页版进行导航
+- 使用高德URI API `https://uri.amap.com/navigation`，支持 `callnative=1` 调起原生APP
+- 自动将WGS-84坐标转换为GCJ-02坐标
+- **涉及文件**: `client/src/components/Planner/PlaceInspector.tsx`
+
+#### 2. 功能3：IP 定位（首次打开自动定位当前城市）
+- 地图首次加载时（默认中心为巴黎），自动调用高德IP定位API获取用户当前城市
+- 获取到位置后自动将地图中心移动到用户所在城市，zoom设为12
+- IP定位返回GCJ-02坐标，可直接用于AMap
+- **涉及文件**: `server/src/services/mapsService.ts`（新增`ipLocateAmap`函数）, `server/src/routes/maps.ts`（新增路由）, `client/src/api/client.ts`, `client/src/components/Map/MapViewAMap.tsx`
+
+#### 3. 功能12：3D 地图视图
+- 在地图右上角添加3D切换按钮（Box图标）
+- 点击切换2D/3D视图，3D模式下地图pitch设为55度
+- 使用AMap的`setPitch()`API实现平滑切换
+- **涉及文件**: `client/src/components/Map/MapViewAMap.tsx`
+
+#### 4. 功能4：多边形区域搜索（框选区域搜索POI）
+- 在地图右上角添加区域搜索按钮（Search图标）
+- 点击后进入绘制模式，用户在地图上点击添加多边形顶点
+- 实时显示多边形轮廓和顶点标记
+- 完成绘制后输入搜索关键词（如"餐厅"、"酒店"），搜索区域内POI
+- 搜索结果用蓝色圆点标记显示，可点击查看详情
+- 支持结果列表面板，点击列表项可定位到地图标记
+- **涉及文件**: `server/src/services/mapsService.ts`（新增`searchAmapPolygon`函数）, `server/src/routes/maps.ts`, `client/src/api/client.ts`, `client/src/components/Map/MapViewAMap.tsx`
+
+#### 5. 功能5：公交信息查询（站点/线路详情）
+- 在TransitRoutePanel中，每条公交/地铁线路段旁添加"查看线路"按钮
+- 点击后调用高德公交线路API获取完整线路信息
+- 显示线路名称、总站数、总距离、首末班时间
+- 完整站点列表（可滚动），首站绿色、末站红色高亮
+- 城市信息从线路坐标反查获取
+- **涉及文件**: `server/src/services/mapsService.ts`（新增`getAmapBusLineInfo`函数）, `server/src/routes/maps.ts`, `client/src/api/client.ts`, `client/src/components/Planner/TransitRoutePanel.tsx`
+
+#### 6. 功能6：地铁图 JS API（独立地铁线路图视图）
+- 新建`SubwayMapView`组件，使用高德`AMap.Subway`插件
+- 支持30个城市地铁图（北京、上海、广州、深圳、成都、杭州等）
+- 顶部城市选择器，选择后加载该城市地铁线路图
+- 全屏覆盖层显示，右上角关闭按钮
+- 加载状态和错误提示
+- 在地图右上角添加地铁图切换按钮（Train图标）
+- **涉及文件**: `client/src/components/Map/SubwayMapView.tsx`（新建）, `client/src/components/Map/MapViewAMap.tsx`
+
 ## 2026-06-17 修复网址协议+扩展分类映射+修复左侧图片 v3.0.22-cn.25
 
 ### Bug修复

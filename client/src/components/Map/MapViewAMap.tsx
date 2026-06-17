@@ -1,13 +1,15 @@
 import { useEffect, useRef, useMemo, useState, createElement, memo } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import AMapLoader from '@amap/amap-jsapi-loader'
-import { Plane, Train, Ship, Car } from 'lucide-react'
+import { Plane, Train, Ship, Car, Box, Search, X, Loader2 } from 'lucide-react'
+import SubwayMapView from './SubwayMapView'
 import { useSettingsStore } from '../../store/settingsStore'
 import { useAuthStore } from '../../store/authStore'
 import { getCached, isLoading, fetchPhoto, onThumbReady, getAllThumbs } from '../../services/photoService'
 import { CATEGORY_ICON_MAP, getCategoryIcon } from '../shared/categoryIcons'
 import { wgs84ToGcj02, wgs84ToGcj02Batch, gcj02ToWgs84 } from '../../utils/coordTransform'
 import LocationButton from './LocationButton'
+import { mapsApi } from '../../api/client'
 import { useGeolocation } from '../../hooks/useGeolocation'
 import type { Place, Reservation, ReservationEndpoint, RouteSegment } from '../../types'
 import type { GeoPosition, TrackingMode } from '../../hooks/useGeolocation'
@@ -446,6 +448,13 @@ export const MapViewAMap = memo(function MapViewAMap({
   const reservationEndpointMarkersRef = useRef<AMapMarkerType[]>([])
   const reservationStatsMarkersRef = useRef<{ marker: AMapMarkerType; arc: [number, number][] }[]>([])
 
+  // 多边形区域搜索相关 ref
+  const polygonRef = useRef<any>(null)                              // AMap.Polygon 实例
+  const polygonVertexMarkersRef = useRef<AMapMarkerType[]>([])      // 多边形顶点标记
+  const searchResultMarkersRef = useRef<AMapMarkerType[]>([])       // 搜索结果标记
+  const polygonSearchActiveRef = useRef(false)                      // 供地图事件回调读取的 ref
+  const polygonInfoWindowRef = useRef<any>(null)                    // 搜索结果信息窗口
+
   const onClickRefs = useRef({ marker: onMarkerClick, map: onMapClick, context: onMapContextMenu })
   onClickRefs.current.marker = onMarkerClick
   onClickRefs.current.map = onMapClick
@@ -513,6 +522,93 @@ export const MapViewAMap = memo(function MapViewAMap({
   const [hoveredPlace, setHoveredPlace] = useState<any>(null)
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
   const isTouchDevice = typeof window !== 'undefined' && navigator.maxTouchPoints > 0
+
+  // 3D 视图状态
+  const [is3D, setIs3D] = useState(false)
+  // IP 定位标记（只执行一次）
+  const ipLocatedRef = useRef(false)
+  // 地铁图视图
+  const [showSubway, setShowSubway] = useState(false)
+
+  // 多边形区域搜索状态
+  const [polygonSearchActive, setPolygonSearchActive] = useState(false)       // 是否处于绘制模式
+  const [polygonPoints, setPolygonPoints] = useState<[number, number][]>([])  // 多边形顶点（GCJ-02 [lng, lat]）
+  const [searchKeywords, setSearchKeywords] = useState('')                    // 搜索关键词
+  const [searchResults, setSearchResults] = useState<any[]>([])               // 搜索结果
+  const [searchLoading, setSearchLoading] = useState(false)                   // 搜索中
+  const [showKeywordInput, setShowKeywordInput] = useState(false)             // 是否显示关键词输入框
+  const [showResultsPanel, setShowResultsPanel] = useState(true)              // 结果面板是否展开
+
+  // 3D 视图切换
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    try {
+      if (is3D) {
+        map.setPitch(55)
+      } else {
+        map.setPitch(0)
+      }
+    } catch { /* 地图未就绪时忽略 */ }
+  }, [is3D])
+
+  // 同步 polygonSearchActive 到 ref，供地图事件回调使用
+  useEffect(() => {
+    polygonSearchActiveRef.current = polygonSearchActive
+  }, [polygonSearchActive])
+
+  // ── 多边形区域搜索：绘制多边形轮廓和顶点标记 ──────────────────────
+  useEffect(() => {
+    const AMap = AMapRef.current
+    const map = mapRef.current
+    if (!AMap || !map) return
+
+    // 清理旧的多边形和顶点标记
+    if (polygonRef.current) { try { polygonRef.current.setMap(null) } catch {} polygonRef.current = null }
+    polygonVertexMarkersRef.current.forEach(m => { try { m.setMap(null) } catch {} })
+    polygonVertexMarkersRef.current = []
+
+    if (!polygonSearchActive || polygonPoints.length === 0) return
+
+    // 绘制多边形轮廓（2个点以上显示连线，3个点以上显示填充区域）
+    if (polygonPoints.length >= 2) {
+      const path = polygonPoints.map(([lng, lat]) => new AMap.LngLat(lng, lat))
+      try {
+        const polygon = new AMap.Polygon({
+          path,
+          strokeColor: '#3b82f6',
+          strokeWeight: 2,
+          strokeOpacity: 0.9,
+          fillColor: '#3b82f6',
+          fillOpacity: 0.12,
+          zIndex: 50,
+        })
+        polygon.setMap(map)
+        polygonRef.current = polygon
+      } catch { /* ignore */ }
+    }
+
+    // 绘制顶点标记（蓝色圆点）
+    for (const [lng, lat] of polygonPoints) {
+      const el = document.createElement('div')
+      el.style.cssText = `
+        width:12px;height:12px;border-radius:50%;
+        background:#3b82f6;border:2px solid white;
+        box-shadow:0 1px 4px rgba(0,0,0,0.3);
+        pointer-events:none;
+      `
+      try {
+        const marker = new AMap.Marker({
+          position: new AMap.LngLat(lng, lat),
+          content: el,
+          offset: new AMap.Pixel(-6, -6),
+          zIndex: 120,
+        })
+        marker.setMap(map)
+        polygonVertexMarkersRef.current.push(marker)
+      } catch { /* ignore */ }
+    }
+  }, [polygonPoints, polygonSearchActive])
 
   // ── Initialize AMap ──────────────────────────────────────────────────
   useEffect(() => {
@@ -594,6 +690,18 @@ export const MapViewAMap = memo(function MapViewAMap({
       })
       mapRef.current = map
 
+      // ── IP 定位：首次加载且 center 为默认值（巴黎）时自动定位 ──────
+      if (!ipLocatedRef.current && center[0] === 48.8566 && center[1] === 2.3522) {
+        ipLocatedRef.current = true
+        mapsApi.ipLocateAmap().then((data: any) => {
+          if (data?.center && !destroyed && mapRef.current) {
+            // IP 定位返回 GCJ-02 坐标，可直接用于 AMap
+            mapRef.current.setCenter([data.center.lng, data.center.lat])
+            mapRef.current.setZoom(12)
+          }
+        }).catch(() => {})
+      }
+
       // ── Map-instance-level coordinate safety wrappers ───────────────
       // Even though we patched AMap.LngLat/Pixel constructors above, the SDK
       // has internal code paths that bypass constructors (e.g., Object.create,
@@ -669,14 +777,21 @@ export const MapViewAMap = memo(function MapViewAMap({
         } catch {}
       }, 200)
 
-      // Click handler — convert GCJ-02 back to WGS-84
+      // Click handler — 多边形搜索模式添加顶点，否则转换 GCJ-02 → WGS-84 并回调
       map.on('click', (e: any) => {
+        if (polygonSearchActiveRef.current) {
+          const lng = e.lnglat.getLng()
+          const lat = e.lnglat.getLat()
+          setPolygonPoints(prev => [...prev, [lng, lat]])
+          return
+        }
         const [wgsLng, wgsLat] = gcj02ToWgs84(e.lnglat.getLng(), e.lnglat.getLat())
         onClickRefs.current.map?.({ latlng: { lat: wgsLat, lng: wgsLng } })
       })
 
-      // Right-click handler
+      // Right-click handler — 绘制模式时禁用右键菜单
       map.on('rightclick', (e: any) => {
+        if (polygonSearchActiveRef.current) return
         if (!onClickRefs.current.context) return
         const [wgsLng, wgsLat] = gcj02ToWgs84(e.lnglat.getLng(), e.lnglat.getLat())
         onClickRefs.current.context({
@@ -762,6 +877,13 @@ export const MapViewAMap = memo(function MapViewAMap({
       gpxPolylinesRef.current = []
       clearLocationMarkers()
       clearReservationOverlays()
+      // 清理多边形区域搜索相关图形
+      if (polygonRef.current) { try { polygonRef.current.setMap(null) } catch {} polygonRef.current = null }
+      polygonVertexMarkersRef.current.forEach(m => { try { m.setMap(null) } catch {} })
+      polygonVertexMarkersRef.current = []
+      searchResultMarkersRef.current.forEach(m => { try { m.setMap(null) } catch {} })
+      searchResultMarkersRef.current = []
+      if (polygonInfoWindowRef.current) { try { polygonInfoWindowRef.current.close() } catch {} polygonInfoWindowRef.current = null }
       if (mapRef.current) { try { mapRef.current.destroy() } catch {} mapRef.current = null }
       AMapRef.current = null
     }
@@ -1414,6 +1536,166 @@ export const MapViewAMap = memo(function MapViewAMap({
     }
   }, [visibleReservations, showReservationStats, showEndpointLabels])
 
+  // ── 多边形区域搜索：处理函数 ────────────────────────────────────────
+
+  // 清理所有多边形搜索相关的临时图形
+  function clearPolygonSearchOverlays() {
+    if (polygonRef.current) { try { polygonRef.current.setMap(null) } catch {} polygonRef.current = null }
+    polygonVertexMarkersRef.current.forEach(m => { try { m.setMap(null) } catch {} })
+    polygonVertexMarkersRef.current = []
+    searchResultMarkersRef.current.forEach(m => { try { m.setMap(null) } catch {} })
+    searchResultMarkersRef.current = []
+    if (polygonInfoWindowRef.current) { try { polygonInfoWindowRef.current.close() } catch {} polygonInfoWindowRef.current = null }
+  }
+
+  // 切换区域搜索模式（按钮点击）
+  function handleTogglePolygonSearch() {
+    if (polygonSearchActive) {
+      handleCancelPolygonSearch()
+    } else {
+      // 开始新的搜索：清理之前的结果
+      clearPolygonSearchOverlays()
+      setSearchResults([])
+      setSearchKeywords('')
+      setPolygonPoints([])
+      setShowKeywordInput(false)
+      setPolygonSearchActive(true)
+    }
+  }
+
+  // 完成绘制，显示关键词输入框
+  function handleCompletePolygonSearch() {
+    if (polygonPoints.length < 3) return
+    setShowKeywordInput(true)
+  }
+
+  // 执行区域搜索
+  async function handlePerformSearch() {
+    if (!searchKeywords.trim() || polygonPoints.length < 3) return
+    setSearchLoading(true)
+    // 清理旧的搜索结果标记
+    searchResultMarkersRef.current.forEach(m => { try { m.setMap(null) } catch {} })
+    searchResultMarkersRef.current = []
+
+    try {
+      // GCJ-02 → WGS-84 转换后传给后端 API
+      const wgsPolygon = polygonPoints.map(([lng, lat]) => {
+        const [wgsLng, wgsLat] = gcj02ToWgs84(lng, lat)
+        return { lat: wgsLat, lng: wgsLng }
+      })
+      const data = await mapsApi.searchPolygonAmap(wgsPolygon, searchKeywords.trim())
+      const places = (data?.places || []) as any[]
+      setSearchResults(places)
+      setShowResultsPanel(true)
+
+      // 清理多边形绘制图形（保留搜索结果标记）
+      if (polygonRef.current) { try { polygonRef.current.setMap(null) } catch {} polygonRef.current = null }
+      polygonVertexMarkersRef.current.forEach(m => { try { m.setMap(null) } catch {} })
+      polygonVertexMarkersRef.current = []
+
+      // 退出绘制模式
+      setPolygonSearchActive(false)
+      setShowKeywordInput(false)
+
+      // 在地图上添加搜索结果标记（蓝色圆点样式）
+      const AMap = AMapRef.current
+      const map = mapRef.current
+      if (!AMap || !map) return
+
+      // 创建/重置信息窗口
+      if (polygonInfoWindowRef.current) { try { polygonInfoWindowRef.current.close() } catch {} }
+      polygonInfoWindowRef.current = new AMap.InfoWindow({
+        offset: new AMap.Pixel(0, -16),
+        closeWhenClickMap: true,
+      })
+
+      for (const place of places) {
+        if (!place.lat || !place.lng) continue
+        // 后端返回的坐标是 GCJ-02（来自高德 API），可直接用于 AMap
+        const gcjLng = place.lng
+        const gcjLat = place.lat
+
+        const el = document.createElement('div')
+        el.style.cssText = `
+          width:14px;height:14px;border-radius:50%;
+          background:#3b82f6;border:2px solid white;
+          box-shadow:0 1px 4px rgba(0,0,0,0.3);
+          cursor:pointer;
+        `
+        try {
+          const marker = new AMap.Marker({
+            position: new AMap.LngLat(gcjLng, gcjLat),
+            content: el,
+            offset: new AMap.Pixel(-7, -7),
+            zIndex: 110,
+          })
+          marker.setMap(map)
+
+          // 点击标记显示信息窗口
+          marker.on('click', () => {
+            if (!polygonInfoWindowRef.current) return
+            const html = `
+              <div style="padding:4px;min-width:180px;max-width:260px;font-family:-apple-system,system-ui,sans-serif;">
+                <div style="font-weight:600;font-size:13px;color:#111827;margin-bottom:4px;">${place.name || '未知'}</div>
+                ${place.address ? `<div style="font-size:11px;color:#6b7280;margin-bottom:2px;">${place.address}</div>` : ''}
+                ${place.category ? `<div style="font-size:11px;color:#9ca3af;">${place.category}</div>` : ''}
+              </div>
+            `
+            polygonInfoWindowRef.current.setContent(html)
+            polygonInfoWindowRef.current.open(map, new AMap.LngLat(gcjLng, gcjLat))
+          })
+
+          searchResultMarkersRef.current.push(marker)
+        } catch { /* skip */ }
+      }
+    } catch (err) {
+      console.error('Polygon search failed:', err)
+      alert('搜索失败，请重试')
+    } finally {
+      setSearchLoading(false)
+    }
+  }
+
+  // 取消搜索，清理所有临时图形
+  function handleCancelPolygonSearch() {
+    setPolygonSearchActive(false)
+    setPolygonPoints([])
+    setSearchKeywords('')
+    setSearchResults([])
+    setShowKeywordInput(false)
+    clearPolygonSearchOverlays()
+  }
+
+  // 清除搜索结果
+  function handleClearSearchResults() {
+    setSearchResults([])
+    searchResultMarkersRef.current.forEach(m => { try { m.setMap(null) } catch {} })
+    searchResultMarkersRef.current = []
+    if (polygonInfoWindowRef.current) { try { polygonInfoWindowRef.current.close() } catch {} }
+  }
+
+  // 点击结果列表项：地图居中并显示信息窗口
+  function handleResultItemClick(place: any) {
+    const AMap = AMapRef.current
+    const map = mapRef.current
+    if (!AMap || !map || !place.lat || !place.lng) return
+    try {
+      map.setZoomAndCenter(16, [place.lng, place.lat])
+      // 打开信息窗口
+      if (polygonInfoWindowRef.current) {
+        const html = `
+          <div style="padding:4px;min-width:180px;max-width:260px;font-family:-apple-system,system-ui,sans-serif;">
+            <div style="font-weight:600;font-size:13px;color:#111827;margin-bottom:4px;">${place.name || '未知'}</div>
+            ${place.address ? `<div style="font-size:11px;color:#6b7280;margin-bottom:2px;">${place.address}</div>` : ''}
+            ${place.category ? `<div style="font-size:11px;color:#9ca3af;">${place.category}</div>` : ''}
+          </div>
+        `
+        polygonInfoWindowRef.current.setContent(html)
+        polygonInfoWindowRef.current.open(map, new AMap.LngLat(place.lng, place.lat))
+      }
+    } catch { /* ignore */ }
+  }
+
   // ── No AMap key placeholder ──────────────────────────────────────────
   if (!amapKey) {
     return (
@@ -1437,6 +1719,81 @@ export const MapViewAMap = memo(function MapViewAMap({
     <>
       <div className="w-full h-full relative" style={{ isolation: 'isolate', transform: 'translateZ(0)' }}>
         <div ref={containerRef} className="w-full h-full" />
+        {/* 3D 视图切换按钮 */}
+        <button
+          onClick={() => setIs3D(v => !v)}
+          style={{
+            position: 'absolute',
+            right: 12,
+            top: 12,
+            zIndex: 100,
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            border: 'none',
+            background: is3D ? '#3b82f6' : 'rgba(255,255,255,0.95)',
+            color: is3D ? 'white' : '#374151',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            transition: 'background 0.2s',
+          }}
+          title={is3D ? '切换到2D视图' : '切换到3D视图'}
+        >
+          <Box size={18} />
+        </button>
+        {/* 区域搜索按钮（3D按钮下方） */}
+        <button
+          onClick={handleTogglePolygonSearch}
+          style={{
+            position: 'absolute',
+            right: 12,
+            top: 56,
+            zIndex: 100,
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            border: 'none',
+            background: polygonSearchActive ? '#3b82f6' : 'rgba(255,255,255,0.95)',
+            color: polygonSearchActive ? 'white' : '#374151',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            transition: 'background 0.2s',
+          }}
+          title={polygonSearchActive ? '退出区域搜索' : '区域搜索'}
+        >
+          <Search size={18} />
+        </button>
+        {/* 地铁图按钮（区域搜索按钮下方） */}
+        <button
+          onClick={() => setShowSubway(true)}
+          style={{
+            position: 'absolute',
+            right: 12,
+            top: 100,
+            zIndex: 100,
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            border: 'none',
+            background: 'rgba(255,255,255,0.95)',
+            color: '#374151',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            transition: 'background 0.2s',
+          }}
+          title="地铁图"
+        >
+          <Train size={18} />
+        </button>
         {isMobile && (
           <LocationButton
             mode={trackingMode}
@@ -1444,6 +1801,215 @@ export const MapViewAMap = memo(function MapViewAMap({
             onClick={cycleTrackingMode}
             bottomOffset={locationButtonBottom as unknown as number}
           />
+        )}
+
+        {/* 多边形区域搜索 - 底部工具栏 */}
+        {polygonSearchActive && (
+          <div style={{
+            position: 'absolute',
+            bottom: 20,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 200,
+            background: 'rgba(255,255,255,0.98)',
+            borderRadius: 12,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+            padding: '10px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif",
+            maxWidth: '90%',
+          }}>
+            {!showKeywordInput ? (
+              <>
+                <span style={{ fontSize: 13, color: '#374151', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                  已添加 {polygonPoints.length} 个顶点{polygonPoints.length < 3 ? '（至少需要3个）' : ''}
+                </span>
+                <button
+                  onClick={handleCompletePolygonSearch}
+                  disabled={polygonPoints.length < 3}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 6,
+                    border: 'none',
+                    background: polygonPoints.length >= 3 ? '#3b82f6' : '#d1d5db',
+                    color: 'white',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: polygonPoints.length >= 3 ? 'pointer' : 'not-allowed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <Search size={14} />
+                  完成搜索
+                </button>
+                <button
+                  onClick={handleCancelPolygonSearch}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 6,
+                    border: '1px solid #d1d5db',
+                    background: 'white',
+                    color: '#374151',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <X size={14} />
+                  取消
+                </button>
+              </>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  value={searchKeywords}
+                  onChange={e => setSearchKeywords(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && searchKeywords.trim() && !searchLoading) handlePerformSearch() }}
+                  placeholder="输入关键词，如：餐厅、酒店、景点"
+                  autoFocus
+                  style={{
+                    flex: 1,
+                    minWidth: 200,
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    border: '1px solid #d1d5db',
+                    fontSize: 13,
+                    outline: 'none',
+                  }}
+                />
+                <button
+                  onClick={handlePerformSearch}
+                  disabled={!searchKeywords.trim() || searchLoading}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 6,
+                    border: 'none',
+                    background: searchKeywords.trim() && !searchLoading ? '#3b82f6' : '#d1d5db',
+                    color: 'white',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: searchKeywords.trim() && !searchLoading ? 'pointer' : 'not-allowed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  {searchLoading ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Search size={14} />}
+                  {searchLoading ? '搜索中' : '搜索'}
+                </button>
+                <button
+                  onClick={() => { setShowKeywordInput(false); setSearchKeywords('') }}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 6,
+                    border: '1px solid #d1d5db',
+                    background: 'white',
+                    color: '#374151',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                  }}
+                >
+                  返回
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* 搜索结果列表面板（可折叠） */}
+        {searchResults.length > 0 && !polygonSearchActive && (
+          <div style={{
+            position: 'absolute',
+            top: 100,
+            right: 12,
+            zIndex: 150,
+            width: 280,
+            maxHeight: '60%',
+            background: 'rgba(255,255,255,0.98)',
+            borderRadius: 10,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif",
+          }}>
+            <div
+              style={{
+                padding: '10px 14px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                borderBottom: showResultsPanel ? '1px solid #f0f0f0' : 'none',
+                background: '#f9fafb',
+              }}
+              onClick={() => setShowResultsPanel(!showResultsPanel)}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>
+                搜索结果 ({searchResults.length})
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleClearSearchResults() }}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    color: '#9ca3af',
+                    padding: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                  title="清除结果"
+                >
+                  <X size={14} />
+                </button>
+                <span style={{ fontSize: 11, color: '#6b7280' }}>
+                  {showResultsPanel ? '收起 ▲' : '展开 ▼'}
+                </span>
+              </div>
+            </div>
+            {showResultsPanel && (
+              <div style={{ overflowY: 'auto', flex: 1 }}>
+                {searchResults.map((place, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => handleResultItemClick(place)}
+                    style={{
+                      padding: '8px 14px',
+                      cursor: 'pointer',
+                      borderBottom: '1px solid #f5f5f5',
+                    }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#f0f7ff'}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+                  >
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {place.name || '未知'}
+                    </div>
+                    {place.address && (
+                      <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {place.address}
+                      </div>
+                    )}
+                    {place.category && (
+                      <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 1 }}>
+                        {place.category}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -1478,6 +2044,9 @@ export const MapViewAMap = memo(function MapViewAMap({
           )}
         </div>
       )}
+
+      {/* 地铁图视图 */}
+      {showSubway && <SubwayMapView onClose={() => setShowSubway(false)} />}
     </>
   )
 })

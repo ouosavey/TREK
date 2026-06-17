@@ -15,6 +15,9 @@ import {
   calculateAmapRoute,
   calculateAmapSegments,
   calculateAmapTransitRoute,
+  ipLocateAmap,
+  getAmapBusLineInfo,
+  searchAmapPolygon,
 } from '../services/mapsService';
 import { db } from '../db/database';
 import { serveFilePath } from '../services/placePhotoCache';
@@ -292,6 +295,62 @@ router.post('/route-transit-amap', authenticate, async (req: Request, res: Respo
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'AMap transit route error';
     console.error('AMap transit route error:', err);
+    res.status(500).json({ error: message });
+  }
+});
+
+// GET /ip-locate-amap — IP 定位（自动定位当前城市）
+router.get('/ip-locate-amap', authenticate, async (req: Request, res: Response) => {
+  const authReq = req as AuthRequest;
+  try {
+    const result = await ipLocateAmap(authReq.user.id);
+    res.json(result);
+  } catch (err: unknown) {
+    const status = (err as { status?: number }).status || 500;
+    const message = err instanceof Error ? err.message : 'AMap IP locate error';
+    console.error('AMap IP locate error:', err);
+    res.status(status).json({ error: message });
+  }
+});
+
+// GET /bus-line-amap — 公交线路详情查询
+router.get('/bus-line-amap', authenticate, async (req: Request, res: Response) => {
+  const { city, line } = req.query as { city: string; line: string };
+  if (!city || !line) return res.status(400).json({ error: 'city and line are required' });
+  const authReq = req as AuthRequest;
+
+  try {
+    const result = await getAmapBusLineInfo(city, line, authReq.user.id);
+    res.json(result);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'AMap bus line error';
+    console.error('AMap bus line error:', err);
+    res.status(500).json({ error: message });
+  }
+});
+
+// POST /search-polygon-amap — 多边形区域搜索
+router.post('/search-polygon-amap', authenticate, async (req: Request, res: Response) => {
+  const { polygon, keywords, types } = req.body as {
+    polygon: { lat: number; lng: number }[];
+    keywords: string;
+    types?: string;
+  };
+  const authReq = req as AuthRequest;
+
+  if (!polygon || !Array.isArray(polygon) || polygon.length < 3) {
+    return res.status(400).json({ error: 'At least 3 polygon points required' });
+  }
+  if (!keywords) {
+    return res.status(400).json({ error: 'keywords is required' });
+  }
+
+  try {
+    const result = await searchAmapPolygon(polygon, keywords, types, authReq.user.id);
+    res.json(result);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'AMap polygon search error';
+    console.error('AMap polygon search error:', err);
     res.status(500).json({ error: message });
   }
 });

@@ -1,5 +1,31 @@
 # VERSION
 
+## v3.0.22-cn.26 - 2026-06-17
+
+### 变更
+新增6项高德地图功能：
+1. URI API调起高德地图APP导航（PlaceInspector导航按钮）
+2. IP定位（首次打开自动定位当前城市）
+3. 3D地图视图（右上角3D切换按钮）
+4. 多边形区域搜索（框选区域搜索POI）
+5. 公交信息查询（TransitRoutePanel查看完整线路）
+6. 地铁图JS API（30城市地铁线路图视图）
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Planner/PlaceInspector.tsx`
+- `client/src/components/Map/MapViewAMap.tsx`
+- `client/src/components/Map/SubwayMapView.tsx` (新建)
+- `client/src/components/Planner/TransitRoutePanel.tsx`
+- `client/src/api/client.ts`
+- `server/src/services/mapsService.ts`
+- `server/src/routes/maps.ts`
+
+---
+
 ## v3.0.22-cn.25 - 2026-06-17
 
 ### 变更

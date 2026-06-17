@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { openFile } from '../../utils/fileDownload'
+import { wgs84ToGcj02 } from '../../utils/coordTransform'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
@@ -630,10 +631,14 @@ export default function PlaceInspector({
             <ActionButton onClick={() => window.open(googleDetails.google_maps_url, '_blank')} variant="ghost" icon={<Navigation size={13} />}
               label={<span className="hidden sm:inline">{t('inspector.google')}</span>} />
           )}
-          {!googleDetails?.google_maps_url && place.lat && place.lng && (
-            <ActionButton onClick={() => window.open(`https://uri.amap.com/marker?position=${place.lng},${place.lat}&name=${encodeURIComponent(place.name || '')}&src=TREK`, '_blank')} variant="ghost" icon={<Navigation size={13} />}
-              label={<span className="hidden sm:inline">高德地图</span>} />
-          )}
+          {place.lat && place.lng && (() => {
+            const [gcjLng, gcjLat] = wgs84ToGcj02(place.lat, place.lng)
+            const navUrl = `https://uri.amap.com/navigation?to=${gcjLng},${gcjLat},${encodeURIComponent(place.name || '')}&mode=car&src=TREK&callnative=1`
+            return (
+              <ActionButton onClick={() => window.open(navUrl, '_blank')} variant="ghost" icon={<Navigation size={13} />}
+                label={<span className="hidden sm:inline">导航</span>} />
+            )
+          })()}
           {(place.website || googleDetails?.website) && (
             <ActionButton onClick={() => {
               let url = place.website || googleDetails?.website || ''

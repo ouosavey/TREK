@@ -4,11 +4,23 @@ import { toCanvas } from 'html-to-image'
 import {
   Footprints, Bus, Train as TrainIcon, ChevronDown, ChevronRight,
   MapPin, Clock, Navigation, X, ArrowRight, Plane,
-  CircleDot, Circle, Camera, Download, Loader2
+  CircleDot, Circle, Camera, Download, Loader2, Info
 } from 'lucide-react'
 import type { TransitRouteResult, TransitRouteOption, TransitSegment, TransitLeg } from '../../types'
 import { useTranslation } from '../../i18n'
-import { filesApi } from '../../api/client'
+import { filesApi, mapsApi } from '../../api/client'
+import { wgs84ToGcj02 } from '../../utils/coordTransform'
+
+// ── 公交线路详情类型 ──────────────────────────────────────────────────────
+interface BusLineInfo {
+  lineName: string | null
+  totalDistance: number | null   // 单位：米
+  totalStops: number | null      // 站点总数
+  firstTime: string | null       // 首班时间
+  lastTime: string | null        // 末班时间
+  stops: { name: string; lat: number; lng: number }[]
+  basicStops: { name: string; lat: number; lng: number }[]
+}
 
 interface TransitRoutePanelProps {
   result: TransitRouteResult
@@ -195,6 +207,51 @@ function TimelineTransit({ segment }: { segment: TransitSegment }) {
   const isSubway = segment.type === 'subway'
   const color = getLineColor(segment.lineName, segment.lineColor)
 
+  // ── 线路详情状态 ──
+  const [lineDetailExpanded, setLineDetailExpanded] = React.useState(false)
+  const [lineDetailLoading, setLineDetailLoading] = React.useState(false)
+  const [lineDetailError, setLineDetailError] = React.useState<string | null>(null)
+  const [lineDetail, setLineDetail] = React.useState<BusLineInfo | null>(null)
+
+  // 从段坐标反查城市信息，失败则回退到"全国"
+  const getCityFromSegment = async (): Promise<string> => {
+    const coord = segment.coordinates?.[0]
+    if (!coord) return '全国'
+    const [lat, lng] = coord
+    try {
+      const [gcjLng, gcjLat] = wgs84ToGcj02(lng, lat)
+      const regeo = await mapsApi.reverseAmap(gcjLat, gcjLng)
+      if (regeo.city) return regeo.city
+      // 从完整地址中正则提取城市名
+      if (regeo.address) {
+        const cityMatch = regeo.address.match(/^([\u4e00-\u9fa5]+(?:市|自治州|地区|盟))/)
+        if (cityMatch) return cityMatch[1].replace(/市$/, '')
+      }
+    } catch { /* 忽略，回退到默认值 */ }
+    return '全国'
+  }
+
+  // 加载/切换线路详情
+  const handleToggleLineDetail = async () => {
+    // 已有数据时仅切换展开状态
+    if (lineDetail) {
+      setLineDetailExpanded(!lineDetailExpanded)
+      return
+    }
+    setLineDetailLoading(true)
+    setLineDetailError(null)
+    try {
+      const city = await getCityFromSegment()
+      const data = await mapsApi.busLineAmap(city, segment.lineName!) as BusLineInfo
+      setLineDetail(data)
+      setLineDetailExpanded(true)
+    } catch (err: unknown) {
+      setLineDetailError(err instanceof Error ? err.message : '获取线路详情失败')
+    } finally {
+      setLineDetailLoading(false)
+    }
+  }
+
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
       {/* 左侧时间轴 */}
@@ -281,6 +338,118 @@ function TimelineTransit({ segment }: { segment: TransitSegment }) {
             <span><Clock size={9} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 2 }} />{formatDurationShort(segment.duration)}</span>
             <span><Navigation size={9} style={{ display: 'inline', verticalAlign: '-1px', marginRight: 2 }} />{formatDistance(segment.distance)}</span>
           </div>
+
+          {/* 查看完整线路按钮（lineName 为空时不显示） */}
+          {segment.lineName && (
+            <div style={{ marginTop: 6 }}>
+              <button
+                onClick={handleToggleLineDetail}
+                disabled={lineDetailLoading}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  padding: '4px 10px', fontSize: 11, fontWeight: 500,
+                  border: '1px solid var(--border-faint)',
+                  background: lineDetailExpanded ? 'var(--bg-hover)' : 'transparent',
+                  borderRadius: 6, color: 'var(--text-secondary)',
+                  cursor: lineDetailLoading ? 'wait' : 'pointer',
+                  fontFamily: 'inherit', opacity: lineDetailLoading ? 0.7 : 1,
+                }}
+              >
+                {lineDetailLoading
+                  ? <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} />
+                  : lineDetailExpanded ? <ChevronDown size={11} /> : <Info size={11} />
+                }
+                {lineDetailLoading ? '加载中...' : lineDetailExpanded ? '收起线路' : '查看线路'}
+              </button>
+
+              {/* 错误提示 */}
+              {lineDetailError && (
+                <div style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>
+                  {lineDetailError}
+                </div>
+              )}
+
+              {/* 线路详情展开区 */}
+              {lineDetailExpanded && lineDetail && (
+                <div style={{
+                  marginTop: 6, padding: '8px 10px',
+                  background: 'var(--bg-hover)', borderRadius: 8,
+                  border: '1px solid var(--border-faint)',
+                }}>
+                  {/* 线路名称 */}
+                  {lineDetail.lineName ? (
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 5 }}>
+                      {lineDetail.lineName}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 11, color: 'var(--text-faint)', marginBottom: 5 }}>
+                      未找到该线路的详细信息
+                    </div>
+                  )}
+
+                  {/* 统计信息：总站数 | 总距离 */}
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                    {lineDetail.totalStops != null && (
+                      <span>共 {lineDetail.totalStops} 站</span>
+                    )}
+                    {lineDetail.totalDistance != null && lineDetail.totalDistance > 0 && (
+                      <span>总里程 {formatDistance(lineDetail.totalDistance)}</span>
+                    )}
+                  </div>
+
+                  {/* 首末班时间 */}
+                  {(lineDetail.firstTime || lineDetail.lastTime) && (
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6 }}>
+                      {lineDetail.firstTime && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                          <Clock size={10} /> 首班 {lineDetail.firstTime}
+                        </span>
+                      )}
+                      {lineDetail.lastTime && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                          <Clock size={10} /> 末班 {lineDetail.lastTime}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 完整站点列表（可滚动） */}
+                  {lineDetail.stops.length > 0 ? (
+                    <div style={{
+                      maxHeight: 200, overflowY: 'auto',
+                      background: 'var(--bg-secondary)', borderRadius: 6,
+                      padding: '4px 8px',
+                      WebkitOverflowScrolling: 'touch',
+                    }}>
+                      {lineDetail.stops.map((stop, i) => {
+                        const isFirst = i === 0
+                        const isLast = i === lineDetail.stops.length - 1
+                        return (
+                          <div key={i} style={{
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            padding: '3px 0', fontSize: 11,
+                            color: isFirst || isLast ? 'var(--text-primary)' : 'var(--text-secondary)',
+                            fontWeight: isFirst || isLast ? 600 : 400,
+                          }}>
+                            <span style={{
+                              width: 6, height: 6, borderRadius: '50%',
+                              background: isFirst ? '#22c55e' : isLast ? '#ef4444' : color,
+                              flexShrink: 0,
+                            }} />
+                            <span>{stop.name}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 11, color: 'var(--text-faint)', textAlign: 'center', padding: '6px 0' }}>
+                      暂无详细站点信息
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 下车站名 */}

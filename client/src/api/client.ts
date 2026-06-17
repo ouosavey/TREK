@@ -465,6 +465,12 @@ export const mapsApi = {
   routeAmap: (waypoints: { lat: number; lng: number }[], profile?: 'driving' | 'walking' | 'cycling') => apiClient.post('/maps/route-amap', { waypoints, profile }, { timeout: 15000 }).then(r => r.data),
   segmentsAmap: (waypoints: { lat: number; lng: number }[]) => apiClient.post('/maps/segments-amap', { waypoints }, { timeout: 15000 }).then(r => r.data),
   routeTransitAmap: (origin: { lat: number; lng: number }, destination: { lat: number; lng: number }, city: string, strategy?: number) => apiClient.post('/maps/route-transit-amap', { origin, destination, city, strategy }, { timeout: 15000 }).then(r => r.data),
+  // IP 定位（自动定位当前城市）
+  ipLocateAmap: () => apiClient.get('/maps/ip-locate-amap', { timeout: 10000 }).then(r => r.data),
+  // 公交线路详情查询
+  busLineAmap: (city: string, line: string) => apiClient.get('/maps/bus-line-amap', { params: { city, line }, timeout: 15000 }).then(r => r.data),
+  // 多边形区域搜索
+  searchPolygonAmap: (polygon: { lat: number; lng: number }[], keywords: string, types?: string) => apiClient.post('/maps/search-polygon-amap', { polygon, keywords, types }, { timeout: 15000 }).then(r => r.data),
 }
 
 export const airportsApi = {

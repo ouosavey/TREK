@@ -1535,3 +1535,199 @@ export async function resolveGoogleMapsUrl(url: string): Promise<{ lat: number; 
 
   return { lat, lng, name, address };
 }
+
+// ── AMap IP 定位 ─────────────────────────────────────────────────────────────
+
+export async function ipLocateAmap(userId?: number): Promise<{
+  province: string | null;
+  city: string | null;
+  adcode: string | null;
+  center: { lat: number; lng: number } | null;
+  rectangle: string | null;
+}> {
+  const amapKey = getAmapKey(userId);
+  if (!amapKey) return { province: null, city: null, adcode: null, center: null, rectangle: null };
+
+  const params = new URLSearchParams({ key: amapKey, output: 'JSON' });
+  const response = await fetch(`https://restapi.amap.com/v3/ip?${params}`);
+  if (!response.ok) throw new Error('AMap IP locate API error');
+  const data = await response.json() as {
+    status: string;
+    info?: string;
+    province?: string;
+    city?: string | string[];
+    adcode?: string;
+    rectangle?: string;
+  };
+
+  if (data.status !== '1') {
+    console.warn('[AMap] IP locate error:', data.status, data.info);
+    return { province: null, city: null, adcode: null, center: null, rectangle: null };
+  }
+
+  // city 可能返回空数组 []
+  const cityStr = Array.isArray(data.city) ? (data.city[0] || null) : (data.city || null);
+
+  // 从 rectangle 解析中心点: "minLng,minLat;maxLng,maxLat"
+  let center: { lat: number; lng: number } | null = null;
+  if (data.rectangle) {
+    const parts = data.rectangle.split(';');
+    if (parts.length === 2) {
+      const [minLng, minLat] = parts[0].split(',').map(Number);
+      const [maxLng, maxLat] = parts[1].split(',').map(Number);
+      if (Number.isFinite(minLng) && Number.isFinite(maxLng) && Number.isFinite(minLat) && Number.isFinite(maxLat)) {
+        center = { lng: (minLng + maxLng) / 2, lat: (minLat + maxLat) / 2 };
+      }
+    }
+  }
+
+  return {
+    province: data.province || null,
+    city: cityStr,
+    adcode: data.adcode || null,
+    center,
+    rectangle: data.rectangle || null,
+  };
+}
+
+// ── AMap 公交线路查询 ────────────────────────────────────────────────────────
+
+export async function getAmapBusLineInfo(
+  city: string,
+  lineName: string,
+  userId?: number,
+): Promise<{
+  lineName: string | null;
+  totalDistance: number | null;
+  totalStops: number | null;
+  firstTime: string | null;
+  lastTime: string | null;
+  stops: { name: string; lat: number; lng: number }[];
+  basicStops: { name: string; lat: number; lng: number }[];
+}> {
+  const amapKey = getAmapKey(userId);
+  if (!amapKey) return { lineName: null, totalDistance: null, totalStops: null, firstTime: null, lastTime: null, stops: [], basicStops: [] };
+
+  const params = new URLSearchParams({
+    key: amapKey,
+    city,
+    keywords: lineName,
+    output: 'JSON',
+    extensions: 'all',
+  });
+
+  const response = await fetch(`https://restapi.amap.com/v3/bus/linename?${params}`);
+  if (!response.ok) throw new Error('AMap bus line API error');
+  const data = await response.json() as {
+    status: string;
+    info?: string;
+    buslines?: Array<{
+      name?: string;
+      total_distance?: number;
+      total_price?: string;
+      bounds?: string;
+      start_time?: string;
+      end_time?: string;
+      via_stops?: string;
+      busstops?: Array<{ name?: string; location?: string }>;
+      departure_stops?: Array<{ name?: string; location?: string }>;
+      arrival_stops?: Array<{ name?: string; location?: string }>;
+    }>;
+  };
+
+  if (data.status !== '1' || !data.buslines?.length) {
+    return { lineName: null, totalDistance: null, totalStops: null, firstTime: null, lastTime: null, stops: [], basicStops: [] };
+  }
+
+  const line = data.buslines[0];
+  const parseStops = (stops: Array<{ name?: string; location?: string }>) =>
+    (stops || []).map(s => {
+      const [lngStr, latStr] = (s.location || ',').split(',');
+      return { name: s.name || '', lat: parseFloat(latStr) || 0, lng: parseFloat(lngStr) || 0 };
+    }).filter(s => s.lat && s.lng);
+
+  // via_stops 是 "站名1,站名2,..." 格式的字符串
+  let viaStopNames: string[] = [];
+  if (line.via_stops) {
+    viaStopNames = line.via_stops.split(',').map(s => s.trim()).filter(Boolean);
+  }
+
+  const allStops = parseStops(line.busstops || []);
+  const basicStops = [
+    ...parseStops(line.departure_stops || []),
+    ...viaStopNames.map((name, i) => ({ name, lat: 0, lng: 0 })),
+    ...parseStops(line.arrival_stops || []),
+  ].filter(s => s.name);
+
+  return {
+    lineName: line.name || lineName,
+    totalDistance: line.total_distance || null,
+    totalStops: allStops.length || viaStopNames.length + 2,
+    firstTime: line.start_time || null,
+    lastTime: line.end_time || null,
+    stops: allStops,
+    basicStops,
+  };
+}
+
+// ── AMap 多边形区域搜索 ──────────────────────────────────────────────────────
+
+export async function searchAmapPolygon(
+  polygon: { lat: number; lng: number }[],
+  keywords: string,
+  types?: string,
+  userId?: number,
+): Promise<{ places: Record<string, unknown>[]; source: string }> {
+  const amapKey = getAmapKey(userId);
+  if (!amapKey) return { places: [], source: 'amap' };
+
+  // 将 WGS-84 坐标转换为 GCJ-02 并格式化为高德需要的格式: "lng,lat|lng,lat|..."
+  const gcjPoints = polygon.map(p => {
+    const [lng, lat] = routeWgs84ToGcj02(p.lng, p.lat);
+    return `${lng},${lat}`;
+  });
+  const polygonStr = gcjPoints.join('|');
+
+  const params = new URLSearchParams({
+    key: amapKey,
+    keywords,
+    polygon: polygonStr,
+    output: 'JSON',
+    offset: '20',
+    extensions: 'all',
+  });
+  if (types) params.set('types', types);
+
+  const response = await fetch(`https://restapi.amap.com/v3/place/polygon?${params}`);
+  if (!response.ok) throw new Error('AMap polygon search API error');
+  const data = await response.json() as { status: string; pois?: AmapPoi[]; info?: string };
+
+  if (data.status !== '1') {
+    console.warn('[AMap] polygon search error:', data.status, data.info);
+    return { places: [], source: 'amap' };
+  }
+
+  const places = (data.pois || []).map(poi => {
+    const [lngStr, latStr] = (poi.location || ',').split(',');
+    return {
+      google_place_id: null,
+      osm_id: poi.id ? `amap:${poi.id}` : null,
+      name: poi.name || '',
+      address: [poi.pname, poi.cityname, poi.adname, poi.address].filter(Boolean).join('') || '',
+      lat: parseFloat(latStr) || null,
+      lng: parseFloat(lngStr) || null,
+      category: poi.type || null,
+      amap_typecode: poi.typecode || null,
+      website: poi.website || null,
+      phone: (Array.isArray(poi.tel) ? poi.tel.join(',') : poi.tel) || null,
+      photo_url: poi.photos?.[0]?.url || null,
+      image_url: poi.photos?.[0]?.url || null,
+      rating: poi.biz_ext?.rating ? parseFloat(poi.biz_ext.rating) : null,
+      price_level: null,
+      opening_hours: poi.business_area || null,
+      source: 'amap',
+    };
+  });
+
+  return { places, source: 'amap' };
+}
