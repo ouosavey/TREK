@@ -1,0 +1,95 @@
+trek-cn  | Default addons seeded
+trek-cn  | ──────────────────────────────────────
+trek-cn  |   TREK API started
+trek-cn  |   Version         cn-latest
+trek-cn  |   Container Port: 3000
+trek-cn  |   App URL:        https://trekcn.689894.xyz:9999
+trek-cn  |   User:           uid=1000 gid=1000
+trek-cn  | ──────────────────────────────────────
+trek-cn  | [INFO] 2026-06-17T10:32:25 Auto-Backup disabled
+trek-cn  | [INFO] 2026-06-17T10:32:28 Trip reminders: enabled via [], 2 trip(s) with active reminders
+trek-cn  | [INFO] 2026-06-17T10:32:29 Todo due reminders: enabled (lead 3d)
+trek-cn  | WebSocket server attached at /ws
+trek-cn  | [INFO] 2026-06-17T10:32:58 ouosavey@163.com logged in ip=59.173.238.162
+trek-cn  | [placeService] createPlace called with tripId: 1 body keys: [
+trek-cn  |   'name',       'description',
+trek-cn  |   'address',    'lat',
+trek-cn  |   'lng',        'category_id',
+trek-cn  |   'place_time', 'end_time',
+trek-cn  | }
+trek-cn  | [placeService] createPlace called with tripId: 1 body keys: [
+trek-cn  |   'name',       'description',
+trek-cn  |   'address',    'lat',
+trek-cn  |   'lng',        'category_id',
+trek-cn  |   'place_time', 'end_time',
+trek-cn  |   'notes',      'transport_mode',
+trek-cn  |   'website',    'google_place_id',
+trek-cn  |   'image_url',  'osm_id',
+trek-cn  |   'phone'
+trek-cn  | ]
+trek-cn  | [placeService] createPlace body: {
+trek-cn  |   "name": "黄鹤楼",
+trek-cn  |   "description": "",
+trek-cn  |   "address": "蛇山西山坡特1号(地铁司门口黄鹤楼站A出口步行500m)",
+trek-cn  |   "lat": 30.547081061908045,
+trek-cn  |   "lng": 114.29703036367994,
+trek-cn  |   "category_id": null,
+trek-cn  |   "google_place_id": "",
+trek-cn  |   "image_url": "http://store.is.autonavi.com/showpic/42b23731ef5018c23ad9ff611e78747d",
+trek-cn  |   "osm_id": "amap:B001B0I4K0",
+trek-cn  |   "phone": []
+trek-cn  | }
+trek-cn  | [placeService] createPlace SQL error: RangeError: Too few parameter values were provided
+trek-cn  |     at createPlace (/app/src/services/placeService.ts:168:30)
+trek-cn  |     at <anonymous> (/app/src/routes/places.ts:56:13)
+trek-cn  |     at Layer.handle [as handle_request] (/app/node_modules/express/lib/router/layer.js:95:5)
+trek-cn  |     at next (/app/node_modules/express/lib/router/route.js:149:13)
+trek-cn  |     at <anonymous> (/app/src/middleware/validate.ts:22:5)
+trek-cn  |     at Layer.handle [as handle_request] (/app/node_modules/express/lib/router/layer.js:95:5)
+trek-cn  | [placeService] Values: [
+trek-cn  |   '1',
+trek-cn  |   '黄鹤楼',
+trek-cn  |   114.29703036367994,
+trek-cn  |   '蛇山西山坡特1号(地铁司门口黄鹤楼站A出口步行500m)',
+trek-cn  |   null,
+trek-cn  |   null,
+trek-cn  |   null,
+trek-cn  |   null,
+trek-cn  |   60,
+trek-cn  |   null,
+trek-cn  |   'http://store.is.autonavi.com/showpic/42b23731ef5018c23ad9ff611e78747d',
+trek-cn  |   null,
+trek-cn  |   'amap:B001B0I4K0',
+trek-cn  |   'www.cnhhl.com',
+trek-cn  |   [],
+trek-cn  |   'walking'
+trek-cn  | ]
+trek-cn  | [placeService] Available columns: [
+trek-cn  |   'id',                   'trip_id',
+trek-cn  |   'name',                 'description',
+trek-cn  |   'lat',                  'lng',
+trek-cn  |   'address',              'category_id',
+trek-cn  |   'price',                'currency',
+trek-cn  |   'reservation_status',   'reservation_notes',
+trek-cn  |   'reservation_datetime', 'place_time',
+trek-cn  |   'end_time',             'duration_minutes',
+trek-cn  |   'notes',                'image_url',
+trek-cn  |   'google_place_id',      'website',
+trek-cn  |   'phone',                'transport_mode',
+trek-cn  |   'created_at',           'updated_at',
+trek-cn  |   'osm_id',               'route_geometry'
+trek-cn  | ]
+trek-cn  | [createPlace] Error creating place: RangeError: Too few parameter values were provided
+trek-cn  |     at createPlace (/app/src/services/placeService.ts:168:30)
+trek-cn  |     at applyIdempotency (/app/src/middleware/idempotency.ts:79:3)
+trek-cn  |     at authenticate (/app/src/middleware/auth.ts:64:3)
+trek-cn  |     at Layer.handle [as handle_request] (/app/node_modules/express/lib/router/layer.js:95:5)
+trek-cn  |     at next (/app/node_modules/express/lib/router/route.js:149:13)
+trek-cn  |     at Route.dispatch (/app/node_modules/express/lib/router/route.js:119:3)
+trek-cn  |     at Layer.handle [as handle_request] (/app/node_modules/express/lib/router/layer.js:95:5)
+trek-cn  |   "name": "黄鹤楼",
+trek-cn  |   "description": "",
+trek-cn  |   "lat": 30.547081061908045,
+trek-cn  |   "lng": 114.29703036367994,
+trek-cn  | }
+trek-cn  | [ERROR] 2026-06-17T10:33:38 POST / 500 1155ms ip=59.173.238.162
