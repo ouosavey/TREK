@@ -1,5 +1,20 @@
 # VERSION
 
+## v3.0.22-cn.33 - 2026-06-17
+
+### 变更
+修复地铁图 JS API 加载失败（移除 iframe，改用直接脚本加载 + cbk 回调）：
+- 根因：iframe 方案有 sandbox 警告 + about:srcdoc 继承父 CSP 问题
+- 修复：移除 iframe，直接在主文档加载地铁图脚本，在 `window.cbk` 回调内创建 subway 实例（subway 全局函数仅在 cbk 回调内可用）
+- 配合 v3.0.22-cn.32 的 CSP 修复（connectSrc 添加 http://*.amap.com）
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+
 ## v3.0.22-cn.32 - 2026-06-17
 
 ### 变更

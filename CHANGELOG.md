@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-06-17 修复地铁图加载失败（移除iframe+直接脚本加载） v3.0.22-cn.33
+
+### Bug修复
+
+#### 地铁图 JS API 加载失败（iframe 方案问题）
+- **根因**: 上一版使用 iframe 加载地铁图，存在两个问题：
+  1. iframe `sandbox="allow-scripts allow-same-origin"` 触发安全警告
+  2. `about:srcdoc` 文档继承父页面 CSP，地铁图 API 的 `http://webapi.amap.com` 请求仍被阻止
+- **修复**: 移除 iframe，改用直接在主文档加载地铁图脚本：
+  1. 定义 `window.cbk` 回调函数（脚本加载完成后调用）
+  2. 在 `cbk` 回调内创建 `subway(container, {adcode, easy:1})` 实例（subway 全局函数仅在 cbk 回调内可用）
+  3. 通过 `subway.event.on('subway.complete', ...)` 监听加载完成
+  4. 组件卸载时清理 cbk 回调、subway 实例和 script 标签
+- **配合**: 需要 v3.0.22-cn.32 的 CSP 修复（connectSrc 添加 `http://*.amap.com`，移除 `upgradeInsecureRequests`）
+- **涉及文件**: `client/src/components/Map/SubwayMapView.tsx`
+
 ## 2026-06-17 修复地铁图CSP阻止问题 v3.0.22-cn.32
 
 ### Bug修复
