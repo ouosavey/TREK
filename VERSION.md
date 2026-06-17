@@ -1,5 +1,20 @@
 # VERSION
 
+## v3.0.22-cn.32 - 2026-06-17
+
+### 变更
+修复地铁图 JS API 加载失败（CSP 阻止问题）：
+- 根因：CSP `connectSrc` 只有 `https://*.amap.com`，但地铁图 API 用 `http://webapi.amap.com/subway/data/citylist.json`（http 协议）被阻止
+- 同时 `frameSrc: ["'none'"]` 禁止了 iframe 加载，`upgradeInsecureRequests` 会把 http 升级为 https
+- 修复：CSP `connectSrc` 添加 `http://webapi.amap.com` 和 `http://*.amap.com`；`frameSrc` 改为允许 `'self'`；移除 `upgradeInsecureRequests`
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `server/src/app.ts`
+
 ## v3.0.22-cn.31 - 2026-06-17
 
 ### 变更

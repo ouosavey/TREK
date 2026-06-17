@@ -139,15 +139,16 @@ export function createApp(): express.Application {
           "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson",
           "https://router.project-osrm.org/route/v1/",
           "https://api.mapbox.com", "https://*.tiles.mapbox.com", "https://events.mapbox.com",
-          "https://restapi.amap.com", "https://*.amap.com", "https://*.is.autonavi.com", "https://*.autonavi.com"
+          "https://restapi.amap.com", "https://*.amap.com", "https://*.is.autonavi.com", "https://*.autonavi.com",
+          "http://webapi.amap.com", "http://*.amap.com"
         ],
         workerSrc: ["'self'", "blob:"],
         childSrc: ["'self'", "blob:"],
         fontSrc: ["'self'", "https://fonts.gstatic.com", "https://gstatic.loli.net", "data:"],
         objectSrc: ["'none'"],
-        frameSrc: ["'none'"],
+        frameSrc: ["'self'", "blob:", "data:"],
         frameAncestors: ["'self'"],
-        upgradeInsecureRequests: shouldForceHttps ? [] : null
+        upgradeInsecureRequests: null
       }
     },
     crossOriginEmbedderPolicy: false,

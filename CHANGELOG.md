@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 2026-06-17 修复地铁图CSP阻止问题 v3.0.22-cn.32
+
+### Bug修复
+
+#### 地铁图 JS API 加载失败（CSP 阻止）
+- **根因**: 三个 CSP 策略问题导致地铁图无法加载：
+  1. `connectSrc` 只有 `https://*.amap.com`，但地铁图 API 用 `http://webapi.amap.com/subway/data/citylist.json`（http 协议）被 CSP 阻止
+  2. `frameSrc: ["'none'"]` 禁止了所有 iframe 加载（地铁图组件用 iframe 实现）
+  3. `upgradeInsecureRequests` 会把 http 请求自动升级为 https，但地铁图 API 不支持 https
+- **修复**: 
+  1. `connectSrc` 添加 `http://webapi.amap.com` 和 `http://*.amap.com`
+  2. `frameSrc` 从 `["'none'"]` 改为 `["'self'", "blob:", "data:"]`
+  3. `upgradeInsecureRequests` 设为 `null`（禁用 http→https 自动升级）
+- **涉及文件**: `server/src/app.ts`
+
 ## 2026-06-17 修复地铁图JS API加载失败 v3.0.22-cn.31
 
 ### Bug修复
