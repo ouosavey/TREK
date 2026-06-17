@@ -41,7 +41,7 @@ import { usePlaceSelection } from '../hooks/usePlaceSelection'
 import { usePlannerHistory } from '../hooks/usePlannerHistory'
 import type { Accommodation, TripMember, Day, Place, Reservation, PackingItem, TodoItem } from '../types'
 import { ListTodo, Upload, Plus, Trash2, FolderPlus } from 'lucide-react'
-import { AMAP_CATEGORY_MAP } from '../constants/amapCategories'
+import { AMAP_CATEGORY_MAP, AMAP_TYPECODE_MAP } from '../constants/amapCategories'
 
 function ListsContainer({ tripId, packingItems, todoItems }: { tripId: number; packingItems: PackingItem[]; todoItems: TodoItem[] }) {
   const [subTab, setSubTab] = useState<'packing' | 'todo'>(() => {
@@ -218,8 +218,9 @@ export default function TripPlannerPage(): React.ReactElement | null {
     amapCategoriesInitialized.current = true
 
     const existingNames = new Set(categories.map(c => c.name))
-    const missingMappings = Object.values(AMAP_CATEGORY_MAP).filter(m => !existingNames.has(m.name))
-    // Deduplicate by name (multiple AMap categories may map to same project category)
+    // Merge both AMAP_CATEGORY_MAP and AMAP_TYPECODE_MAP, deduplicate by name
+    const allMappings = [...Object.values(AMAP_CATEGORY_MAP), ...Object.values(AMAP_TYPECODE_MAP)]
+    const missingMappings = allMappings.filter(m => !existingNames.has(m.name))
     const seen = new Set<string>()
     for (const mapping of missingMappings) {
       if (seen.has(mapping.name)) continue

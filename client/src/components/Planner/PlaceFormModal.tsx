@@ -12,7 +12,7 @@ import { useTranslation } from '../../i18n'
 import CustomTimePicker from '../shared/CustomTimePicker'
 import type { Place, Category, Assignment } from '../../types'
 
-import { AMAP_CATEGORY_MAP } from '../../constants/amapCategories'
+import { findAmapCategoryMapping } from '../../constants/amapCategories'
 
 interface PlaceFormData {
   name: string
@@ -333,10 +333,9 @@ export default function PlaceFormModal({
       image_url: result.photo_url || result.image_url || prev.image_url,
     }))
 
-    // 自动分类匹配：根据高德一级分类匹配已有分类或创建新分类
-    const amapCategory = result.category
-    if (amapCategory && !form.category_id) {
-      const mapping = AMAP_CATEGORY_MAP[amapCategory]
+    // 自动分类匹配：根据高德分类（优先二级typecode，回退一级分类）匹配已有分类或创建新分类
+    if (!form.category_id) {
+      const mapping = findAmapCategoryMapping(result.category, result.amap_typecode)
       if (mapping) {
         // 1. 先在已有分类中查找名称匹配的
         const existingCat = categories?.find(c => c.name === mapping.name)

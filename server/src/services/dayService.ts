@@ -17,7 +17,7 @@ export function getAssignmentsForDay(dayId: number | string) {
       COALESCE(da.assignment_time, p.place_time) as place_time,
       COALESCE(da.assignment_end_time, p.end_time) as end_time,
       p.duration_minutes, p.notes as place_notes,
-      p.image_url, p.transport_mode, p.google_place_id, p.website, p.phone,
+      p.image_url, p.transport_mode, p.google_place_id, p.osm_id, p.website, p.phone,
       c.name as category_name, c.color as category_color, c.icon as category_icon
     FROM day_assignments da
     JOIN places p ON da.place_id = p.id
@@ -56,6 +56,7 @@ export function getAssignmentsForDay(dayId: number | string) {
         image_url: a.image_url,
         transport_mode: a.transport_mode,
         google_place_id: a.google_place_id,
+        osm_id: a.osm_id,
         website: a.website,
         phone: a.phone,
         category: a.category_id ? {
@@ -90,7 +91,7 @@ export function listDays(tripId: string | number) {
       COALESCE(da.assignment_time, p.place_time) as place_time,
       COALESCE(da.assignment_end_time, p.end_time) as end_time,
       p.duration_minutes, p.notes as place_notes,
-      p.image_url, p.transport_mode, p.google_place_id, p.website, p.phone,
+      p.image_url, p.transport_mode, p.google_place_id, p.osm_id, p.website, p.phone,
       c.name as category_name, c.color as category_color, c.icon as category_icon
     FROM day_assignments da
     JOIN places p ON da.place_id = p.id

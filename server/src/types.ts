@@ -308,6 +308,7 @@ export interface AssignmentRow extends DayAssignment {
   image_url: string | null;
   transport_mode: string;
   google_place_id: string | null;
+  osm_id: string | null;
   website: string | null;
   phone: string | null;
   category_name: string | null;

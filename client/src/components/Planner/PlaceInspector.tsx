@@ -637,8 +637,8 @@ export default function PlaceInspector({
           {(place.website || googleDetails?.website) && (
             <ActionButton onClick={() => {
               let url = place.website || googleDetails?.website || ''
-              if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url
-              window.open(url, '_blank')
+              if (url && !/^https?:\/\//i.test(url)) url = 'http://' + url
+              window.open(url, '_blank', 'noopener')
             }} variant="ghost" icon={<ExternalLink size={13} />}
               label={<span className="hidden sm:inline">{t('inspector.website')}</span>} />
           )}
