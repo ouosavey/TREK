@@ -1,5 +1,24 @@
 # VERSION
 
+## v3.0.22-cn.29 - 2026-06-17
+
+### 变更
+修复高德新功能第三轮测试反馈问题：
+1. 修复公交线路查询500错误（fetch异常时返回空结果而非抛错）
+2. 修复地铁图JS API加载失败（全局对象为subway小写，事件名为subway.complete，adcode为4位）
+3. 修复多边形搜索结果UI：改为底部居中弹窗（类似地点详情），手机端限制3个结果高度，电脑端420px宽
+4. 修复"风景名胜"分类未归类到景点（重构自动分类逻辑，避免闭包过期问题）
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+- `client/src/components/Map/MapViewAMap.tsx`
+- `client/src/components/Planner/PlaceFormModal.tsx`
+- `server/src/services/mapsService.ts`
+
 ## v3.0.22-cn.28 - 2026-06-17
 
 ### 变更

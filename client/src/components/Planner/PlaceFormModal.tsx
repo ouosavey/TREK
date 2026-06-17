@@ -320,6 +320,19 @@ export default function PlaceFormModal({
   const handleSelectMapsResult = async (result) => {
     // 确保 phone 是字符串（AMap 可能返回数组）
     const phoneStr = Array.isArray(result.phone) ? result.phone.join(',') : (result.phone || '')
+
+    // 自动分类匹配：根据高德分类（优先二级typecode，回退一级分类）匹配已有分类或创建新分类
+    // 在 setForm 之前计算，避免闭包过期问题
+    let newCategoryId: string | null = null
+    const mapping = findAmapCategoryMapping(result.category, result.amap_typecode)
+    if (mapping) {
+      // 1. 先在已有分类中查找名称匹配的
+      const existingCat = categories?.find(c => c.name === mapping.name)
+      if (existingCat) {
+        newCategoryId = String(existingCat.id)
+      }
+    }
+
     setForm(prev => ({
       ...prev,
       name: result.name || prev.name,
@@ -331,27 +344,19 @@ export default function PlaceFormModal({
       website: result.website || prev.website,
       phone: phoneStr,
       image_url: result.photo_url || result.image_url || prev.image_url,
+      // 仅当当前没有分类时才自动设置
+      category_id: (!prev.category_id && newCategoryId) ? newCategoryId : prev.category_id,
     }))
 
-    // 自动分类匹配：根据高德分类（优先二级typecode，回退一级分类）匹配已有分类或创建新分类
-    if (!form.category_id) {
-      const mapping = findAmapCategoryMapping(result.category, result.amap_typecode)
-      if (mapping) {
-        // 1. 先在已有分类中查找名称匹配的
-        const existingCat = categories?.find(c => c.name === mapping.name)
-        if (existingCat) {
-          setForm(prev => ({ ...prev, category_id: String(existingCat.id) }))
-        } else {
-          // 2. 没有匹配的分类，自动创建
-          try {
-            const newCat = await onCategoryCreated?.({ name: mapping.name, color: mapping.color, icon: mapping.icon })
-            if (newCat) {
-              setForm(prev => ({ ...prev, category_id: String(newCat.id) }))
-            }
-          } catch (err) {
-            console.warn('[PlaceFormModal] Failed to auto-create category:', err)
-          }
+    // 2. 如果没有匹配的已有分类，但有映射，异步创建新分类
+    if (mapping && !newCategoryId) {
+      try {
+        const newCat = await onCategoryCreated?.({ name: mapping.name, color: mapping.color, icon: mapping.icon })
+        if (newCat?.id) {
+          setForm(prev => (!prev.category_id ? { ...prev, category_id: String(newCat.id) } : prev))
         }
+      } catch (err) {
+        console.warn('[PlaceFormModal] Failed to auto-create category:', err)
       }
     }
 

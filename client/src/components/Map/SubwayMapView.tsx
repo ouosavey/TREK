@@ -3,37 +3,38 @@ import { X, Loader2 } from 'lucide-react'
 import { useSettingsStore } from '../../store/settingsStore'
 
 // ── 支持地铁图的城市列表（城市名 + 行政区划编码 adcode）──────────────────
+// 注意：高德地铁图 API 的 adcode 是 4 位（如北京 1100），不是 6 位
 const SUBWAY_CITIES = [
-  { name: '北京', adcode: '110000' },
-  { name: '上海', adcode: '310000' },
-  { name: '广州', adcode: '440100' },
-  { name: '深圳', adcode: '440300' },
-  { name: '成都', adcode: '510100' },
-  { name: '杭州', adcode: '330100' },
-  { name: '武汉', adcode: '420100' },
-  { name: '西安', adcode: '610100' },
-  { name: '南京', adcode: '320100' },
-  { name: '重庆', adcode: '500000' },
-  { name: '天津', adcode: '120000' },
-  { name: '苏州', adcode: '320500' },
-  { name: '郑州', adcode: '410100' },
-  { name: '大连', adcode: '210200' },
-  { name: '长沙', adcode: '430100' },
-  { name: '昆明', adcode: '530100' },
-  { name: '宁波', adcode: '330200' },
-  { name: '合肥', adcode: '340100' },
-  { name: '青岛', adcode: '370200' },
-  { name: '南昌', adcode: '360100' },
-  { name: '福州', adcode: '350100' },
-  { name: '东莞', adcode: '441900' },
-  { name: '南宁', adcode: '450100' },
-  { name: '长春', adcode: '220100' },
-  { name: '贵阳', adcode: '520100' },
-  { name: '无锡', adcode: '320200' },
-  { name: '厦门', adcode: '350200' },
-  { name: '石家庄', adcode: '130100' },
-  { name: '太原', adcode: '140100' },
-  { name: '乌鲁木齐', adcode: '650100' },
+  { name: '北京', adcode: '1100' },
+  { name: '上海', adcode: '3100' },
+  { name: '广州', adcode: '4401' },
+  { name: '深圳', adcode: '4403' },
+  { name: '成都', adcode: '5101' },
+  { name: '杭州', adcode: '3301' },
+  { name: '武汉', adcode: '4201' },
+  { name: '西安', adcode: '6101' },
+  { name: '南京', adcode: '3201' },
+  { name: '重庆', adcode: '5000' },
+  { name: '天津', adcode: '1200' },
+  { name: '苏州', adcode: '3205' },
+  { name: '郑州', adcode: '4101' },
+  { name: '大连', adcode: '2102' },
+  { name: '长沙', adcode: '4301' },
+  { name: '昆明', adcode: '5301' },
+  { name: '宁波', adcode: '3302' },
+  { name: '合肥', adcode: '3401' },
+  { name: '青岛', adcode: '3702' },
+  { name: '南昌', adcode: '3601' },
+  { name: '福州', adcode: '3501' },
+  { name: '东莞', adcode: '4419' },
+  { name: '南宁', adcode: '4501' },
+  { name: '长春', adcode: '2201' },
+  { name: '贵阳', adcode: '5201' },
+  { name: '无锡', adcode: '3202' },
+  { name: '厦门', adcode: '3502' },
+  { name: '石家庄', adcode: '1301' },
+  { name: '太原', adcode: '1401' },
+  { name: '乌鲁木齐', adcode: '6501' },
 ]
 
 // ── 组件接口 ──────────────────────────────────────────────────────────
@@ -53,28 +54,48 @@ function loadSubwayScript(key: string): Promise<void> {
   if (scriptLoadPromise) return scriptLoadPromise
 
   scriptLoadPromise = new Promise<void>((resolve, reject) => {
+    // 高德地铁图 JS API：https://webapi.amap.com/subway?v=1.0&key=xxx&callback=cbk
+    // 加载完成后会调用 window[callback] 回调，全局对象为 subway（小写）
+    const callbackName = '__subway_cb_' + Date.now()
     const script = document.createElement('script')
-    script.src = `https://webapi.amap.com/subway?v=1.0&key=${key}&callback=initSubway`
+    script.src = `https://webapi.amap.com/subway?v=1.0&key=${encodeURIComponent(key)}&callback=${callbackName}`
     script.async = true
 
-    // 高德地铁图 JS 通过 callback 回调通知加载完成
-    ;(window as any).initSubway = () => {
+    // 高德地铁图 JS 通过 callback 回调通知脚本加载完成
+    ;(window as any)[callbackName] = () => {
       scriptLoaded = true
+      try { delete (window as any)[callbackName] } catch { (window as any)[callbackName] = undefined }
       resolve()
     }
 
     script.onerror = () => {
       scriptLoadPromise = null
+      try { delete (window as any)[callbackName] } catch { (window as any)[callbackName] = undefined }
       reject(new Error('Failed to load subway script'))
     }
 
     // 超时兜底（10秒）
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       if (!scriptLoaded) {
         scriptLoadPromise = null
-        reject(new Error('Subway script load timeout'))
+        // 即使超时也尝试继续（脚本可能已加载但回调未触发）
+        if ((window as any).subway) {
+          scriptLoaded = true
+          try { delete (window as any)[callbackName] } catch { (window as any)[callbackName] = undefined }
+          resolve()
+        } else {
+          try { delete (window as any)[callbackName] } catch { (window as any)[callbackName] = undefined }
+          reject(new Error('Subway script load timeout'))
+        }
       }
     }, 10000)
+
+    // 清理超时定时器（加载成功后）
+    const originalResolve = resolve
+    resolve = ((v: void) => {
+      clearTimeout(timeoutId)
+      originalResolve(v)
+    }) as typeof resolve
 
     document.head.appendChild(script)
   })
@@ -108,10 +129,11 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       .then(() => {
         if (destroyed || !containerRef.current) return
 
-        // 地铁图全局对象为 Subway（不是 AMap.Subway）
-        const SubwayNS = (window as any).Subway
-        if (!SubwayNS) {
-          setErrorMsg('地铁图组件未就绪，请刷新重试')
+        // 地铁图全局对象为 subway（小写，不是 AMap.Subway，也不是 Subway）
+        const subwayNS = (window as any).subway || (window as any).Subway
+        if (!subwayNS || typeof subwayNS !== 'function') {
+          console.error('[SubwayMapView] subway global not found. window keys:', Object.keys(window).filter(k => k.toLowerCase().includes('subway')))
+          setErrorMsg('地铁图组件未就绪，请检查密钥配置或刷新重试')
           setLoading(false)
           return
         }
@@ -125,24 +147,27 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
           // 清空容器
           containerRef.current.innerHTML = ''
 
-          const subway = new SubwayNS(containerRef.current, selectedAdcode, {
+          // 创建地铁图实例：subway(container, { adcode: 'xxx', easy: 1 })
+          const subway = subwayNS(containerRef.current, {
+            adcode: selectedAdcode,
             easy: 1,
           })
           subwayRef.current = subway
 
-          subway.event.on('subwayComplete', () => {
+          // 注意：事件名是 "subway.complete"（带点），不是 "subwayComplete"
+          subway.event.on('subway.complete', () => {
             if (destroyed) return
             setLoading(false)
           })
 
-          subway.event.on('subwayFail', () => {
+          subway.event.on('subway.fail', () => {
             if (destroyed) return
             setErrorMsg('地铁图数据加载失败，该城市可能暂不支持')
             setLoading(false)
           })
         } catch (err) {
           if (destroyed) return
-          console.error('[SubwayMapView] Failed to create Subway instance:', err)
+          console.error('[SubwayMapView] Failed to create subway instance:', err)
           setErrorMsg('地铁图加载失败，请检查密钥配置是否正确')
           setLoading(false)
         }

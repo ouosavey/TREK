@@ -1622,8 +1622,17 @@ export async function getAmapBusLineInfo(
     extensions: 'all',
   });
 
-  let response = await fetch(`https://restapi.amap.com/v3/bus/linename?${params}`);
-  if (!response.ok) throw new Error('AMap bus line API error');
+  let response: Response;
+  try {
+    response = await fetch(`https://restapi.amap.com/v3/bus/linename?${params}`);
+  } catch (fetchErr) {
+    console.warn('[AMap] bus line fetch error:', fetchErr);
+    return { lineName: null, totalDistance: null, totalStops: null, firstTime: null, lastTime: null, stops: [], basicStops: [] };
+  }
+  if (!response.ok) {
+    console.warn('[AMap] bus line API HTTP error:', response.status);
+    return { lineName: null, totalDistance: null, totalStops: null, firstTime: null, lastTime: null, stops: [], basicStops: [] };
+  }
   let data = await response.json() as {
     status: string;
     info?: string;
@@ -1656,9 +1665,13 @@ export async function getAmapBusLineInfo(
         output: 'JSON',
         extensions: 'all',
       });
-      const retryResponse = await fetch(`https://restapi.amap.com/v3/bus/linename?${retryParams}`);
-      if (retryResponse.ok) {
-        data = await retryResponse.json() as typeof data;
+      try {
+        const retryResponse = await fetch(`https://restapi.amap.com/v3/bus/linename?${retryParams}`);
+        if (retryResponse.ok) {
+          data = await retryResponse.json() as typeof data;
+        }
+      } catch (retryErr) {
+        console.warn('[AMap] bus line retry error:', retryErr);
       }
     }
   }

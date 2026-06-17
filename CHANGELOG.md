@@ -1,5 +1,38 @@
 # CHANGELOG
 
+## 2026-06-17 修复高德新功能第三轮测试反馈 v3.0.22-cn.29
+
+### Bug修复
+
+#### 1. 公交线路查询500错误
+- **根因**: `getAmapBusLineInfo` 中 `if (!response.ok) throw new Error()` 导致路由catch后返回500
+- **修复**: fetch异常和HTTP错误时返回空结果（`{ stops: [], basicStops: [], ... }`）而非抛错，重试也加try-catch
+- **涉及文件**: `server/src/services/mapsService.ts`
+
+#### 2. 地铁图JS API加载失败（"地铁图组件未就绪"）
+- **根因**: 三个错误：
+  1. 全局对象是 `subway`（小写），不是 `Subway` 或 `AMap.Subway`
+  2. 事件名是 `subway.complete`（带点），不是 `subwayComplete`
+  3. adcode 是4位（如北京 `1100`），不是6位（`110000`）
+- **修复**: 重写 `SubwayMapView.tsx`，使用正确的全局对象 `window.subway`、事件名 `subway.complete`、4位adcode
+- **涉及文件**: `client/src/components/Map/SubwayMapView.tsx`
+
+#### 3. 多边形搜索结果UI遮挡问题
+- **根因**: 上一版将结果面板移到左侧，但仍被左边栏遮挡；手机端高度过大
+- **修复**: 改为底部居中弹窗（类似地点详情弹窗）：
+  - 手机端：宽度 `calc(100% - 24px)`，最大高度180px（约3个结果）
+  - 电脑端：宽度420px，最大高度360px（约6个结果）
+  - 添加毛玻璃背景效果
+- **涉及文件**: `client/src/components/Map/MapViewAMap.tsx`
+
+#### 4. "风景名胜"分类未归类到景点
+- **根因**: `handleSelectMapsResult` 中 `if (!form.category_id)` 使用闭包值，可能过期；异步创建分类时序问题
+- **修复**: 重构自动分类逻辑：
+  1. 在 `setForm` 之前先计算映射和查找已有分类
+  2. 同步设置已有分类的 `category_id`
+  3. 异步创建新分类后再 `setForm` 更新
+- **涉及文件**: `client/src/components/Planner/PlaceFormModal.tsx`
+
 ## 2026-06-17 修复高德新功能第二轮测试反馈 v3.0.22-cn.28
 
 ### Bug修复

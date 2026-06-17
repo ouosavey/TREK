@@ -1894,36 +1894,42 @@ export const MapViewAMap = memo(function MapViewAMap({
           </div>
         )}
 
-        {/* 搜索结果列表面板 - 左侧显示（避免被右侧添加地点栏遮挡） */}
+        {/* 搜索结果列表面板 - 底部居中弹窗（类似地点详情弹窗，避免被左右栏遮挡） */}
         {searchResults.length > 0 && !polygonSearchActive && (
           <div style={{
             position: 'absolute',
-            top: isMobile ? 48 : 56,
-            left: isMobile ? 8 : 12,
+            bottom: isMobile ? 12 : 20,
+            left: '50%',
+            transform: 'translateX(-50%)',
             zIndex: 150,
-            width: isMobile ? 'calc(100% - 16px)' : 280,
-            maxHeight: isMobile ? '40%' : '60%',
+            width: isMobile ? 'calc(100% - 24px)' : 420,
+            // 手机端：限制为约3个结果的高度（每项约44px + 头部约40px ≈ 170px）
+            // 电脑端：最多显示6个结果
+            maxHeight: isMobile ? 180 : 360,
             background: 'rgba(255,255,255,0.98)',
-            borderRadius: 10,
-            boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+            borderRadius: 12,
+            boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
             fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif",
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
           }}>
             <div
               style={{
-                padding: '10px 14px',
+                padding: isMobile ? '8px 12px' : '10px 14px',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 borderBottom: showResultsPanel ? '1px solid #f0f0f0' : 'none',
                 background: '#f9fafb',
+                flexShrink: 0,
               }}
               onClick={() => setShowResultsPanel(!showResultsPanel)}
             >
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>
+              <span style={{ fontSize: isMobile ? 12 : 13, fontWeight: 600, color: '#111827' }}>
                 搜索结果 ({searchResults.length})
               </span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1961,11 +1967,11 @@ export const MapViewAMap = memo(function MapViewAMap({
                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#f0f7ff'}
                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
                   >
-                    <div style={{ fontSize: isMobile ? 12 : 12, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {place.name || '未知'}
                     </div>
                     {place.address && (
-                      <div style={{ fontSize: isMobile ? 10 : 10, color: '#6b7280', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {place.address}
                       </div>
                     )}
