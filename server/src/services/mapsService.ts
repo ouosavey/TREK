@@ -1676,14 +1676,22 @@ export async function getAmapBusLineInfo(
     }
 
     // 从所有返回的线路中找到最佳匹配
-    // 高德 API 对 "1号线八通线" 的查询可能返回多条线路（1号线、八通线分开），需选最佳匹配
+    // 高德 API 对 "1号线八通线" 的查询可能返回多条线路（1号线短段、八通线、完整线路等），需选最佳匹配
     const buslines: any[] = data.buslines;
-    let line = buslines[0];
 
     // 去掉查询名中的"地铁"/"轨道"前缀，提取核心关键词
     const queryCore = lineName.replace(/^(地铁|轨道交通|轨道)/, '').trim();
     // 提取查询中的线路标识，如 "1号线八通线" → ["1号线", "八通线"]
     const queryParts = queryCore.match(/\d+号线|[^\d\s]+线/g) || [queryCore];
+
+    // 计算每条线路的站点数（busstops 数组长度是最可靠的完整性指标）
+    function getStopCount(bl: any): number {
+      if (Array.isArray(bl.busstops)) return bl.busstops.length;
+      if (bl.via_stops && typeof bl.via_stops === 'string') {
+        return bl.via_stops.split(',').filter(Boolean).length + 2;
+      }
+      return 0;
+    }
 
     // 评分函数：匹配度越高分数越大
     function scoreLine(bl: any): number {
@@ -1692,23 +1700,26 @@ export async function getAmapBusLineInfo(
       const nameCore = name.replace(/\([^)]*\)/g, '').trim();
       let score = 0;
       // 精确匹配
-      if (nameCore === queryCore) score += 100;
+      if (nameCore === queryCore) score += 1000;
       // 查询名包含在线路名中（或反过来）
-      if (nameCore.includes(queryCore) || queryCore.includes(nameCore)) score += 50;
+      if (nameCore.includes(queryCore) || queryCore.includes(nameCore)) score += 100;
       // 每个查询关键词都在线路名中出现，加分
       let matchedParts = 0;
       for (const part of queryParts) {
         if (nameCore.includes(part)) matchedParts++;
       }
-      score += matchedParts * 20;
+      score += matchedParts * 50;
       // 所有关键词都匹配，额外加分
-      if (matchedParts === queryParts.length && queryParts.length > 1) score += 30;
-      // 线路越长越可能是合并线路（如1号线八通线比单独1号线长）
-      score += Math.min(parseInt(bl.total_distance || '0', 10) / 1000, 20);
+      if (matchedParts === queryParts.length && queryParts.length > 1) score += 200;
+      // 站点数是区分短段和完整线路的最可靠指标（完整线路30+站，短段可能只有2站）
+      // 每个站点加 10 分，这样 30 站的线路比 2 站的线路多 280 分
+      const stopCount = getStopCount(bl);
+      score += stopCount * 10;
       return score;
     }
 
     // 找评分最高的线路
+    let line = buslines[0];
     let bestScore = -1;
     for (const bl of buslines) {
       const s = scoreLine(bl);
