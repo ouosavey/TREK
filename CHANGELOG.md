@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 2026-06-19 修复公交/地铁路线详情报错 v3.0.22-cn.55
+
+### Bug修复
+
+#### 1. 公交/地铁路线详情"未找到该线路的详细信息"修复
+- **问题**：展开"查看线路"时，有的线路显示"未找到该线路的详细信息 暂无详细站点信息"
+- **根因**：高德 API 返回的 `line.start_time` / `line.end_time` 可能是数字而非字符串，直接调用 `.replace()` 报错 `TypeError: line.start_time.replace is not a function`，导致 `getAmapBusLineInfo` 函数 catch 后返回空结果
+- **修复**：
+  1. 新增 `fmtTime(t)` 辅助函数，先转为字符串再格式化
+  2. 对 `line.via_stops` 增加 `typeof === 'string'` 类型检查
+- **Docker 日志影响**：此错误在 Docker 日志中大量重复出现，修复后不再产生
+
+### 涉及文件
+- `server/src/services/mapsService.ts`
+
 ## 2026-06-18 根据 F12 日志精确修复路线标注+getLinelist+DataCloneError v3.0.22-cn.54
 
 ### Bug修复

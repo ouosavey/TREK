@@ -1684,7 +1684,7 @@ export async function getAmapBusLineInfo(
 
     // via_stops 是 "站名1,站名2,..." 格式的字符串
     let viaStopNames: string[] = [];
-    if (line.via_stops) {
+    if (line.via_stops && typeof line.via_stops === 'string') {
       viaStopNames = line.via_stops.split(',').map((s: string) => s.trim()).filter(Boolean);
     }
 
@@ -1695,12 +1695,19 @@ export async function getAmapBusLineInfo(
       ...parseStops(line.arrival_stops || []),
     ].filter(s => s.name);
 
+    // start_time/end_time 可能是数字（如 600）或字符串，需先转为字符串再格式化
+    const fmtTime = (t: unknown): string | null => {
+      if (!t) return null;
+      const s = typeof t === 'string' ? t : String(t);
+      return s.replace(/^(\d{1,2})(\d{2})$/, '$1:$2');
+    };
+
     return {
       lineName: line.name || lineName,
       totalDistance: line.total_distance || null,
       totalStops: allStops.length || viaStopNames.length + 2,
-      firstTime: line.start_time ? line.start_time.replace(/^(\d{1,2})(\d{2})$/, '$1:$2') : null,
-      lastTime: line.end_time ? line.end_time.replace(/^(\d{1,2})(\d{2})$/, '$1:$2') : null,
+      firstTime: fmtTime(line.start_time),
+      lastTime: fmtTime(line.end_time),
       stops: allStops,
       basicStops,
     };
