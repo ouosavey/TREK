@@ -44,17 +44,8 @@ function useIsMobile() {
  * 实现方式：用 iframe 加载 Blob URL（内嵌 HTML 内容）。
  * 使用 createPortal 渲染到 document.body，避免父级 stacking context 遮挡。
  *
- * API 参考（https://lbs.amap.com/api/subway-api/）：
- * - subway(id, opts): id 为容器 id 字符串，opts.adcode 为城市编码
- * - 事件: subway.complete, subway.fail, station.touch, stationName.touch, subway.routeComplete
- * - setCenter(center): 设置中心点
- * - setFitView(): 调整视图到合适的显示范围
- * - scale(scale): 缩放级别 0.3~1.3
- * - getLinelist(): 获取线路列表（同步返回）
- * - showLine(id) / clearLine(): 显示/清除线路
- * - setStart(name) / setEnd(name): 设置起点/终点（用站点名称）
- * - route(start, end, opts): 路线规划（start/end 为站点名称）
- * - clearRoute(): 清除路线
+ * 关键设计：每次切换城市都重建整个 iframe（而非 destroy+recreate 实例），
+ * 彻底避免旧实例事件监听器残留导致的"粘鼠标"和"缩放恢复默认"问题。
  */
 export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
   const amapKey = useSettingsStore(s => s.settings.amap_key || '')
@@ -70,12 +61,12 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
   const [startStation, setStartStation] = useState<any>(null)
   const [endStation, setEndStation] = useState<any>(null)
   const [routeComplete, setRouteComplete] = useState<boolean>(false)
+  const [routeLines, setRouteLines] = useState<string[]>([])
 
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  const iframeReadyRef = useRef<boolean>(false)
   const blobUrlRef = useRef<string>('')
 
-  // ── 创建 Blob URL（只在 amapKey 变化时重建）────────────────────────
+  // ── 创建 Blob URL（amapKey 或 selectedAdcode 变化时重建）────────────
   useEffect(() => {
     if (!amapKey) return
 
@@ -85,14 +76,12 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       blobUrlRef.current = ''
     }
 
-    // 安全地嵌入参数（用 JSON.stringify 转义特殊字符）
     const safeKey = JSON.stringify(amapKey)
     const safeAdcode = JSON.stringify(selectedAdcode)
     const secConfig = amapSecurityCode
       ? 'window._AMapSecurityConfig = { securityJsCode: ' + JSON.stringify(amapSecurityCode) + ' };'
       : ''
 
-    // 构造完整的 HTML 文档（每行独立，避免模板字符串内嵌 JS 语法错误）
     const html = [
       '<!DOCTYPE html>',
       '<html lang="zh-CN"><head>',
@@ -103,12 +92,10 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       '<style>',
       '*{margin:0;padding:0;box-sizing:border-box}',
       'html,body{width:100%;height:100%;overflow:hidden;background:#fff}',
-      '#sc{width:100%;height:100%;touch-action:none}',
-      '.zm{position:absolute;right:10px;bottom:80px;z-index:999;display:flex;flex-direction:column;gap:2px}',
-      '.zm button{width:36px;height:36px;border:1px solid #d1d5db;background:#fff;border-radius:4px;font-size:20px;color:#374151;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;touch-action:manipulation}',
-      '.zm button:active{background:#f3f4f6}',
+      '#sc{width:100%;height:100%;touch-action:none;display:flex;align-items:center;justify-content:center}',
+      '#sc>div{margin:auto !important}',
       '</style>',
-      '</head><body><div id="sc"></div><div class="zm"><button id="zi">+</button><button id="zo">\u2212</button></div>',
+      '</head><body><div id="sc"></div>',
       '<script>',
       '(function(){',
       'var key=' + safeKey + ';',
@@ -131,72 +118,89 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       '  parent.postMessage({type:"subwayClickStation",station:{name:name,id:name}},"*");',
       '}',
       '',
-      '// ── 从 SVG 元素查找站点名称 ─────────────────────────────────────',
-      'function findStationName(target){',
+      '// ── 判断文本是否为站点名（非线路名）──────────────────────────────',
+      'function isStationName(text){',
+      '  if(!text||text.length===0||text.length>20) return false;',
+      '  // 过滤线路名：含"号线"的（如"1号线""18号线"）',
+      '  if(/号线/.test(text)) return false;',
+      '  // 过滤线路名：以"线"结尾且较短（如"大兴线""亦庄线"）',
+      '  if(/线$/.test(text)&&text.length<=4) return false;',
+      '  return true;',
+      '}',
+      '',
+      '// ── 从事件目标获取站点名（仅 text/tspan 元素）──────────────────',
+      'function getStationNameFromTarget(target){',
       '  if(!target||!target.tagName) return null;',
-      '  if(target.tagName==="text"||target.tagName==="tspan"){',
-      '    var t=target.textContent.trim();',
-      '    if(t&&t.length>0&&t.length<20) return t;',
-      '  }',
-      '  var p=target.parentElement;',
-      '  while(p&&p.tagName!=="svg"&&p.id!=="sc"){',
-      '    var texts=p.querySelectorAll("text");',
-      '    for(var i=0;i<texts.length;i++){',
-      '      var t=texts[i].textContent.trim();',
-      '      if(t&&t.length>0&&t.length<20) return t;',
-      '    }',
-      '    p=p.parentElement;',
+      '  var tag=target.tagName.toLowerCase();',
+      '  if(tag==="text"||tag==="tspan"){',
+      '    var t=(target.textContent||"").trim();',
+      '    if(isStationName(t)) return t;',
       '  }',
       '  return null;',
       '}',
       '',
-      '// ── 创建地铁图实例 ─────────────────────────────────────────────',
-      'function ci(a){',
-      '  if(!sf) return;',
-      '  cr=false;',
-      '  if(si){ try{si.destroy()}catch(e){} si=null }',
-      '  document.getElementById("sc").innerHTML="";',
-      '  curZoom=1.0;',
+      '// ── subway 脚本回调 ────────────────────────────────────────────',
+      'window.cbk=function(){',
+      '  try{ sf=window.subway||window.Subway }catch(e){ sf=null }',
+      '  if(!sf||typeof sf!=="function"){',
+      '    parent.postMessage({type:"subwayError",msg:"地铁图组件未就绪，请检查密钥是否已开通地铁图服务"},"*");',
+      '    return;',
+      '  }',
+      '  parent.postMessage({type:"subwayReady"},"*");',
       '  try{',
-      '    console.log("[subway] creating instance adcode:",a);',
-      '    si=sf("sc",{adcode:a,theme:"colorful"});',
+      '    si=sf("sc",{adcode:adcode,theme:"colorful"});',
       '    si.event.on("subway.complete",function(){',
-      '      console.log("[subway] complete");',
       '      cr=true; if(tid){clearTimeout(tid);tid=null}',
       '      parent.postMessage({type:"subwayComplete"},"*");',
-      '      // 获取线路列表（官方方法名 getLinelist，小写 l）',
+      '      // 获取线路列表',
       '      try{',
       '        var lines=null;',
       '        if(si.getLinelist) lines=si.getLinelist();',
       '        if(!lines&&si.getLineList){ si.getLineList(function(l){lines=l}); }',
       '        if(lines&&Array.isArray(lines)){ parent.postMessage({type:"subwayLineList",lines:lines},"*"); }',
       '      }catch(e){ console.log("[subway] getLinelist err:",e); }',
-      '      // 居中：setFitView + setCenter 双重居中',
+      '      // 居中：延迟调用 setFitView 确保渲染完成',
       '      setTimeout(function(){',
       '        try{ si.setFitView(); }catch(e){ console.log("[subway] fitView err:",e); }',
-      '        setTimeout(function(){',
-      '          try{ var c=si.getCenter(); if(c) si.setCenter(c); }catch(e){}',
-      '        },200);',
-      '      },500);',
+      '      },1000);',
       '    });',
       '    si.event.on("subway.fail",function(){',
       '      if(tid){clearTimeout(tid);tid=null}',
       '      parent.postMessage({type:"subwayFail",msg:"地铁图数据加载失败，该城市可能暂不支持"},"*");',
       '    });',
-      '    // 方案1: station.touch 事件（可能因 formatStation 崩溃而不触发）',
+      '    // station.touch 事件',
       '    si.event.on("station.touch",function(d){',
-      '      console.log("[subway] station.touch:",JSON.stringify(d));',
       '      if(d&&(d.name||d.id)) sendStationClick(d.name||d.id);',
       '    });',
-      '    // 方案2: stationName.touch 事件（可能不经过 formatStation）',
+      '    // stationName.touch 事件',
       '    si.event.on("stationName.touch",function(d){',
-      '      console.log("[subway] stationName.touch:",JSON.stringify(d));',
       '      if(d&&(d.name||d.id)) sendStationClick(d.name||d.id);',
       '    });',
       '    // 路线规划完成事件',
       '    si.event.on("subway.routeComplete",function(d){',
-      '      console.log("[subway] routeComplete:",JSON.stringify(d));',
-      '      parent.postMessage({type:"subwayRouteComplete",data:d},"*");',
+      '      var lineNames=[];',
+      '      try{',
+      '        var data=d&&d.data?d.data:d;',
+      '        if(Array.isArray(data.segments)){',
+      '          data.segments.forEach(function(s){',
+      '            var n=s.line||s.lineName||s.name||s.line_title;',
+      '            if(n&&lineNames.indexOf(n)<0) lineNames.push(n);',
+      '          });',
+      '        }else if(Array.isArray(data.route)){',
+      '          data.route.forEach(function(r){',
+      '            var n=r.line||r.lineName||r.name||r.line_title;',
+      '            if(n&&lineNames.indexOf(n)<0) lineNames.push(n);',
+      '          });',
+      '        }else if(Array.isArray(data.lines)){',
+      '          data.lines.forEach(function(l){',
+      '            var n=typeof l==="string"?l:(l.name||l.lineName||l.line_title);',
+      '            if(n&&lineNames.indexOf(n)<0) lineNames.push(n);',
+      '          });',
+      '        }else if(data.line_names){',
+      '          lineNames=data.line_names;',
+      '        }',
+      '      }catch(e){ console.log("[subway] routeComplete parse err:",e); }',
+      '      parent.postMessage({type:"subwayRouteComplete",data:d,lineNames:lineNames},"*");',
       '    });',
       '  }catch(err){',
       '    if(tid){clearTimeout(tid);tid=null}',
@@ -206,18 +210,6 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       '  tid=setTimeout(function(){',
       '    if(!cr){ parent.postMessage({type:"subwayTimeout",msg:"地铁图加载超时，请检查网络或密钥配置"},"*"); }',
       '  },10000);',
-      '}',
-      '',
-      '// ── subway 脚本回调 ────────────────────────────────────────────',
-      'window.cbk=function(){',
-      '  console.log("[subway] cbk invoked");',
-      '  try{ sf=window.subway||window.Subway }catch(e){ sf=null }',
-      '  if(!sf||typeof sf!=="function"){',
-      '    parent.postMessage({type:"subwayError",msg:"地铁图组件未就绪，请检查密钥是否已开通地铁图服务"},"*");',
-      '    return;',
-      '  }',
-      '  parent.postMessage({type:"subwayReady"},"*");',
-      '  setTimeout(function(){ ci(adcode); },200);',
       '};',
       '',
       'var s=document.createElement("script");',
@@ -225,10 +217,6 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       's.async=true;',
       's.onerror=function(){ parent.postMessage({type:"subwayError",msg:"地铁图脚本加载失败，请检查网络连接"},"*"); };',
       'document.head.appendChild(s);',
-      '',
-      '// ── 缩放按钮（无级缩放，步长 0.15）──────────────────────────────',
-      'document.getElementById("zi").onclick=function(){ try{ curZoom=Math.min(1.3,curZoom+0.15); si.scale(curZoom); }catch(e){} };',
-      'document.getElementById("zo").onclick=function(){ try{ curZoom=Math.max(0.3,curZoom-0.15); si.scale(curZoom); }catch(e){} };',
       '',
       '// ── 鼠标滚轮缩放（电脑端）──────────────────────────────────────',
       'document.getElementById("sc").addEventListener("wheel",function(e){',
@@ -272,38 +260,32 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       '    var dt=Date.now()-touchST;',
       '    if(dist<15&&dt<500){',
       '      var el=document.elementFromPoint(e.changedTouches[0].clientX,e.changedTouches[0].clientY);',
-      '      if(el){ var n=findStationName(el); if(n) sendStationClick(n); }',
+      '      if(el){ var n=getStationNameFromTarget(el); if(n) sendStationClick(n); }',
       '    }',
       '  }',
       '},{passive:false});',
       '',
       '// ── 站点点击检测：click（电脑端，capture 阶段）──────────────────',
       'document.getElementById("sc").addEventListener("click",function(e){',
-      '  var n=findStationName(e.target);',
+      '  var n=getStationNameFromTarget(e.target);',
       '  if(n) sendStationClick(n);',
       '},true);',
       '',
       '// ── 父页消息处理 ────────────────────────────────────────────────',
       'window.addEventListener("message",function(e){',
       '  if(!e.data||typeof e.data.type!=="string") return;',
-      '  if(e.data.type==="switchCity"){',
-      '    adcode=e.data.adcode;',
-      '    parent.postMessage({type:"subwayLoading"},"*");',
-      '    ci(adcode);',
-      '  } else if(e.data.type==="showLine"&&si&&e.data.lineName){',
+      '  if(e.data.type==="showLine"&&si&&e.data.lineName){',
       '    try{',
       '      si.showLine(e.data.lineName);',
       '      var c=si.getSelectedLineCenter&&si.getSelectedLineCenter();',
       '      if(c){ si.setCenter(c); }',
       '    }catch(ex){}',
       '  } else if(e.data.type==="setStart"&&si){',
-      '    try{ si.setStart(e.data.sid); }catch(ex){ console.log("[subway] setStart err:",ex); }',
+      '    try{ si.setStart(e.data.sid); }catch(ex){}',
       '  } else if(e.data.type==="setEnd"&&si){',
-      '    try{ si.setEnd(e.data.sid); }catch(ex){ console.log("[subway] setEnd err:",ex); }',
+      '    try{ si.setEnd(e.data.sid); }catch(ex){}',
       '  } else if(e.data.type==="setRoute"&&si){',
-      '    try{',
-      '      si.route(e.data.startId,e.data.endId,{closeBtn:true});',
-      '    }catch(ex){ console.log("[subway] route err:",ex); }',
+      '    try{ si.route(e.data.startId,e.data.endId,{closeBtn:true}); }catch(ex){}',
       '  } else if(e.data.type==="clearRoute"&&si){',
       '    try{ si.clearRoute(); }catch(ex){}',
       '    try{ si.setStart(""); }catch(ex){}',
@@ -330,7 +312,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
     setStartStation(null)
     setEndStation(null)
     setRouteComplete(false)
-    iframeReadyRef.current = false
+    setRouteLines([])
 
     return () => {
       if (blobUrlRef.current) {
@@ -339,7 +321,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amapKey, amapSecurityCode])
+  }, [amapKey, amapSecurityCode, selectedAdcode])
 
   // ── 监听 iframe 的 postMessage 消息 ──────────────────────────────────
   useEffect(() => {
@@ -347,16 +329,10 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       if (!e.data || typeof e.data.type !== 'string') return
       switch (e.data.type) {
         case 'subwayReady':
-          iframeReadyRef.current = true
           break
         case 'subwayComplete':
           setLoading(false)
           setErrorMsg('')
-          break
-        case 'subwayLoading':
-          setLoading(true)
-          setLineList([])
-          setRouteComplete(false)
           break
         case 'subwayFail':
         case 'subwayError':
@@ -376,28 +352,13 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
           break
         case 'subwayRouteComplete':
           setRouteComplete(true)
+          setRouteLines(e.data.lineNames || [])
           break
       }
     }
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
   }, [])
-
-  // ── 城市切换：通过 postMessage 通知 iframe ───────────────────────────
-  useEffect(() => {
-    if (!iframeReadyRef.current) return
-    iframeRef.current?.contentWindow?.postMessage({
-      type: 'switchCity',
-      adcode: selectedAdcode,
-    }, '*')
-    setLoading(true)
-    setLineList([])
-    setClickedStation(null)
-    setStartStation(null)
-    setEndStation(null)
-    setRouteComplete(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAdcode])
 
   // ── 点击线路项：高亮该线路 ───────────────────────────────────────────
   const handleLineClick = useCallback((line: any) => {
@@ -428,6 +389,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
     const startId = startStation.name || startStation.id
     const endId = endStation.name || endStation.id
     setRouteComplete(false)
+    setRouteLines([])
     iframeRef.current?.contentWindow?.postMessage({
       type: 'setRoute', startId, endId,
     }, '*')
@@ -438,6 +400,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
     setEndStation(null)
     setClickedStation(null)
     setRouteComplete(false)
+    setRouteLines([])
     iframeRef.current?.contentWindow?.postMessage({ type: 'clearRoute' }, '*')
   }, [])
 
@@ -585,7 +548,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
             <div style={{ fontSize: 11, color: '#9ca3af' }}>
               请确认：1) 已配置高德 JS API 密钥（amap_key）<br/>
               2) 密钥已开通地铁图服务<br/>
-              3) 已更新到最新版本（v3.0.22-cn.48+）
+              3) 已更新到最新版本（v3.0.22-cn.49+）
             </div>
           </div>
         )}
@@ -656,9 +619,13 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
               }}><Navigation size={12} />规划路线</button>
             )}
             {routeComplete && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: isMobile ? 11 : 12, color: '#059669' }}>
-                <Route size={12} />
-                <span>路线已规划，彩色线段对应不同线路</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: isMobile ? 11 : 12, color: '#059669', flexWrap: 'wrap', justifyContent: 'center' }}>
+                <Route size={12} style={{ flexShrink: 0 }} />
+                {routeLines.length > 0 ? (
+                  <span>{routeLines.join(' → ')}</span>
+                ) : (
+                  <span>路线已规划，彩色线段对应不同线路</span>
+                )}
               </div>
             )}
             <button onClick={handleClearRoute} title="清除" style={{
@@ -679,7 +646,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
             display: 'flex', alignItems: 'center', gap: 4,
           }}>
             <MapPin size={isMobile ? 10 : 12} style={{ flexShrink: 0 }} />
-            <span>点击站点设为起终点，查看路线规划</span>
+            <span>点击站点名称设为起终点，滚轮/双指缩放</span>
           </div>
         )}
       </div>
