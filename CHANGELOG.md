@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-06-18 修复地铁图白屏（useMemo未导入） v3.0.22-cn.40
+
+### Bug修复
+
+#### 地铁图白屏 - ReferenceError: useMemo is not defined
+- **错误日志**：
+  ```
+  ReferenceError: useMemo is not defined
+      at $Te (index-BfJz7q7M.js:11349:9013)
+  Uncaught ReferenceError: useMemo is not defined
+      at $Te (index-BfJz7q7M.js:11349:9013)
+  ```
+- **根因**：v3.0.22-cn.39 重写 SubwayMapView.tsx 时使用了 `useMemo` 构造 srcdoc HTML，但 import 语句中只导入了 `{ useEffect, useRef, useState, useCallback }`，漏掉了 `useMemo`
+- **修复**：import 语句添加 `useMemo`
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`（import 添加 useMemo）
+
 ## 2026-06-18 用srcdoc方案彻底解决地铁图一直加载 v3.0.22-cn.39
 
 ### Bug修复

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { X, Loader2, List, ChevronUp, MapPin } from 'lucide-react'
 import { useSettingsStore } from '../../store/settingsStore'
 

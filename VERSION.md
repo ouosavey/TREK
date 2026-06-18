@@ -1,5 +1,19 @@
 # VERSION
 
+## v3.0.22-cn.40 - 2026-06-18
+
+### 变更
+修复地铁图白屏（ReferenceError: useMemo is not defined）：
+- **根因**：SubwayMapView.tsx 使用了 `useMemo` 但未在 import 中导入，导致 React 渲染时报 ReferenceError 白屏
+- **修复**：import 语句添加 `useMemo`
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`（import 添加 useMemo）
+
 ## v3.0.22-cn.39 - 2026-06-18
 
 ### 变更
