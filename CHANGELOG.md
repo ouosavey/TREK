@@ -1,5 +1,30 @@
 # CHANGELOG
 
+## 2026-06-18 地铁图缩放修复 + 居中改进 + 路线标注 DOM 备选 v3.0.22-cn.51
+
+### Bug修复
+
+#### 1. 缩放失效修复（根因修复）
+- **问题**：电脑端和手机端地铁图都不能缩放了
+- **根因**：v3.0.22-cn.50 中添加的 CSS `#sc svg{...transform:translate(-50%,-50%)!important}` 用 `!important` 覆盖了地铁图 API 内部通过修改 transform 实现的缩放功能
+- **修复**：移除所有 `#sc svg` 和 `#sc>div` 的强制 CSS，不干预地铁图 API 内部的 transform
+
+#### 2. 电脑端左半边显示修复
+- **问题**：电脑端地铁图只在屏幕左半边显示，右半边空白
+- **根因**：同上，强制 CSS 的 `position:absolute` + `left:50%` 导致 SVG 定位错误
+- **修复**：移除强制 CSS，改用 `setFitView()` + `setCenter(getCenter())` + JS 手动设置 `margin:0 auto` 居中
+
+#### 3. 居中方案改进
+- `setFitView()` 在 `subway.complete` 后分 5 个时间点调用（100ms、500ms、1000ms、2000ms、3000ms）
+- 添加 `setCenter(getCenter())` 双重居中
+- JS 手动获取 `#sc` 子元素设置 `margin:0 auto` + `display:block`
+
+#### 4. 路线标注 DOM 备选方案
+- 当 `subway.routeComplete` 事件数据解析失败时，从 SVG DOM 中提取含"号线"或以"线"结尾的文本作为线路名
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+
 ## 2026-06-18 地铁图居中显示 + 路线标注修复 v3.0.22-cn.50
 
 ### Bug修复
