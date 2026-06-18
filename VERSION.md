@@ -1,5 +1,37 @@
 # VERSION
 
+## v3.0.22-cn.54 - 2026-06-18
+
+### 变更
+根据 F12 日志精确修复路线标注 + getLinelist + DataCloneError：
+
+#### 1. 路线标注几号线（根据实际数据结构精确解析）
+- **问题**：路线规划完成后无法标注几号线
+- **根因**：之前不知道 routeComplete 事件的实际数据结构，解析逻辑不匹配
+- **F12 日志揭示的实际数据结构**：
+  ```
+  d.originalEvent._args.data.buslist[0].segmentlist[i].bus_key_name
+  ```
+  格式如 `"地铁12号线(南宝线)"`
+- **修复**：
+  1. 从 `d.originalEvent._args.data.buslist[].segmentlist[].bus_key_name` 提取线路名
+  2. 从 `"地铁12号线(南宝线)"` 提取简称 `"12号线(南宝线)"`（去掉"地铁"前缀）
+  3. 去掉方向信息括号，如 `"12号线(南宝线)(松岗--左炮台东)"` → `"12号线(南宝线)"`
+  4. 保留 DOM 备选方案（opacity 高亮检测）
+
+#### 2. getLinelist 方法修复
+- **问题**：`[subway] getLineList err: TypeError: t is not a function`
+- **根因**：API 实际方法名是 `getLinelist`（小写 l），且**必须传 callback 函数**。之前代码 `si.getLinelist()` 无参数调用导致 `t is not a function`
+- **修复**：改为 `si.getLinelist(function(l){...})` 带回调函数调用
+
+#### 3. DataCloneError 修复
+- **问题**：`Uncaught DataCloneError: Failed to execute 'postMessage' on 'Window': Event object could not be cloned.`
+- **根因**：routeComplete 事件的 `d` 对象包含 `originalEvent`（Event 对象），无法被 postMessage 的结构化克隆算法克隆
+- **修复**：不发送原始 `d` 对象，只发送提取的 `lineNames` 数组和 `info` 字符串
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+
 ## v3.0.22-cn.53 - 2026-06-18
 
 ### 变更

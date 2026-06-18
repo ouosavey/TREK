@@ -151,13 +151,14 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       '    si.event.on("subway.complete",function(){',
       '      cr=true; if(tid){clearTimeout(tid);tid=null}',
       '      parent.postMessage({type:"subwayComplete"},"*");',
-      '      // 获取线路列表（官方方法名 getLineList，大写 L）',
+      '      // 获取线路列表（API 实际方法名 getLinelist，小写 l，必须传 callback）',
       '      try{',
-      '        var lines=null;',
-      '        if(si.getLineList){ si.getLineList(function(l){lines=l; if(lines&&Array.isArray(lines)){ parent.postMessage({type:"subwayLineList",lines:lines},"*"); } }); }',
-      '        if(si.getLinelist){ lines=si.getLinelist(); }',
-      '        if(lines&&Array.isArray(lines)){ parent.postMessage({type:"subwayLineList",lines:lines},"*"); }',
-      '      }catch(e){ console.log("[subway] getLineList err:",e); }',
+      '        if(si.getLinelist){',
+      '          si.getLinelist(function(l){',
+      '            if(l&&Array.isArray(l)){ parent.postMessage({type:"subwayLineList",lines:l},"*"); }',
+      '          });',
+      '        }',
+      '      }catch(e){ console.log("[subway] getLinelist err:",e); }',
       '      // 居中：setFitView 传入 SVG DOM + 只调用一次 move（move 是相对偏移，多次调用会叠加）',
       '      var centered=false;',
       '      function tryCenter(){',
@@ -198,49 +199,40 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       '    });',
       '    // 路线规划完成事件',
       '    si.event.on("subway.routeComplete",function(d){',
-      '      console.log("[subway] routeComplete raw:",JSON.stringify(d));',
       '      var lineNames=[];',
+      '      var routeInfo="";',
       '      try{',
-      '        var data=d&&d.data?d.data:d;',
-      '        // 递归搜索对象中所有可能的线路名字段',
-      '        function extractLines(obj,depth){',
-      '          if(!obj||depth>5||lineNames.length>20) return;',
-      '          if(typeof obj==="string"){',
-      '            if(/号线|线$/.test(obj)&&obj.length<10&&lineNames.indexOf(obj)<0){ lineNames.push(obj); }',
-      '            return;',
-      '          }',
-      '          if(typeof obj!=="object") return;',
-      '          // 检查常见字段名',
-      '          var fields=["line","lineName","name","line_title","title","lineName_txt","lname"];',
-      '          for(var i=0;i<fields.length;i++){',
-      '            var f=fields[i];',
-      '            if(obj[f]&&typeof obj[f]==="string"&&/号线|线$/.test(obj[f])&&obj[f].length<10){',
-      '              if(lineNames.indexOf(obj[f])<0) lineNames.push(obj[f]);',
+      '        // 实际数据结构：d.originalEvent._args.data.buslist[0].segmentlist[i].bus_key_name',
+      '        var args=d&&d.originalEvent&&d.originalEvent._args;',
+      '        var data=args&&args.data;',
+      '        if(data&&Array.isArray(data.buslist)){',
+      '          data.buslist.forEach(function(bus){',
+      '            if(bus&&Array.isArray(bus.segmentlist)){',
+      '              bus.segmentlist.forEach(function(seg){',
+      '                // bus_key_name 格式如 "地铁12号线(南宝线)"',
+      '                var name=seg.bus_key_name||seg.busname||"";',
+      '                // 提取线路简称：从 "地铁12号线(南宝线)" 提取 "12号线(南宝线)"',
+      '                if(name){',
+      '                  var short=name.replace(/^地铁/,"");',
+      '                  // 去掉括号内的方向信息，如 "12号线(南宝线)(松岗--左炮台东)" → "12号线(南宝线)"',
+      '                  short=short.replace(/\\)\\([^)]+\\)$/,"");',
+      '                  if(lineNames.indexOf(short)<0) lineNames.push(short);',
+      '                }',
+      '              });',
       '            }',
-      '          }',
-      '          // 递归遍历',
-      '          if(Array.isArray(obj)){',
-      '            obj.forEach(function(item){ extractLines(item,depth+1); });',
-      '          }else{',
-      '            Object.keys(obj).forEach(function(k){',
-      '              if(k!=="parent"&&k!=="prototype") extractLines(obj[k],depth+1);',
-      '            });',
-      '          }',
+      '          });',
       '        }',
-      '        extractLines(data,0);',
+      '        routeInfo=JSON.stringify({buslist:data&&data.buslist?data.buslist.length:0,lineNames:lineNames});',
       '      }catch(e){ console.log("[subway] routeComplete parse err:",e); }',
       '      // 备选方案：从 SVG DOM 提取路线涉及的线路名',
       '      if(lineNames.length===0){',
       '        try{',
-      '          // 路线规划后，路线涉及的线路会被高亮（opacity 较高），',
-      '          // 未涉及的线路会变暗（opacity 较低）',
       '          var allTexts=document.querySelectorAll("#sc text, #sc tspan");',
       '          var highlighted=[];',
       '          var dimmed=[];',
       '          allTexts.forEach(function(t){',
       '            var txt=(t.textContent||"").trim();',
       '            if(!txt||!/号线|线$/.test(txt)||txt.length>=10) return;',
-      '            // 检查元素及其父级的 opacity/style/class',
       '            var el=t;',
       '            var opacity=1;',
       '            while(el&&el!==document.body){',
@@ -257,7 +249,6 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       '              if(dimmed.indexOf(txt)<0) dimmed.push(txt);',
       '            }',
       '          });',
-      '          // 如果有高亮和变暗的线路，只取高亮的',
       '          if(highlighted.length>0&&dimmed.length>0){',
       '            lineNames=highlighted;',
       '          }else if(highlighted.length>0){',
@@ -265,7 +256,9 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       '          }',
       '        }catch(e){ console.log("[subway] DOM extract err:",e); }',
       '      }',
-      '      parent.postMessage({type:"subwayRouteComplete",data:d,lineNames:lineNames,raw:JSON.stringify(d)},"*");',
+      '      console.log("[subway] routeComplete lineNames:",lineNames);',
+      '      // 注意：不发送原始 d 对象（含 Event 对象，无法被 postMessage 克隆）',
+      '      parent.postMessage({type:"subwayRouteComplete",lineNames:lineNames,info:routeInfo},"*");',
       '    });',
       '  }catch(err){',
       '    if(tid){clearTimeout(tid);tid=null}',
@@ -418,10 +411,8 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
         case 'subwayRouteComplete':
           setRouteComplete(true)
           setRouteLines(e.data.lineNames || [])
-          // 调试：打印原始数据，方便排查路线数据结构
-          if (e.data.raw) {
-            console.log('[SubwayMapView] routeComplete raw data:', e.data.raw)
-            console.log('[SubwayMapView] routeComplete lineNames:', e.data.lineNames)
+          if (e.data.info) {
+            console.log('[SubwayMapView] routeComplete info:', e.data.info)
           }
           break
       }
@@ -618,7 +609,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
             <div style={{ fontSize: 11, color: '#9ca3af' }}>
               请确认：1) 已配置高德 JS API 密钥（amap_key）<br/>
               2) 密钥已开通地铁图服务<br/>
-              3) 已更新到最新版本（v3.0.22-cn.53+）
+              3) 已更新到最新版本（v3.0.22-cn.54+）
             </div>
           </div>
         )}

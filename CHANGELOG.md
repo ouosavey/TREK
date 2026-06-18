@@ -1,5 +1,31 @@
 # CHANGELOG
 
+## 2026-06-18 根据 F12 日志精确修复路线标注+getLinelist+DataCloneError v3.0.22-cn.54
+
+### Bug修复
+
+#### 1. 路线标注几号线（根据实际数据结构精确解析）
+- **问题**：路线规划完成后无法标注几号线
+- **根因**：之前不知道 routeComplete 事件的实际数据结构
+- **F12 日志揭示的实际数据结构**：`d.originalEvent._args.data.buslist[0].segmentlist[i].bus_key_name`，格式如 `"地铁12号线(南宝线)"`
+- **修复**：
+  1. 从 `bus_key_name` 提取线路名，去掉"地铁"前缀和方向信息括号
+  2. 显示格式如 `"12号线(南宝线)"`
+  3. 保留 DOM 备选方案
+
+#### 2. getLinelist 方法修复
+- **问题**：`TypeError: t is not a function`
+- **根因**：API 方法名是 `getLinelist`（小写 l），必须传 callback 函数，之前无参数调用
+- **修复**：改为 `si.getLinelist(function(l){...})`
+
+#### 3. DataCloneError 修复
+- **问题**：`Event object could not be cloned`
+- **根因**：routeComplete 的 `d` 对象含 `originalEvent`（Event 对象），无法被 postMessage 克隆
+- **修复**：不发送原始 `d` 对象，只发送提取的 `lineNames` 和 `info`
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+
 ## 2026-06-18 地铁图居中根因修复（move叠加）+ 路线标注高亮提取 v3.0.22-cn.53
 
 ### Bug修复
