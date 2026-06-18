@@ -92,8 +92,9 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       '<style>',
       '*{margin:0;padding:0;box-sizing:border-box}',
       'html,body{width:100%;height:100%;overflow:hidden;background:#fff}',
-      '#sc{width:100%;height:100%;touch-action:none;display:flex;align-items:center;justify-content:center}',
-      '#sc>div{margin:auto !important}',
+      '#sc{width:100%;height:100%;touch-action:none;position:relative}',
+      '#sc svg{position:absolute!important;top:50%!important;left:50%!important;transform:translate(-50%,-50%)!important}',
+      '#sc>div{position:absolute!important;top:50%!important;left:50%!important;transform:translate(-50%,-50%)!important}',
       '</style>',
       '</head><body><div id="sc"></div>',
       '<script>',
@@ -152,17 +153,19 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       '    si.event.on("subway.complete",function(){',
       '      cr=true; if(tid){clearTimeout(tid);tid=null}',
       '      parent.postMessage({type:"subwayComplete"},"*");',
-      '      // 获取线路列表',
+      '      // 获取线路列表（官方方法名 getLineList，大写 L）',
       '      try{',
       '        var lines=null;',
-      '        if(si.getLinelist) lines=si.getLinelist();',
-      '        if(!lines&&si.getLineList){ si.getLineList(function(l){lines=l}); }',
+      '        if(si.getLineList){ si.getLineList(function(l){lines=l; if(lines&&Array.isArray(lines)){ parent.postMessage({type:"subwayLineList",lines:lines},"*"); } }); }',
+      '        if(si.getLinelist){ lines=si.getLinelist(); }',
       '        if(lines&&Array.isArray(lines)){ parent.postMessage({type:"subwayLineList",lines:lines},"*"); }',
-      '      }catch(e){ console.log("[subway] getLinelist err:",e); }',
-      '      // 居中：延迟调用 setFitView 确保渲染完成',
-      '      setTimeout(function(){',
-      '        try{ si.setFitView(); }catch(e){ console.log("[subway] fitView err:",e); }',
-      '      },1000);',
+      '      }catch(e){ console.log("[subway] getLineList err:",e); }',
+      '      // 居中：多次调用 setFitView 确保渲染完成后生效',
+      '      [100,500,1000,2000].forEach(function(delay){',
+      '        setTimeout(function(){',
+      '          try{ si.setFitView(); }catch(e){ console.log("[subway] fitView err @"+delay+":",e); }',
+      '        },delay);',
+      '      });',
       '    });',
       '    si.event.on("subway.fail",function(){',
       '      if(tid){clearTimeout(tid);tid=null}',
@@ -178,29 +181,39 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       '    });',
       '    // 路线规划完成事件',
       '    si.event.on("subway.routeComplete",function(d){',
+      '      console.log("[subway] routeComplete raw:",JSON.stringify(d));',
       '      var lineNames=[];',
       '      try{',
       '        var data=d&&d.data?d.data:d;',
+      '        // 尝试多种数据结构提取线路名',
+      '        if(Array.isArray(data)){',
+      '          data.forEach(function(item){',
+      '            var n=item.line||item.lineName||item.name||item.line_title||item.title;',
+      '            if(n&&lineNames.indexOf(n)<0) lineNames.push(n);',
+      '          });',
+      '        }',
       '        if(Array.isArray(data.segments)){',
       '          data.segments.forEach(function(s){',
-      '            var n=s.line||s.lineName||s.name||s.line_title;',
+      '            var n=s.line||s.lineName||s.name||s.line_title||s.title;',
       '            if(n&&lineNames.indexOf(n)<0) lineNames.push(n);',
       '          });',
-      '        }else if(Array.isArray(data.route)){',
-      '          data.route.forEach(function(r){',
-      '            var n=r.line||r.lineName||r.name||r.line_title;',
-      '            if(n&&lineNames.indexOf(n)<0) lineNames.push(n);',
-      '          });',
-      '        }else if(Array.isArray(data.lines)){',
-      '          data.lines.forEach(function(l){',
-      '            var n=typeof l==="string"?l:(l.name||l.lineName||l.line_title);',
-      '            if(n&&lineNames.indexOf(n)<0) lineNames.push(n);',
-      '          });',
-      '        }else if(data.line_names){',
-      '          lineNames=data.line_names;',
       '        }',
+      '        if(Array.isArray(data.route)){',
+      '          data.route.forEach(function(r){',
+      '            var n=r.line||r.lineName||r.name||r.line_title||r.title;',
+      '            if(n&&lineNames.indexOf(n)<0) lineNames.push(n);',
+      '          });',
+      '        }',
+      '        if(Array.isArray(data.lines)){',
+      '          data.lines.forEach(function(l){',
+      '            var n=typeof l==="string"?l:(l.name||l.lineName||l.line_title||l.title);',
+      '            if(n&&lineNames.indexOf(n)<0) lineNames.push(n);',
+      '          });',
+      '        }',
+      '        if(data.line_names){ lineNames=data.line_names; }',
+      '        if(data.info&&data.info.lines){ lineNames=data.info.lines; }',
       '      }catch(e){ console.log("[subway] routeComplete parse err:",e); }',
-      '      parent.postMessage({type:"subwayRouteComplete",data:d,lineNames:lineNames},"*");',
+      '      parent.postMessage({type:"subwayRouteComplete",data:d,lineNames:lineNames,raw:JSON.stringify(d)},"*");',
       '    });',
       '  }catch(err){',
       '    if(tid){clearTimeout(tid);tid=null}',
@@ -353,6 +366,11 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
         case 'subwayRouteComplete':
           setRouteComplete(true)
           setRouteLines(e.data.lineNames || [])
+          // 调试：打印原始数据，方便排查路线数据结构
+          if (e.data.raw) {
+            console.log('[SubwayMapView] routeComplete raw data:', e.data.raw)
+            console.log('[SubwayMapView] routeComplete lineNames:', e.data.lineNames)
+          }
           break
       }
     }
@@ -548,7 +566,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
             <div style={{ fontSize: 11, color: '#9ca3af' }}>
               请确认：1) 已配置高德 JS API 密钥（amap_key）<br/>
               2) 密钥已开通地铁图服务<br/>
-              3) 已更新到最新版本（v3.0.22-cn.49+）
+              3) 已更新到最新版本（v3.0.22-cn.50+）
             </div>
           </div>
         )}

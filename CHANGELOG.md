@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## 2026-06-18 地铁图居中显示 + 路线标注修复 v3.0.22-cn.50
+
+### Bug修复
+
+#### 1. 地铁图居中显示（根因修复）
+- **问题**：无论手机还是电脑浏览器，城市地铁图都没有在屏幕居中显示
+- **根因**：CSS flexbox 居中方案被地铁图 API 内部的 SVG 绝对定位覆盖；`setFitView()` 只调用一次，SVG 可能还没完全渲染
+- **修复**：
+  1. CSS 改为绝对定位 + transform 居中：`#sc svg{position:absolute!important;top:50%!important;left:50%!important;transform:translate(-50%,-50%)!important}`
+  2. `setFitView()` 在 `subway.complete` 后多次调用（100ms、500ms、1000ms、2000ms）
+
+#### 2. 路线标注几号线（数据结构调试）
+- **问题**：路线规划完成后无法标注不同地铁线路是几号线
+- **修复**：
+  1. 扩展路线数据解析逻辑，兼容更多数据结构（数组、segments、route、lines、line_names、info.lines）
+  2. 添加调试日志打印原始数据
+  3. 把原始数据 JSON 通过 postMessage 发送到父页面
+
+#### 3. getLineList 方法名修正
+- 官方文档方法名是 `getLineList(callback)`（大写 L），改为优先调用此方法
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+
 ## 2026-06-18 地铁图全面修复（站点错误识别+粘鼠标+缩放恢复+去按钮+居中+路线标注）v3.0.22-cn.49
 
 ### Bug修复

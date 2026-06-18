@@ -1,5 +1,35 @@
 # VERSION
 
+## v3.0.22-cn.50 - 2026-06-18
+
+### 变更
+地铁图居中显示 + 路线标注几号线修复：
+
+#### 1. 地铁图居中显示（根因修复）
+- **问题**：无论手机还是电脑浏览器，城市地铁图都没有在屏幕居中显示
+- **根因**：
+  1. CSS flexbox 居中方案被地铁图 API 内部的 SVG 绝对定位覆盖
+  2. `setFitView()` 只调用一次，SVG 可能还没完全渲染
+- **修复**：
+  1. CSS 改为绝对定位 + transform 居中：`#sc svg{position:absolute!important;top:50%!important;left:50%!important;transform:translate(-50%,-50%)!important}`，强制 SVG 在容器中居中
+  2. `setFitView()` 在 `subway.complete` 后多次调用（100ms、500ms、1000ms、2000ms），确保 SVG 渲染完成后生效
+
+#### 2. 路线标注几号线（数据结构调试）
+- **问题**：路线规划完成后无法标注不同地铁线路是几号线
+- **根因**：`subway.routeComplete` 事件数据结构未知，之前解析逻辑可能不匹配
+- **修复**：
+  1. 扩展路线数据解析逻辑，兼容更多数据结构（数组、segments、route、lines、line_names、info.lines）
+  2. 添加 `console.log` 打印原始数据，方便排查
+  3. 父页面也添加调试日志，打印 routeComplete 原始数据和提取的 lineNames
+  4. 把原始数据 JSON 也通过 postMessage 发送到父页面
+
+#### 3. getLineList 方法名修正
+- **问题**：官方文档方法名是 `getLineList(callback)`（大写 L），之前代码优先用 `getLinelist()`（小写 l）可能不生效
+- **修复**：改为优先调用 `si.getLineList(callback)`（大写 L，官方文档写法），保留 `getLinelist()` 作为 fallback
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+
 ## v3.0.22-cn.49 - 2026-06-18
 
 ### 变更
