@@ -48,7 +48,9 @@ function useIsMobile() {
  * - CSS 完全隔离 → 地铁图注入的 CSS 不影响父页面 tab 栏
  * - frameSrc 已允许 blob: → CSP 不会阻止
  * - Blob 文档内添加 upgrade-insecure-requests → 地铁图 API 的 HTTP 请求自动升级为 HTTPS
- * - window.onerror 捕获 API 内部错误（easy 模式 clickStation/formatStation 崩溃）
+ * - window.onerror 捕获 API 内部错误
+ * - 不使用 easy:1 模式 → 避免 formatStation/openTip 崩溃导致 clickStation 事件不触发
+ * - 自定义缩放按钮 → 不依赖 easy 模式的内置控件
  *
  * 通信：通过 postMessage 与父页面双向通信
  */
@@ -97,10 +99,14 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       '<meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">',
       '<style>',
       '*{margin:0;padding:0;box-sizing:border-box}',
-      'html,body{width:100%;height:100%;overflow:hidden;background:#fff;touch-action:manipulation}',
-      '#sc{width:100%;height:100%;touch-action:manipulation}',
+      'html,body{width:100%;height:100%;overflow:hidden;background:#fff}',
+      '#sc{width:100%;height:100%}',
+      // 自定义缩放按钮
+      '.zm{position:absolute;right:10px;bottom:80px;z-index:999;display:flex;flex-direction:column;gap:2px}',
+      '.zm button{width:36px;height:36px;border:1px solid #d1d5db;background:#fff;border-radius:4px;font-size:20px;color:#374151;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}',
+      '.zm button:active{background:#f3f4f6}',
       '</style>',
-      '</head><body><div id="sc"></div>',
+      '</head><body><div id="sc"></div><div class="zm"><button id="zi">+</button><button id="zo">−</button></div>',
       '<script>',
       '(function(){',
       'var key=' + safeKey + ';',
@@ -121,7 +127,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       '  document.getElementById("sc").innerHTML="";',
       '  try{',
       '    console.log("[subway] creating instance adcode:",a);',
-      '    si=sf("sc",{adcode:a,easy:1});',
+      '    si=sf("sc",{adcode:a});',
       '    si.event.on("subway.complete",function(){',
       '      console.log("[subway] complete");',
       '      cr=true; if(tid){clearTimeout(tid);tid=null}',
@@ -131,13 +137,14 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       '          if(l&&Array.isArray(l)){ parent.postMessage({type:"subwayLineList",lines:l},"*"); }',
       '        });',
       '      }catch(e){}',
-      '      // 居中：延迟后尝试居中',
+      '      // 居中：延迟后尝试居中和设置缩放',
       '      setTimeout(function(){',
       '        try{',
-      '          var c=si.getSelectedLineCenter&&si.getSelectedLineCenter();',
+      '          if(si.setZoom){ si.setZoom(0.8); }',
+      '          var c=si.getCenter&&si.getCenter();',
       '          if(c&&si.setCenter){ si.setCenter(c); }',
-      '        }catch(e){}',
-      '      },300);',
+      '        }catch(e){ console.log("[subway] center err:",e); }',
+      '      },500);',
       '    });',
       '    si.event.on("subway.fail",function(){',
       '      if(tid){clearTimeout(tid);tid=null}',
@@ -175,6 +182,10 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       's.async=true;',
       's.onerror=function(){ parent.postMessage({type:"subwayError",msg:"地铁图脚本加载失败，请检查网络连接"},"*"); };',
       'document.head.appendChild(s);',
+      '',
+      '// 缩放按钮',
+      'document.getElementById("zi").onclick=function(){ try{ si.setZoom(si.getZoom()+0.3); }catch(e){} };',
+      'document.getElementById("zo").onclick=function(){ try{ si.setZoom(si.getZoom()-0.3); }catch(e){} };',
       '',
       'window.addEventListener("message",function(e){',
       '  if(!e.data||typeof e.data.type!=="string") return;',

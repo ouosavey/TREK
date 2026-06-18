@@ -1,5 +1,30 @@
 # VERSION
 
+## v3.0.22-cn.46 - 2026-06-18
+
+### 变更
+修复地铁图多项问题 + Docker 日志重复4次：
+
+#### 地铁图修复
+- **站点点击无反应**：移除 `easy:1` 模式，避免内置 `formatStation`/`openTip` 崩溃导致 `clickStation` 事件不触发
+- **不能缩放**：移除 `touch-action: manipulation` CSS，添加自定义缩放按钮（+/−）
+- **未居中显示**：`subway.complete` 后延迟 500ms 调用 `setZoom(0.8)` + `setCenter(getCenter())`
+- **手机端工具栏被遮挡**：z-index 已为 9999（上版已修复）
+
+#### Docker 日志重复4次修复
+- **根因**：`onListen` 回调可能被调用多次（tsx loader 或 NAS Docker 配置导致）
+- **修复**：在 `index.ts` 添加 `onListen` 防重复守卫（闭包 `called` 标志，只执行一次）
+- **额外**：`docker-compose.yml` 添加 `logging` 配置（`json-file` 驱动，max-size 10m，max-file 3）
+
+#### 其他
+- `.gitignore` 添加 `docker-log.txt`
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+- `server/src/index.ts`
+- `docker-compose.yml`
+- `.gitignore`
+
 ## v3.0.22-cn.45 - 2026-06-18
 
 ### 变更

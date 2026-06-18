@@ -1,5 +1,32 @@
 # CHANGELOG
 
+## 2026-06-18 修复地铁图交互+Docker日志重复4次 v3.0.22-cn.46
+
+### Bug修复
+
+#### 1. 地铁图站点点击无反应（切换城市后）
+- **根因**：`easy:1` 模式内置 `formatStation`/`openTip` 崩溃（`Cannot read properties of undefined`），错误在 `clickStation` 事件触发前发生，导致事件永远不触发
+- **修复**：移除 `easy:1` 模式，不再使用内置弹窗，改用自定义 `clickStation` 事件处理
+
+#### 2. 地铁图不能缩放
+- **根因**：CSS `touch-action: manipulation` 阻止了缩放手势
+- **修复**：移除 `touch-action: manipulation`，添加自定义缩放按钮（+/−）
+
+#### 3. 地铁图未居中显示
+- **修复**：`subway.complete` 后延迟 500ms 调用 `setZoom(0.8)` + `setCenter(getCenter())`
+
+#### 4. Docker 日志重复4次
+- **根因**：`onListen` 回调可能被调用多次（tsx loader 或 NAS Docker 配置导致）
+- **修复**：
+  1. `index.ts` 添加 `onListen` 防重复守卫（闭包 `called` 标志）
+  2. `docker-compose.yml` 添加 `logging` 配置（`json-file` 驱动）
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+- `server/src/index.ts`
+- `docker-compose.yml`
+- `.gitignore`
+
 ## 2026-06-18 修复GitHub Actions重复工作流 + 排查Docker日志重复 v3.0.22-cn.45
 
 ### Bug修复

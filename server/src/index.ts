@@ -25,7 +25,11 @@ const PORT = Number(process.env.PORT) || 3001;
 const HOST = process.env.HOST;
 const APP_VERSION: string = process.env.APP_VERSION || (require('../package.json') as { version: string }).version;
 
-const onListen = () => {
+const onListen = (() => {
+  let called = false;
+  return () => {
+    if (called) return;
+    called = true;
   const { logInfo: sLogInfo, logWarn: sLogWarn } = require('./services/auditLog');
   const LOG_LVL = (process.env.LOG_LEVEL || 'info').toLowerCase();
   const tz = process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -82,7 +86,8 @@ const onListen = () => {
   import('./websocket').then(({ setupWebSocket }) => {
     setupWebSocket(server);
   });
-};
+  };
+})();
 
 const server = HOST
   ? app.listen(PORT, HOST, onListen)
