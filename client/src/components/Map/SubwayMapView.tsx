@@ -42,17 +42,21 @@ function useIsMobile() {
  *
  * 实现方式：用 iframe 加载 Blob URL（内嵌 HTML 内容）。
  *
- * 为什么用 Blob URL：
- * - 不走网络请求 → PWA Service Worker 无法拦截（SW 只拦截 HTTP 请求）
- * - 不用 srcdoc → 避免 srcdoc 内嵌 JS 的语法错误难以调试
- * - CSS 完全隔离 → 地铁图注入的 CSS 不影响父页面 tab 栏
- * - frameSrc 已允许 blob: → CSP 不会阻止
- * - Blob 文档内添加 upgrade-insecure-requests → 地铁图 API 的 HTTP 请求自动升级为 HTTPS
- * - window.onerror 捕获 API 内部错误
- * - 不使用 easy:1 模式 → 避免 formatStation/openTip 崩溃导致 clickStation 事件不触发
- * - 自定义缩放按钮 → 不依赖 easy 模式的内置控件
- *
- * 通信：通过 postMessage 与父页面双向通信
+ * API 参考（https://lbs.amap.com/api/subway-api/mobility-reference）：
+ * - subway(id, opts): id 为容器 id 字符串，opts.adcode 为城市编码
+ * - 事件: subway.complete, subway.fail, station.touch（站点点击）, subway.zoom, subway.drag
+ * - setCenter(center): 设置中心点（站点或线路中心）
+ * - setFitView(obj): 调整视图到合适的显示范围
+ * - scale(scale): 缩放级别 0.3~1.3
+ * - getLineList(callback): 获取线路列表
+ * - getStCenter(id): 获取站点中心坐标
+ * - getSelectedLineCenter(): 获取选中线路中心
+ * - showLine(id) / clearLine(): 显示/清除线路
+ * - setStart(id) / setEnd(id): 设置起点/终点
+ * - route(start, end, opts): 路线规划
+ * - clearRoute(): 清除路线
+ * - addInfoWindow(id, opts) / clearInfoWindow(): 信息窗体
+ * - getIdByName(name, type): 根据名称获取 id
  */
 export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
   const amapKey = useSettingsStore(s => s.settings.amap_key || '')
@@ -114,7 +118,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       'var adcode=' + safeAdcode + ';',
       'var si=null,sf=null,cr=false,tid=null;',
       '',
-      '// 捕获 API 内部错误（easy 模式 clickStation/formatStation 崩溃）',
+      '// 捕获 API 内部错误',
       'window.onerror=function(msg,url,line){',
       '  console.log("[subway] suppressed error:",msg);',
       '  return true;',
@@ -127,7 +131,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       '  document.getElementById("sc").innerHTML="";',
       '  try{',
       '    console.log("[subway] creating instance adcode:",a);',
-      '    si=sf("sc",{adcode:a});',
+      '    si=sf("sc",{adcode:a,theme:"colorful"});',
       '    si.event.on("subway.complete",function(){',
       '      console.log("[subway] complete");',
       '      cr=true; if(tid){clearTimeout(tid);tid=null}',
@@ -137,22 +141,20 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       '          if(l&&Array.isArray(l)){ parent.postMessage({type:"subwayLineList",lines:l},"*"); }',
       '        });',
       '      }catch(e){}',
-      '      // 居中：延迟后尝试居中和设置缩放',
+      '      // 居中：延迟后用 setFitView 自动调整到合适范围',
       '      setTimeout(function(){',
       '        try{',
-      '          if(si.setZoom){ si.setZoom(0.8); }',
-      '          var c=si.getCenter&&si.getCenter();',
-      '          if(c&&si.setCenter){ si.setCenter(c); }',
-      '        }catch(e){ console.log("[subway] center err:",e); }',
+      '          si.setFitView();',
+      '        }catch(e){ console.log("[subway] fitView err:",e); }',
       '      },500);',
       '    });',
       '    si.event.on("subway.fail",function(){',
       '      if(tid){clearTimeout(tid);tid=null}',
       '      parent.postMessage({type:"subwayFail",msg:"地铁图数据加载失败，该城市可能暂不支持"},"*");',
       '    });',
-      '    // 监听站点点击事件（easy 模式内置弹窗有 bug，用自定义处理）',
-      '    si.event.on("subway.clickStation",function(d){',
-      '      console.log("[subway] clickStation:",JSON.stringify(d));',
+      '    // 监听站点点击事件（station.touch 是官方事件名）',
+      '    si.event.on("station.touch",function(d){',
+      '      console.log("[subway] station.touch:",JSON.stringify(d));',
       '      parent.postMessage({type:"subwayClickStation",station:d},"*");',
       '    });',
       '  }catch(err){',
@@ -183,9 +185,9 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       's.onerror=function(){ parent.postMessage({type:"subwayError",msg:"地铁图脚本加载失败，请检查网络连接"},"*"); };',
       'document.head.appendChild(s);',
       '',
-      '// 缩放按钮',
-      'document.getElementById("zi").onclick=function(){ try{ si.setZoom(si.getZoom()+0.3); }catch(e){} };',
-      'document.getElementById("zo").onclick=function(){ try{ si.setZoom(si.getZoom()-0.3); }catch(e){} };',
+      '// 缩放按钮（scale 范围 0.3~1.3）',
+      'document.getElementById("zi").onclick=function(){ try{ var z=si.getZoom?si.getZoom():1; si.scale(Math.min(1.3,z+0.2)); }catch(e){} };',
+      'document.getElementById("zo").onclick=function(){ try{ var z=si.getZoom?si.getZoom():1; si.scale(Math.max(0.3,z-0.2)); }catch(e){} };',
       '',
       'window.addEventListener("message",function(e){',
       '  if(!e.data||typeof e.data.type!=="string") return;',
@@ -197,14 +199,16 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       '    try{',
       '      si.showLine(e.data.lineName);',
       '      var c=si.getSelectedLineCenter&&si.getSelectedLineCenter();',
-      '      if(c){ si.setCenter&&si.setCenter(c); }',
+      '      if(c){ si.setCenter(c); }',
       '    }catch(e){}',
       '  } else if(e.data.type==="setStart"&&si){',
       '    try{ si.setStart(e.data.sid); }catch(ex){ console.log("[subway] setStart err:",ex); }',
       '  } else if(e.data.type==="setEnd"&&si){',
       '    try{ si.setEnd(e.data.sid); }catch(ex){ console.log("[subway] setEnd err:",ex); }',
       '  } else if(e.data.type==="setRoute"&&si){',
-      '    try{ si.setRoute(e.data.startId,e.data.endId); }catch(ex){ console.log("[subway] setRoute err:",ex); }',
+      '    try{',
+      '      si.route(e.data.startId,e.data.endId,{closeBtn:true});',
+      '    }catch(ex){ console.log("[subway] route err:",ex); }',
       '  } else if(e.data.type==="clearRoute"&&si){',
       '    try{ si.clearRoute(); }catch(ex){}',
       '    try{ si.setStart(""); }catch(ex){}',
@@ -305,21 +309,26 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
   const handleSetStart = useCallback(() => {
     if (!clickedStation) return
     setStartStation(clickedStation)
-    iframeRef.current?.contentWindow?.postMessage({ type: 'setStart', sid: clickedStation.id }, '*')
+    // 用站点名称（中文名称）作为 id，API 支持站点名称
+    const sid = clickedStation.name || clickedStation.id
+    iframeRef.current?.contentWindow?.postMessage({ type: 'setStart', sid }, '*')
     setClickedStation(null)
   }, [clickedStation])
 
   const handleSetEnd = useCallback(() => {
     if (!clickedStation) return
     setEndStation(clickedStation)
-    iframeRef.current?.contentWindow?.postMessage({ type: 'setEnd', sid: clickedStation.id }, '*')
+    const sid = clickedStation.name || clickedStation.id
+    iframeRef.current?.contentWindow?.postMessage({ type: 'setEnd', sid }, '*')
     setClickedStation(null)
   }, [clickedStation])
 
   const handlePlanRoute = useCallback(() => {
     if (!startStation || !endStation) return
+    const startId = startStation.name || startStation.id
+    const endId = endStation.name || endStation.id
     iframeRef.current?.contentWindow?.postMessage({
-      type: 'setRoute', startId: startStation.id, endId: endStation.id,
+      type: 'setRoute', startId, endId,
     }, '*')
   }, [startStation, endStation])
 
@@ -335,7 +344,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
     return (
       <div style={{
         position: 'fixed', top: 'calc(var(--nav-h) + 44px)', left: 0, right: 0,
-        bottom: 'var(--bottom-nav-h)', zIndex: 9999, background: '#fff',
+        bottom: 'var(--bottom-nav-h)', zIndex: 99999, background: '#fff',
         display: 'flex', flexDirection: 'column', alignItems: 'center',
         justifyContent: 'center', fontFamily: 'var(--font-system)',
       }}>
@@ -362,7 +371,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
   return (
     <div style={{
       position: 'fixed', top: 'calc(var(--nav-h) + 44px)', left: 0, right: 0,
-      bottom: 'var(--bottom-nav-h)', zIndex: 9999, background: '#fff',
+      bottom: 'var(--bottom-nav-h)', zIndex: 99999, background: '#fff',
       display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-system)',
     }}>
       {/* 工具栏 */}
@@ -473,7 +482,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
             <div style={{ fontSize: 11, color: '#9ca3af' }}>
               请确认：1) 已配置高德 JS API 密钥（amap_key）<br/>
               2) 密钥已开通地铁图服务<br/>
-              3) 已更新到最新版本（v3.0.22-cn.43+）
+              3) 已更新到最新版本（v3.0.22-cn.47+）
             </div>
           </div>
         )}
@@ -489,7 +498,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
           }}>
             <MapPin size={isMobile ? 13 : 15} style={{ color: '#3b82f6', flexShrink: 0 }} />
             <span style={{ fontSize: isMobile ? 12 : 13, fontWeight: 600, color: '#111827', maxWidth: isMobile ? 80 : 120, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {clickedStation.name || clickedStation.id}
+              {clickedStation.name || clickedStation.id || clickedStation.station_name || '未知站点'}
             </span>
             <button onClick={handleSetStart} style={{
               padding: isMobile ? '4px 8px' : '5px 10px', borderRadius: 4,
@@ -522,7 +531,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: isMobile ? 11 : 12 }}>
                 <CircleDot size={12} style={{ color: '#3b82f6' }} />
                 <span style={{ color: '#3b82f6', fontWeight: 600 }}>起</span>
-                <span style={{ color: '#111827', maxWidth: isMobile ? 60 : 100, overflow: 'hidden', textOverflow: 'ellipsis' }}>{startStation.name || startStation.id}</span>
+                <span style={{ color: '#111827', maxWidth: isMobile ? 60 : 100, overflow: 'hidden', textOverflow: 'ellipsis' }}>{startStation.name || startStation.id || startStation.station_name}</span>
               </div>
             )}
             {startStation && endStation && (
@@ -532,7 +541,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: isMobile ? 11 : 12 }}>
                 <Navigation size={12} style={{ color: '#10b981' }} />
                 <span style={{ color: '#10b981', fontWeight: 600 }}>终</span>
-                <span style={{ color: '#111827', maxWidth: isMobile ? 60 : 100, overflow: 'hidden', textOverflow: 'ellipsis' }}>{endStation.name || endStation.id}</span>
+                <span style={{ color: '#111827', maxWidth: isMobile ? 60 : 100, overflow: 'hidden', textOverflow: 'ellipsis' }}>{endStation.name || endStation.id || endStation.station_name}</span>
               </div>
             )}
             {startStation && endStation && (
