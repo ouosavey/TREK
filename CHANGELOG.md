@@ -1,5 +1,30 @@
 # CHANGELOG
 
+## 2026-06-18 修复地铁图iframe一直显示"正在加载" v3.0.22-cn.38
+
+### Bug修复
+
+#### 地铁图 iframe 一直显示"正在加载地铁图"
+- **现象**：点击地铁图按钮后，出现白色半透明遮罩并一直显示"正在加载地铁图…"，F12 控制台无 cbk 回调日志
+- **根因**：PWA（vite-plugin-pwa）的 `navigateFallback: 'index.html'` 配置会把所有导航请求（包括 iframe 加载的 `/subway.html`）回退到 `index.html`。这导致 iframe 实际加载的是主应用页面（React SPA），而不是独立的 subway.html，因此：
+  1. `window.cbk` 回调函数永远不会被定义（因为 subway.html 的脚本没执行）
+  2. 高德地铁图脚本加载后调用 `cbk()` 会报错或静默失败
+  3. 父页面永远收不到 `subwayComplete` 消息，loading 一直显示
+- **修复**：在 `client/vite.config.js` 的 `navigateFallbackDenylist` 中添加 `/^\/subway\.html/`，让 Service Worker 不拦截 subway.html 的导航请求
+- **官方文档**：https://vite-pwa-org.netlify.app/  Workbox 配置 - navigateFallbackDenylist
+
+#### 改进 subway.html
+1. **消息时机**：`subwayReady` 消息在 `createInstance` 之前发送，确保父页面先标记 iframe 就绪，能正确处理后续的 `subwayComplete` 消息
+2. **调试日志**：添加详细的 `console.log` 日志（iframe 加载、参数、cbk 调用、subway.complete 事件等），方便排查问题
+3. **超时兜底改进**：
+   - createInstance 后 10 秒内没收到 `subway.complete` 事件 → 报超时
+   - 脚本加载后 15 秒内 `cbk` 没被调用 → 报超时
+   - 收到 complete/fail/error 后清除超时定时器
+
+### 涉及文件
+- `client/vite.config.js`（navigateFallbackDenylist 添加 `/subway\.html`）
+- `client/public/subway.html`（改进消息时机 + 调试日志 + 超时兜底）
+
 ## 2026-06-18 用iframe方案彻底修复地铁图所有UI问题 v3.0.22-cn.37
 
 ### 背景

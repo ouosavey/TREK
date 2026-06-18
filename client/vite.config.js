@@ -11,7 +11,9 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
         globPatterns: ['**/*.{js,css,html,svg,png,woff,woff2,ttf}'],
         navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/api/, /^\/uploads/, /^\/mcp/, /^\/oauth\//, /^\/.well-known\//],
+        // subway.html 是地铁图 iframe 加载的独立页面，不能被回退到 index.html
+        // 否则 iframe 会加载主应用页面，导致 cbk 回调永远不触发，loading 一直显示
+        navigateFallbackDenylist: [/^\/api/, /^\/uploads/, /^\/mcp/, /^\/oauth\//, /^\/.well-known\//, /^\/subway\.html/],
         runtimeCaching: [
           {
             // Carto map tiles (default provider)

@@ -1,5 +1,24 @@
 # VERSION
 
+## v3.0.22-cn.38 - 2026-06-18
+
+### 变更
+修复地铁图 iframe 一直显示"正在加载地铁图"的问题：
+1. **根因**：PWA 的 `navigateFallback: 'index.html'` 会把所有导航请求（包括 iframe 加载的 `/subway.html`）回退到 `index.html`，导致 iframe 实际加载的是主应用页面，cbk 回调永远不触发，loading 一直显示
+2. **修复**：将 `/subway.html` 添加到 `navigateFallbackDenylist`，让 SW 不拦截 subway.html 的导航请求
+3. **改进 subway.html**：
+   - `subwayReady` 消息在 `createInstance` 之前发送（确保父页面先标记就绪）
+   - 添加详细调试日志（方便排查问题）
+   - 改进超时兜底：createInstance 后 10 秒无 complete 事件则报超时；脚本加载 15 秒无 cbk 则报超时
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/vite.config.js`（navigateFallbackDenylist 添加 `/subway\.html`）
+- `client/public/subway.html`（改进消息时机 + 调试日志 + 超时兜底）
+
 ## v3.0.22-cn.37 - 2026-06-18
 
 ### 变更

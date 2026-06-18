@@ -14,10 +14,14 @@
 <div id="subway-container"></div>
 <script>
 (function() {
+  console.log('[subway.html] iframe loaded');
+
   var params = new URLSearchParams(window.location.search);
   var key = params.get('key') || '';
   var securityCode = params.get('securityCode') || '';
   var initialAdcode = params.get('adcode') || '1100';
+
+  console.log('[subway.html] params:', { key: key ? key.substring(0, 8) + '...' : '(empty)', securityCode: securityCode ? '(set)' : '(empty)', adcode: initialAdcode });
 
   if (securityCode) {
     window._AMapSecurityConfig = { securityJsCode: securityCode };
@@ -26,14 +30,21 @@
   var subwayInstance = null;
   var subwayFn = null;
   var currentAdcode = initialAdcode;
-  var instanceCreated = false;
+  var completeReceived = false;  // 标记是否收到 subway.complete 事件
+  var timeoutId = null;
 
   function createInstance(adcode) {
-    if (!subwayFn) return;
+    if (!subwayFn) {
+      console.error('[subway.html] createInstance: subwayFn not available');
+      return;
+    }
+
+    console.log('[subway.html] createInstance adcode:', adcode);
+    completeReceived = false;
 
     // 销毁旧实例
     if (subwayInstance) {
-      try { subwayInstance.destroy(); } catch(e) {}
+      try { subwayInstance.destroy(); } catch(e) { console.warn('[subway.html] destroy error:', e); }
       subwayInstance = null;
     }
 
@@ -43,60 +54,90 @@
 
     try {
       // 创建新实例：subway(id, opts)，第一个参数是容器的 id 字符串
+      console.log('[subway.html] calling subway("subway-container", {adcode:', adcode, ', easy:1})');
       subwayInstance = subwayFn('subway-container', { adcode: adcode, easy: 1 });
-      instanceCreated = true;
+      console.log('[subway.html] subway instance created:', !!subwayInstance);
 
       // 地铁图加载完成事件
       subwayInstance.event.on('subway.complete', function() {
+        console.log('[subway.html] subway.complete event received');
+        completeReceived = true;
+        if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
         parent.postMessage({ type: 'subwayComplete' }, '*');
         // 获取线路列表（帮助用户识别线路名称）
         try {
           subwayInstance.getLineList(function(lines) {
+            console.log('[subway.html] getLineList returned:', lines ? lines.length : 0, 'lines');
             if (lines && Array.isArray(lines)) {
               parent.postMessage({ type: 'subwayLineList', lines: lines }, '*');
             }
           });
-        } catch(e) {}
+        } catch(e) { console.warn('[subway.html] getLineList error:', e); }
       });
 
       subwayInstance.event.on('subway.fail', function() {
+        console.error('[subway.html] subway.fail event received');
+        if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
         parent.postMessage({ type: 'subwayFail', msg: '地铁图数据加载失败，该城市可能暂不支持' }, '*');
       });
     } catch(err) {
+      console.error('[subway.html] createInstance error:', err);
+      if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
       parent.postMessage({ type: 'subwayError', msg: '地铁图加载失败：' + String(err) }, '*');
     }
+
+    // 超时兜底（10秒）：如果 createInstance 后 10 秒内没收到 subway.complete，报超时
+    if (timeoutId) { clearTimeout(timeoutId); }
+    timeoutId = setTimeout(function() {
+      if (!completeReceived) {
+        console.error('[subway.html] load timeout (10s), completeReceived:', completeReceived);
+        parent.postMessage({ type: 'subwayTimeout', msg: '地铁图加载超时，请检查网络或密钥配置' }, '*');
+      }
+    }, 10000);
   }
 
   // 定义 cbk 回调：subway 全局函数仅在此回调内可用
   window.cbk = function() {
+    console.log('[subway.html] cbk callback invoked');
     try {
       subwayFn = window.subway || window.Subway;
+      console.log('[subway.html] subwayFn found:', !!subwayFn, typeof subwayFn);
       if (!subwayFn || typeof subwayFn !== 'function') {
+        console.error('[subway.html] subway function not found');
         parent.postMessage({ type: 'subwayError', msg: '地铁图组件未就绪，请检查密钥是否已开通地铁图服务' }, '*');
         return;
       }
 
+      // 先通知父页面 iframe 已就绪（在 createInstance 之前，确保父页面能收到后续消息）
+      parent.postMessage({ type: 'subwayReady' }, '*');
+      console.log('[subway.html] subwayReady sent to parent');
+
       // 创建实例
       createInstance(currentAdcode);
-      // 通知父页面 iframe 已就绪
-      parent.postMessage({ type: 'subwayReady' }, '*');
     } catch(err) {
+      console.error('[subway.html] cbk error:', err);
       parent.postMessage({ type: 'subwayError', msg: String(err) }, '*');
     }
   };
 
   // 加载地铁图脚本
+  console.log('[subway.html] loading subway script with key:', key ? key.substring(0, 8) + '...' : '(empty)');
   var script = document.createElement('script');
   script.src = 'https://webapi.amap.com/subway?v=1.0&key=' + encodeURIComponent(key) + '&callback=cbk';
   script.async = true;
   script.onerror = function() {
+    console.error('[subway.html] script load error (network)');
     parent.postMessage({ type: 'subwayError', msg: '地铁图脚本加载失败，请检查网络连接' }, '*');
+  };
+  script.onload = function() {
+    console.log('[subway.html] script loaded successfully');
   };
   document.head.appendChild(script);
 
   // 监听父页面的消息（城市切换 + 线路高亮）
   window.addEventListener('message', function(e) {
     if (!e.data || typeof e.data.type !== 'string') return;
+    console.log('[subway.html] received message from parent:', e.data.type);
 
     if (e.data.type === 'switchCity') {
       currentAdcode = e.data.adcode;
@@ -106,17 +147,19 @@
       // 高亮指定线路
       try {
         if (subwayInstance && e.data.lineName) {
+          console.log('[subway.html] showLine:', e.data.lineName);
           subwayInstance.showLine(e.data.lineName);
           var center = subwayInstance.getSelectedLineCenter && subwayInstance.getSelectedLineCenter();
           if (center) subwayInstance.setCenter && subwayInstance.setCenter(center);
         }
-      } catch(err) {}
+      } catch(err) { console.warn('[subway.html] showLine error:', err); }
     }
   });
 
-  // 超时兜底（15秒）
+  // 初始超时兜底（15秒）：如果脚本加载后 15 秒内 cbk 都没被调用
   setTimeout(function() {
-    if (!instanceCreated) {
+    if (!subwayFn) {
+      console.error('[subway.html] initial timeout (15s), cbk never invoked, subwayFn:', !!subwayFn);
       parent.postMessage({ type: 'subwayTimeout', msg: '地铁图加载超时，请检查网络或密钥配置' }, '*');
     }
   }, 15000);
