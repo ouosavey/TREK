@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { X, Loader2 } from 'lucide-react'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { X, Loader2, List, ChevronDown, ChevronUp } from 'lucide-react'
 import { useSettingsStore } from '../../store/settingsStore'
 
 // ── 支持地铁图的城市列表（城市名 + 行政区划编码 adcode）──────────────────
@@ -53,12 +53,12 @@ const SUBWAY_CONTAINER_ID = 'subway-map-container'
  * 官方文档：https://lbs.amap.com/api/subway-api/subway-summary
  * 参考手册：https://lbs.amap.com/api/subway-api/mobility-reference
  *
- * 实现方式：直接在主文档中加载地铁图脚本（不用 iframe，避免 sandbox 和 frameSrc CSP 问题）。
  * 关键点：
  * 1. subway 全局函数仅在 cbk 回调内可用，必须在 cbk 内创建实例。
  * 2. subway(id, opts) 的第一个参数是容器的 **id 字符串**（不是 DOM 元素）。
- * 3. 切换城市用 subway.setAdcode(adcode)，不重新加载脚本。
+ * 3. 切换城市：保存 subwayFn，切换时 destroy 旧实例 + 重新创建（不重新加载脚本）。
  * 4. 地铁图定位在 Navbar + Tab 栏下方，不遮挡顶部菜单。
+ * 5. 卸载时清理地铁图注入的全局 CSS，避免污染 tab 栏等页面元素。
  */
 export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
   const amapKey = useSettingsStore(s => s.settings.amap_key || '')
@@ -67,16 +67,72 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
   const [selectedAdcode, setSelectedAdcode] = useState<string>(SUBWAY_CITIES[0].adcode)
   const [loading, setLoading] = useState<boolean>(true)
   const [errorMsg, setErrorMsg] = useState<string>('')
+  const [lineList, setLineList] = useState<any[]>([])
+  const [showLinePanel, setShowLinePanel] = useState<boolean>(false)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const subwayRef = useRef<any>(null)
+  const subwayFnRef = useRef<any>(null)        // 保存 subwayFn（用于切换城市时重新创建实例）
   const scriptRef = useRef<HTMLScriptElement | null>(null)
-  // 标记实例是否已创建（用于区分"首次加载"和"切换城市"）
   const instanceReadyRef = useRef<boolean>(false)
 
-  // ── 主 useEffect：加载脚本 + 创建实例（只在 amapKey 变化时执行）──────────
+  // ── 创建/重建地铁图实例的函数（可复用，用于首次创建和切换城市）─────────
+  const createSubwayInstance = useCallback((adcode: string) => {
+    if (!subwayFnRef.current || !containerRef.current) return
+
+    // 销毁旧实例
+    if (subwayRef.current) {
+      try { subwayRef.current.destroy?.() } catch { /* 忽略 */ }
+      subwayRef.current = null
+    }
+
+    // 清空容器
+    containerRef.current.innerHTML = ''
+
+    try {
+      // 创建新实例：subway(id, opts)，第一个参数是容器的 id 字符串
+      const subway = subwayFnRef.current(SUBWAY_CONTAINER_ID, {
+        adcode: adcode,
+        easy: 1,
+      })
+      subwayRef.current = subway
+
+      // 地铁图加载完成事件
+      subway.event.on('subway.complete', () => {
+        setLoading(false)
+        setErrorMsg('')
+        // 获取线路列表（用于线路列表面板，帮助用户识别线路名称）
+        try {
+          subway.getLineList?.((lines: any[]) => {
+            if (lines && Array.isArray(lines)) {
+              setLineList(lines)
+            }
+          })
+        } catch { /* 忽略 */ }
+      })
+
+      subway.event.on('subway.fail', () => {
+        setErrorMsg('地铁图数据加载失败，该城市可能暂不支持')
+        setLoading(false)
+      })
+    } catch (err) {
+      console.error('[SubwayMapView] Failed to create subway instance:', err)
+      setErrorMsg('地铁图加载失败：' + String(err))
+      setLoading(false)
+    }
+  }, [])
+
+  // ── 主 useEffect：加载脚本（只在 amapKey 变化时执行）──────────────────
   useEffect(() => {
     if (!amapKey || !containerRef.current) return
+
+    // ── 保存全局状态（用于卸载时恢复，避免地铁图 CSS 污染 tab 栏）────────
+    const viewportMeta = document.querySelector('meta[name="viewport"]')
+    const originalViewport = viewportMeta?.getAttribute('content') || ''
+    const originalBodyClass = document.body.className
+    const originalBodyStyle = document.body.style.cssText
+    // 记录挂载前已存在的 style 标签（用于卸载时识别新增的）
+    const existingStyles = new Set<Element>(Array.from(document.head.querySelectorAll('style')))
 
     // 安全密钥配置
     if (amapSecurityCode) {
@@ -87,6 +143,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
     let loadCompleted = false
     setLoading(true)
     setErrorMsg('')
+    setLineList([])
     instanceReadyRef.current = false
 
     // 清理旧实例和旧脚本
@@ -114,35 +171,12 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
           return
         }
 
-        containerRef.current.innerHTML = ''
+        // 保存 subwayFn 到 ref（用于后续切换城市时重新创建实例）
+        subwayFnRef.current = subwayFn
 
-        // 创建地铁图实例：subway(id, opts)，第一个参数是容器的 id 字符串
-        const subway = subwayFn(SUBWAY_CONTAINER_ID, {
-          adcode: selectedAdcode,
-          easy: 1,
-        })
-        subwayRef.current = subway
+        // 创建实例
+        createSubwayInstance(selectedAdcode)
         instanceReadyRef.current = true
-
-        // 地铁图加载完成事件
-        subway.event.on('subway.complete', () => {
-          if (destroyed) return
-          loadCompleted = true
-          setLoading(false)
-          setErrorMsg('')
-          // 居中显示：获取选中线路的中心点并设置（如果有的话），否则地铁图会自动适配
-          try {
-            const center = subway.getSelectedLineCenter?.()
-            if (center) subway.setCenter?.(center)
-          } catch { /* 忽略 */ }
-        })
-
-        subway.event.on('subway.fail', () => {
-          if (destroyed) return
-          loadCompleted = true
-          setErrorMsg('地铁图数据加载失败，该城市可能暂不支持')
-          setLoading(false)
-        })
       } catch (err) {
         if (destroyed) return
         console.error('[SubwayMapView] Failed to create subway instance:', err)
@@ -192,23 +226,38 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
         scriptRef.current = null
       }
       instanceReadyRef.current = false
+      subwayFnRef.current = null
+
+      // ── 恢复全局状态，清理地铁图注入的 CSS（避免污染 tab 栏）──────────
+      // 1. 恢复 viewport meta
+      if (viewportMeta && originalViewport) {
+        viewportMeta.setAttribute('content', originalViewport)
+      }
+      // 2. 恢复 body 的 className 和 style
+      document.body.className = originalBodyClass
+      document.body.style.cssText = originalBodyStyle
+      // 3. 移除地铁图脚本注入的 style 标签
+      const currentStyles = document.head.querySelectorAll('style')
+      currentStyles.forEach(style => {
+        if (!existingStyles.has(style)) {
+          const text = style.textContent || ''
+          // 只移除地铁图/高德相关的样式
+          if (text.includes('amap') || text.includes('subway') || text.includes('BMap')) {
+            style.remove()
+          }
+        }
+      })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [amapKey, amapSecurityCode])
 
-  // ── 副 useEffect：切换城市（用 setAdcode，不重新加载脚本）──────────────
+  // ── 副 useEffect：切换城市（用销毁重建，不重新加载脚本）──────────────
   useEffect(() => {
-    // 只在实例已创建后才处理城市切换
-    if (!instanceReadyRef.current || !subwayRef.current) return
-    // 首次加载时 selectedAdcode 已在主 useEffect 中使用，跳过
-    try {
-      setLoading(true)
-      subwayRef.current.setAdcode?.(selectedAdcode)
-      // setAdcode 后会重新触发 subway.complete
-    } catch (err) {
-      console.error('[SubwayMapView] setAdcode failed:', err)
-      setLoading(false)
-    }
+    // 只在实例已创建后才处理城市切换（首次挂载时跳过）
+    if (!instanceReadyRef.current || !subwayFnRef.current) return
+    setLoading(true)
+    setLineList([])
+    createSubwayInstance(selectedAdcode)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAdcode])
 
@@ -225,7 +274,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif",
+          fontFamily: 'var(--font-system)',
         }}
       >
         <div style={{ fontSize: 14, color: '#6b7280', textAlign: 'center', marginBottom: 8 }}>
@@ -263,10 +312,10 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
         background: '#ffffff',
         display: 'flex',
         flexDirection: 'column',
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif",
+        fontFamily: 'var(--font-system)',
       }}
     >
-      {/* ── 顶部工具栏：城市选择器 + 关闭按钮 ───────────────────────── */}
+      {/* ── 顶部工具栏：城市选择器 + 线路列表按钮 + 关闭按钮 ─────────── */}
       <div
         style={{
           display: 'flex',
@@ -276,9 +325,10 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
           borderBottom: '1px solid #f0f0f0',
           background: '#ffffff',
           flexShrink: 0,
+          gap: 8,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>城市</span>
           <select
             value={selectedAdcode}
@@ -292,7 +342,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
               fontSize: 13,
               outline: 'none',
               cursor: 'pointer',
-              minWidth: 120,
+              minWidth: 100,
             }}
           >
             {SUBWAY_CITIES.map(city => (
@@ -303,11 +353,32 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
           </select>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* 路线规划提示 */}
-          <span style={{ fontSize: 11, color: '#9ca3af', maxWidth: 200, textAlign: 'right' }}>
-            点击站点设置起终点查看路线
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {/* 线路列表按钮 */}
+          {lineList.length > 0 && (
+            <button
+              onClick={() => setShowLinePanel(v => !v)}
+              title="查看线路列表"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '6px 10px',
+                borderRadius: 6,
+                border: '1px solid #d1d5db',
+                background: showLinePanel ? '#f3f4f6' : '#ffffff',
+                color: '#374151',
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {showLinePanel ? <ChevronUp size={14} /> : <List size={14} />}
+              <span>线路</span>
+            </button>
+          )}
+
           <button
             onClick={onClose}
             title="关闭"
@@ -331,6 +402,48 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
           </button>
         </div>
       </div>
+
+      {/* ── 线路列表面板（可折叠，帮助用户识别线路名称）────────────── */}
+      {showLinePanel && lineList.length > 0 && (
+        <div
+          style={{
+            maxHeight: 200,
+            overflowY: 'auto',
+            borderBottom: '1px solid #f0f0f0',
+            background: '#fafafa',
+            padding: '8px 14px',
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 6,
+            flexShrink: 0,
+          }}
+        >
+          {lineList.map((line: any, idx: number) => {
+            const name = line.name || line.lineName || line.title || String(line)
+            const color = line.color || line.lineColor || '#3b82f6'
+            return (
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '3px 8px',
+                  borderRadius: 4,
+                  background: '#ffffff',
+                  border: '1px solid #e5e7eb',
+                  fontSize: 12,
+                  color: '#374151',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: color, flexShrink: 0 }} />
+                <span>{name}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* ── 地铁图显示区域 ──────────────────────────────────────────── */}
       <div style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
@@ -380,9 +493,30 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
             <div style={{ fontSize: 11, color: '#9ca3af' }}>
               请确认：1) 已配置高德 JS API 密钥（amap_key）<br/>
               2) 密钥已开通地铁图服务<br/>
-              3) 已更新到最新版本（v3.0.22-cn.34+）<br/>
+              3) 已更新到最新版本（v3.0.22-cn.35+）<br/>
               4) 清除浏览器缓存后重试（Ctrl+Shift+R）
             </div>
+          </div>
+        )}
+
+        {/* 路线规划提示（右下角） */}
+        {!loading && !errorMsg && (
+          <div
+            style={{
+              position: 'absolute',
+              right: 10,
+              bottom: 10,
+              padding: '6px 10px',
+              borderRadius: 6,
+              background: 'rgba(0, 0, 0, 0.6)',
+              color: '#ffffff',
+              fontSize: 11,
+              pointerEvents: 'none',
+              maxWidth: 200,
+              textAlign: 'center',
+            }}
+          >
+            点击站点设为起点/终点，查看路线规划
           </div>
         )}
       </div>

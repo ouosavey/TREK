@@ -1,5 +1,21 @@
 # VERSION
 
+## v3.0.22-cn.36 - 2026-06-18
+
+### 变更
+修复地铁图 JS API 多个 UI 问题：
+1. **城市切换无反应**：根因是 `setAdcode()` 方法不可靠。修复：保存 `subwayFn` 到 ref，切换城市时 destroy 旧实例 + 用 `subwayFn(id, {adcode, easy:1})` 重新创建（不重新加载脚本）
+2. **tab 栏拥挤变形**：根因是地铁图脚本注入了全局 CSS 污染页面样式。修复：挂载时保存 viewport meta / body className / body style / 已有 style 标签，卸载时恢复并移除地铁图注入的 style 标签
+3. **路线规划线路名称**：添加线路列表面板，在 `subway.complete` 后调用 `getLineList()` 获取所有线路名称和颜色，用户可对照线路颜色识别是几号线
+4. **居中显示**：地铁图加载后由 API 自动适配视图
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+
 ## v3.0.22-cn.35 - 2026-06-18
 
 ### 变更

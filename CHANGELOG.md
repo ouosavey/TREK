@@ -1,5 +1,39 @@
 # CHANGELOG
 
+## 2026-06-18 修复地铁图城市切换+tab栏变形+线路名称 v3.0.22-cn.36
+
+### Bug修复
+
+#### 1. 城市切换点击无反应
+- **根因**: 上一版（v3.0.22-cn.35）使用 `subway.setAdcode(adcode)` 方法切换城市，但该方法不可靠——可能不触发 `subway.complete` 事件，导致 loading 一直显示
+- **修复**: 改用销毁重建方案：
+  1. 在 cbk 回调里保存 `subwayFn`（全局函数）到 `subwayFnRef`
+  2. 抽取 `createSubwayInstance(adcode)` 函数（用 `useCallback` 稳定引用）
+  3. 切换城市时：destroy 旧实例 → 清空容器 → 用 `subwayFnRef.current(id, {adcode, easy:1})` 重新创建实例
+  4. 不重新加载脚本，避免浏览器缓存导致 cbk 不触发
+- **涉及**: `createSubwayInstance` 函数 + 副 useEffect（依赖 `selectedAdcode`）
+
+#### 2. tab 栏拥挤变形
+- **根因**: 地铁图脚本 `https://webapi.amap.com/subway?v=1.0` 加载后，在 `document.head` 注入了全局 CSS 样式（可能包含 `body { margin:0; overflow:hidden }` 等），污染了页面的 tab 栏布局
+- **修复**: 在主 useEffect 中添加全局状态保存与恢复：
+  1. 挂载时保存：viewport meta content、body className、body style.cssText、已有 style 标签集合
+  2. 卸载时恢复：viewport meta content、body className、body style.cssText
+  3. 卸载时移除新增的 style 标签（只移除 textContent 包含 `amap`/`subway`/`BMap` 关键词的）
+
+#### 3. 路线规划线路名称标注
+- **需求**: 用户在地铁图上设置起点和终点后，需要知道是几号线才方便搭乘
+- **限制**: easy 模式下路线规划结果由 API 自动渲染，无法直接获取路线经过的线路名称
+- **方案**: 添加线路列表面板：
+  1. 在 `subway.complete` 事件后调用 `subway.getLineList(callback)` 获取当前城市所有线路
+  2. 顶部工具栏添加"线路"按钮，点击展开/收起线路列表面板
+  3. 面板显示每条线路的名称和颜色色块，用户可对照路线颜色识别是几号线
+
+#### 4. 居中显示
+- 地铁图加载后由 API 自动适配视图，无需额外处理
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+
 ## 2026-06-18 修复地铁图UI问题（城市切换+布局+居中） v3.0.22-cn.35
 
 ### Bug修复
