@@ -1,5 +1,40 @@
 # CHANGELOG
 
+## 2026-06-18 修复地铁图srcdoc内JS语法错误（改用Blob URL方案） v3.0.22-cn.42
+
+### Bug修复
+
+#### 地铁图一直显示"正在加载地铁图…" - srcdoc 内 JS SyntaxError（最终方案）
+- **错误日志**：
+  ```
+  VM3047 about:srcdoc:18 Uncaught SyntaxError: missing ) after argument list (at VM3047 about:srcdoc:18:110)
+  VM3058 about:srcdoc:18 Uncaught SyntaxError: missing ) after argument list (at VM3058 about:srcdoc:110)
+  ```
+- **根因**：v3.0.22-cn.41 的 srcdoc 方案中，HTML 内容用模板字符串拼接，内嵌 JavaScript 的括号匹配难以调试。`getLineList` 回调函数中闭括号 `)` 和 try 块的闭括号 `}` 缺失，导致 `SyntaxError: missing ) after argument list`。iframe 内脚本执行失败，cbk 回调永远不被调用，loading 一直显示
+- **修复**：改用 **Blob URL** 方案，彻底解决 srcdoc 内嵌 JS 语法错误问题：
+  1. `URL.createObjectURL(new Blob([html], {type: 'text/html'}))` 创建 blob: URL
+  2. HTML 内容用数组 `.join('\n')` 构造，每行独立可读，避免模板字符串内嵌 JS 的语法错误
+  3. 动态值用 `JSON.stringify()` 安全转义
+  4. 不走网络请求 → PWA Service Worker 无法拦截（SW 只拦截 HTTP 请求）
+  5. CSS 完全隔离 → 地铁图注入的 CSS 不影响父页面 tab 栏
+  6. frameSrc 已允许 `blob:` → CSP 不会阻止
+  7. Blob 文档无 CSP 限制 → 地铁图 API 可自由加载
+- **额外修复**：`ci()` 函数中 `cr`（完成标志）未在切换城市时重置的 bug。首次加载成功后 `cr=true`，切换城市时 `cr` 未重置为 `false`，导致超时检测 `if(!cr)` 永远不触发，切换城市后如果加载失败会永远显示 loading
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+
+### 方案演进历史（供参考）
+| 版本 | 方案 | 问题 |
+|------|------|------|
+| cn.29~cn.32 | 直接脚本加载 | CSP 阻止 / sandbox 警告 |
+| cn.33 | iframe+srcdoc | CSP 继承问题 |
+| cn.34~cn.36 | 直接脚本加载 | querySelector 错误 / tab 栏变形 |
+| cn.37 | iframe+src (subway.html) | PWA SW navigateFallback 拦截 |
+| cn.38 | iframe+src + denylist | 旧 SW 缓存仍在使用 |
+| cn.39~cn.41 | iframe+srcdoc | JS 语法错误难以调试 |
+| **cn.42** | **iframe+Blob URL** | **最终方案：每行独立+安全转义+不走网络** |
+
 ## 2026-06-18 修复地铁图srcdoc内JS语法错误 v3.0.22-cn.41
 
 ### Bug修复

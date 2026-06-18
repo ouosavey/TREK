@@ -1,11 +1,16 @@
 # VERSION
 
-## v3.0.22-cn.41 - 2026-06-18
+## v3.0.22-cn.42 - 2026-06-18
 
 ### 变更
-修复地铁图 srcdoc 内 JS SyntaxError（missing ) after argument list）：
-- **根因**：srcdoc HTML 中直接用模板字符串拼接 `amapKey`/`amapSecurityCode`/`selectedAdcode` 到 JavaScript 代码中（如 `var key='${amapKey}'`）。如果这些值包含单引号 `'` 或其他特殊字符，会破坏 JS 字符串语法导致 SyntaxError
-- **修复**：用 `JSON.stringify()` 安全转义所有动态值，确保生成的 JS 语法正确
+修复地铁图 srcdoc 内 JS 语法错误（missing ) after argument list），改用 Blob URL 方案：
+- **根因**：srcdoc 方案中，HTML 内容用模板字符串拼接，内嵌 JavaScript 的括号匹配难以调试。v3.0.22-cn.41 的 `getLineList` 回调函数中闭括号 `)` 和 try 块的闭括号 `}` 缺失，导致 `SyntaxError: missing ) after argument list`
+- **修复**：
+  1. 改用 Blob URL 方案：`URL.createObjectURL(new Blob([html], {type: 'text/html'}))` 创建 blob: URL
+  2. HTML 内容用数组 `.join('\n')` 构造，每行独立可读，避免模板字符串内嵌 JS 的语法错误
+  3. 动态值用 `JSON.stringify()` 安全转义
+  4. 不走网络请求 → PWA Service Worker 无法拦截
+  5. 修复 `ci()` 函数中 `cr`（完成标志）未在切换城市时重置的 bug，避免切换城市后超时检测失效
 
 ### Docker 镜像
 - `ghcr.io/ouosavey/trek:cn-localized`
@@ -14,7 +19,7 @@
 ### 涉及文件
 - `client/src/components/Map/SubwayMapView.tsx`
 
-## v3.0.22-cn.40 - 2026-06-18
+## v3.0.22-cn.41 - 2026-06-18
 
 ### 变更
 修复地铁图白屏（ReferenceError: useMemo is not defined）：
