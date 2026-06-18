@@ -1,5 +1,44 @@
 # VERSION
 
+## v3.0.22-cn.48 - 2026-06-18
+
+### 变更
+地铁图 JS API 全面修复（站点点击+无级缩放+居中+手机端遮挡+路线标注）：
+
+#### 1. 站点点击无反应（根因修复）
+- **根因**：高德地铁图 API 内部 `triggerStationEvent` 调用 `formatStation` 时崩溃（`Cannot read properties of undefined`），导致 `station.touch` 事件永远不触发
+- **修复**：三重站点点击检测方案：
+  1. **DOM click 监听**（capture 阶段）：从 SVG 元素查找站点名称（`findStationName` 函数遍历 DOM 树找 `<text>` 元素）
+  2. **touchend 手势检测**（手机端）：记录 touchstart 位置和时间，touchend 时判断是否为 tap（移动<15px，时长<500ms），用 `document.elementFromPoint` 获取元素
+  3. **stationName.touch 事件**：监听站点名称点击事件（可能不经过 `formatStation`）
+- **去重**：`sendStationClick` 函数 1 秒内同名站点只发送一次
+
+#### 2. 无级缩放（电脑端+手机端）
+- **电脑端**：添加 `wheel` 事件监听，鼠标滚轮缩放（步长 0.1，范围 0.3~1.3）
+- **手机端**：添加 `touchstart`/`touchmove` 双指 pinch 缩放（跟踪两指距离比例，实时调用 `si.scale()`）
+- **缩放按钮**：步长从 0.2 改为 0.15，更精细
+- **CSS**：`#sc` 添加 `touch-action: none`，阻止浏览器默认手势干扰
+
+#### 3. 居中显示
+- `subway.complete` 后延迟 500ms 调用 `si.setFitView()` 自动适配视图
+- 再延迟 200ms 调用 `si.setCenter(si.getCenter())` 双重居中
+
+#### 4. 手机端工具栏被遮挡（根因修复）
+- **根因**：SubwayMapView 渲染在 `MapViewAMap` 内部，被父级 `position:fixed` 的 stacking context 包裹，z-index 被限制在父级上下文内
+- **修复**：用 `createPortal(jsx, document.body)` 将组件渲染到 `document.body`，完全脱离父级 stacking context
+- z-index 从 99999 提升到 999999
+
+#### 5. 路线标注几号线
+- 监听 `subway.routeComplete` 事件，路线规划完成后显示提示"路线已规划，彩色线段对应不同线路"
+- 使用 `theme:"colorful"` 主题，不同线路显示不同颜色
+
+#### 6. getLineList → getLinelist（官方方法名修正）
+- 官方文档方法名是 `getLinelist()`（小写 l），之前代码用 `getLineList()` 可能不生效
+- 改为优先调用 `si.getLinelist()`（同步返回），保留 `getLineList(callback)` 作为 fallback
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+
 ## v3.0.22-cn.47 - 2026-06-18
 
 ### 变更

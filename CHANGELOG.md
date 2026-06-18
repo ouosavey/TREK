@@ -1,5 +1,35 @@
 # CHANGELOG
 
+## 2026-06-18 地铁图全面修复（站点点击+无级缩放+居中+手机端遮挡+路线标注）v3.0.22-cn.48
+
+### Bug修复
+
+#### 1. 站点点击无反应（根因修复）
+- **根因**：高德地铁图 API 内部 `triggerStationEvent` 调用 `formatStation` 时崩溃（`Cannot read properties of undefined`），导致 `station.touch` 事件永远不触发
+- **修复**：三重站点点击检测方案：
+  1. DOM click 监听（capture 阶段）：从 SVG 元素查找站点名称
+  2. touchend 手势检测（手机端）：判断 tap 手势，用 `document.elementFromPoint` 获取元素
+  3. stationName.touch 事件：监听站点名称点击事件
+
+#### 2. 无级缩放（电脑端+手机端）
+- 电脑端：鼠标滚轮 wheel 事件缩放（步长 0.1，范围 0.3~1.3）
+- 手机端：双指 pinch 缩放（跟踪两指距离比例，实时调用 `si.scale()`）
+- 缩放按钮步长从 0.2 改为 0.15
+
+#### 3. 居中显示
+- `subway.complete` 后 `setFitView()` + `setCenter(getCenter())` 双重居中
+
+#### 4. 手机端工具栏被遮挡（根因修复）
+- **根因**：SubwayMapView 被父级 stacking context 包裹，z-index 被限制
+- **修复**：用 `createPortal` 渲染到 `document.body`，脱离父级 stacking context
+
+#### 5. 路线标注
+- 监听 `subway.routeComplete` 事件，显示路线完成提示
+- `theme:"colorful"` 主题，不同线路显示不同颜色
+
+#### 6. getLineList → getLinelist
+- 官方方法名是 `getLinelist()`（小写 l），改为同步调用
+
 ## 2026-06-18 根据官方文档修复地铁图多项问题 v3.0.22-cn.47
 
 ### Bug修复
