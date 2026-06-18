@@ -1,5 +1,25 @@
 # VERSION
 
+## v3.0.22-cn.39 - 2026-06-18
+
+### 变更
+修复地铁图 iframe 一直显示"正在加载地铁图"（PWA SW 拦截根本方案）：
+- **根因**：PWA Service Worker 的 `navigateFallback: 'index.html'` 会拦截所有导航请求（包括 iframe src 加载的 /subway.html），导致加载的是主应用页面而非 subway.html。即使用户更新了代码，旧的 SW 缓存可能仍在使用，navigateFallbackDenylist 配置无法立即生效
+- **最终方案**：用 iframe 的 `srcdoc` 属性内嵌 HTML 内容（不走网络请求），完全绕过 PWA Service Worker 的 navigateFallback 拦截
+- **srcdoc 方案优势**：
+  1. 不经过网络请求，不受 SW 拦截
+  2. 不需要用户清除 SW 缓存
+  3. 不受 CSP frameSrc 限制（about:srcdoc 是同源上下文）
+  4. 不继承父页面 CSP（srcdoc 创建独立文档）
+  5. CSS 完全隔离，不影响父页面 tab 栏
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`（重写：srcdoc 替代 src）
+
 ## v3.0.22-cn.38 - 2026-06-18
 
 ### 变更

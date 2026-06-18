@@ -1,5 +1,48 @@
 # CHANGELOG
 
+## 2026-06-18 用srcdoc方案彻底解决地铁图一直加载 v3.0.22-cn.39
+
+### Bug修复
+
+#### 地铁图 iframe 一直显示"正在加载地铁图"（最终方案）
+- **现象**：点击地铁图按钮后，出现白色半透明遮罩并一直显示"正在加载地铁图…"
+- **F12 控制台**：完全没有 `[subway.html]` 日志，只有主应用的 `index-xxx.js` 日志
+  → 这证明 iframe 加载的是 index.html（主应用），不是 subway.html
+- **根因链**：
+  1. PWA Service Worker 配置了 `navigateFallback: 'index.html'`
+  2. SW 会把所有导航请求（包括 iframe src 加载的 `/subway.html`）回退到 `index.html`
+  3. 即使用户更新到 v3.0.22-cn.38（添加了 navigateFallbackDenylist），**旧的 SW 缓存可能仍在使用**
+  4. SW 更新是异步的，用户无法立即让新配置生效
+  5. iframe 实际加载的是主应用页面，cbk 回调永远不触发
+
+- **最终方案：iframe srcdoc**
+  - **原理**：将 subway.html 的内容作为字符串嵌入 React 组件中，用 iframe 的 `srcdoc` 属性直接注入 HTML
+  - **为什么能彻底解决**：
+    1. **不走网络请求**：srcdoc 是浏览器内部创建文档，不经过 HTTP 请求
+    2. **不受 SW 拦截**：SW 只拦截网络请求，srcdoc 不经过网络
+    3. **不需要用户清除缓存**：不依赖 SW 配置更新
+    4. **CSS 隔离**：srcdoc 创建独立文档，地铁图注入的 CSS 不影响父页面
+    5. **CSP 兼容**：about:srcdoc 协议在同源上下文中运行，不受 frameSrc 限制
+
+- **实现细节**：
+  - `useMemo` 构造包含 amapKey、securityCode、adcode 的完整 HTML 字符串
+  - `<iframe srcDoc={subwayDoc}>` 替代 `<iframe src={url}>`
+  - postMessage 通信逻辑保持不变（与之前 iframe 方案相同）
+  - 城市切换通过 postMessage 发送 `switchCity` 消息，iframe 内部 destroy + 重建实例
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`（重写：srcdoc 替代 src）
+
+### 方案演进历史（供参考）
+| 版本 | 方案 | 问题 |
+|------|------|------|
+| cn.29~cn.32 | 直接脚本加载 | CSP 阻止 / sandbox 警告 |
+| cn.33 | iframe+srcdoc | CSP 继承问题 |
+| cn.34~cn.36 | 直接脚本加载 | querySelector 错误 / tab 栏变形 |
+| cn.37 | iframe+src (subway.html) | PWA SW navigateFallback 拦截 |
+| cn.38 | iframe+src + denylist | 旧 SW 缓存仍在使用 |
+| **cn.39** | **iframe+srcdoc** | **完全绕过 SW，最终方案** |
+
 ## 2026-06-18 修复地铁图iframe一直显示"正在加载" v3.0.22-cn.38
 
 ### Bug修复
