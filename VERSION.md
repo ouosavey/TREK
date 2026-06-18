@@ -1,5 +1,20 @@
 # VERSION
 
+## v3.0.22-cn.44 - 2026-06-18
+
+### 变更
+修复地铁图多项交互问题：
+- **站点点击报错**：高德地铁图 API `easy:1` 模式内置弹窗 `formatStation`/`openTip` 崩溃（`Cannot read properties of undefined`），添加 `window.onerror` 捕获错误，改用自定义站点点击弹窗（`subway.clickStation` 事件 + postMessage 通信）
+- **自定义起终点选择**：点击站点后显示弹窗（站名 + "设为起点"/"设为终点"按钮），底部显示起终点信息栏 + "规划路线"按钮
+- **居中显示**：延迟创建实例（200ms）确保容器完成布局，`subway.complete` 后延迟 300ms 尝试居中
+- **缩放支持**：viewport 改为 `user-scalable=yes,maximum-scale=5.0`，CSS 添加 `touch-action:manipulation`
+- **手机端工具栏被遮挡**：z-index 从 2000 提升到 9999，确保地铁图覆盖在侧边栏之上
+- 城市切换时重置起终点状态
+- iframe 内添加 `setStart`/`setEnd`/`setRoute`/`clearRoute` 消息处理
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+
 ## v3.0.22-cn.43 - 2026-06-18
 
 ### 变更

@@ -1,5 +1,44 @@
 # CHANGELOG
 
+## 2026-06-18 修复地铁图多项交互问题 v3.0.22-cn.44
+
+### Bug修复
+
+#### 1. 站点点击报错 - API 内部 formatStation/openTip 崩溃
+- **错误日志**：
+  ```
+  main?v=1.0&version=1.0.13:8 Uncaught TypeError: Cannot read properties of undefined (reading 'r')
+  l.formatStation @ main?v=1.0&version=1.0.13:8
+  A.fn.triggerStationEvent @ main?v=1.0&version=1.0.13:2
+  main?v=1.0&version=1.0.13:8 Uncaught TypeError: Cannot read properties of undefined (reading 'n')
+  m.fn.openTip @ main?v=1.0&version=1.0.13:8
+  ```
+- **根因**：高德地铁图 API `easy:1` 模式内置弹窗机制有 bug，点击站点时 `formatStation` 和 `openTip` 访问未定义的属性导致崩溃
+- **修复**：
+  1. 添加 `window.onerror` 全局错误处理器，捕获 API 内部错误防止崩溃
+  2. 监听 `subway.clickStation` 事件获取站点数据
+  3. 通过 postMessage 将站点数据发送给父页面
+  4. 父页面显示自定义弹窗（站名 + "设为起点"/"设为终点"按钮）
+  5. 选择后通过 postMessage 发送 `setStart`/`setEnd`/`setRoute` 消息给 iframe
+  6. iframe 调用 `si.setStart(id)`/`si.setEnd(id)`/`si.setRoute(startId, endId)` 设置路线
+
+#### 2. 地铁图未居中显示
+- **修复**：
+  1. `cbk` 回调中延迟 200ms 创建实例，确保容器完成布局
+  2. `subway.complete` 后延迟 300ms 调用 `getSelectedLineCenter` + `setCenter` 居中
+
+#### 3. 地铁图不能缩放
+- **修复**：
+  1. viewport 改为 `user-scalable=yes,maximum-scale=5.0,minimum-scale=0.5`
+  2. CSS 添加 `touch-action:manipulation` 允许缩放手势
+
+#### 4. 手机端工具栏被遮挡
+- **根因**：地铁图覆盖层 z-index 为 2000，被侧边栏（"计划"/"地点"）遮挡
+- **修复**：z-index 从 2000 提升到 9999
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+
 ## 2026-06-18 修复地铁图Mixed Content阻止请求 v3.0.22-cn.43
 
 ### Bug修复
