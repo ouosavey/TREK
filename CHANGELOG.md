@@ -1,5 +1,33 @@
 # CHANGELOG
 
+## 2026-06-18 根据官方文档修复地铁图多项问题 v3.0.22-cn.47
+
+### Bug修复
+
+#### 1. 站点点击无反应（根因修复）
+- **根因**：之前用的事件名 `subway.clickStation` 是错误的，官方文档（https://lbs.amap.com/api/subway-api/mobility-reference）的事件名是 `station.touch`
+- **修复**：改用 `si.event.on("station.touch", function(d){...})` 监听站点点击
+
+#### 2. 居中显示
+- **修复**：用官方 `si.setFitView()` 自动调整视图到合适的显示范围
+
+#### 3. 缩放
+- **根因**：之前用 `setZoom()` 是错误的方法名，官方文档是 `scale(scale)`，范围 0.3~1.3
+- **修复**：缩放按钮改用 `si.scale(Math.min(1.3, z+0.2))` / `si.scale(Math.max(0.3, z-0.2))`
+
+#### 4. 手机端工具栏被遮挡
+- **修复**：z-index 从 9999 提升到 99999
+
+#### 5. 路线标注几号线
+- **修复**：用 `theme:"colorful"` 主题，站点颜色跟随线路颜色；用 `si.route(start, end, {closeBtn:true})` 规划路线，API 自动显示线路颜色
+
+#### 6. 路线规划 API 修正
+- **根因**：之前用 `si.setRoute(startId, endId)` 是错误的方法名，官方文档是 `si.route(start, end, opts)`
+- **修复**：改用 `si.route(startId, endId, {closeBtn:true})`
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+
 ## 2026-06-18 修复地铁图交互+Docker日志重复4次 v3.0.22-cn.46
 
 ### Bug修复
