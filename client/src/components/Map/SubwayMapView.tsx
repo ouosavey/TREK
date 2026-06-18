@@ -90,9 +90,11 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
   // ── 构造 srcdoc HTML 内容（动态嵌入 key 和 adcode）─────────────────
   // 使用 srcdoc 而非 src，完全绕过 PWA Service Worker 的 navigateFallback 拦截
   const subwayDoc = useMemo(() => {
-    // 安全密钥配置行
+    // 用 JSON.stringify 安全转义，避免 key/securityCode 中的特殊字符（如单引号）破坏 JS 语法
+    const safeKey = JSON.stringify(amapKey)
+    const safeAdcode = JSON.stringify(selectedAdcode)
     const secConfig = amapSecurityCode
-      ? `window._AMapSecurityConfig = { securityJsCode: '${amapSecurityCode}' };`
+      ? `window._AMapSecurityConfig = { securityJsCode: ${JSON.stringify(amapSecurityCode)} };`
       : ''
     return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -105,9 +107,9 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
 <body><div id="sc"></div>
 <script>
 (function(){
-var key='${amapKey}';
+var key=${safeKey};
 ${secConfig}
-var adcode='${selectedAdcode}';
+var adcode=${safeAdcode};
 var si=null,sf=null,cr=false,tid=null;
 function ci(a){
 if(!sf)return;

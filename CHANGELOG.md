@@ -1,5 +1,30 @@
 # CHANGELOG
 
+## 2026-06-18 修复地铁图srcdoc内JS语法错误 v3.0.22-cn.41
+
+### Bug修复
+
+#### 地铁图一直显示"正在加载" - srcdoc 内 JS SyntaxError
+- **错误日志**：
+  ```
+  VM2978 about:srcdoc:18 Uncaught SyntaxError: missing ) after argument list (at VM2978 about:srcdoc:18:110)
+  ```
+- **根因**：v3.0.22-cn.39 的 srcdoc 方案中，用模板字符串直接拼接变量到 JavaScript 代码：
+  ```javascript
+  var key='${amapKey}';                                    // 第108行
+  window._AMapSecurityConfig = { securityJsCode: '${amapSecurityCode}' };  // 第95行
+  var adcode='${selectedAdcode}';                           // 第110行
+  ```
+  如果 `amapKey`、`amapSecurityCode` 或 `selectedAdcode` 中包含单引号 `'`、反斜杠 `\`、换行符等特殊字符，会破坏 JS 字符串的语法，导致 iframe 内脚本执行失败（SyntaxError），cbk 回调永远不被调用
+- **修复**：用 `JSON.stringify()` 安全转义所有动态值：
+  ```javascript
+  var key=${JSON.stringify(amapKey)};           // → '95361b0f...'
+  var adcode=${JSON.stringify(selectedAdcode)};  // → '1100'
+  ```
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+
 ## 2026-06-18 修复地铁图白屏（useMemo未导入） v3.0.22-cn.40
 
 ### Bug修复
