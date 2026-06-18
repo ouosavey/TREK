@@ -1,5 +1,43 @@
 # CHANGELOG
 
+## 2026-06-18 修复GitHub Actions重复工作流 + 排查Docker日志重复 v3.0.22-cn.45
+
+### Bug修复
+
+#### GitHub Actions 重复触发工作流
+- **根因**：`docker-cn.yml` 的 concurrency group 为固定字符串 `cn-localized-build`，`cancel-in-progress: false`。当有多余推送（如 `feat: 优化手机端图片缩放体验`）时，会触发额外的工作流运行，且不会取消旧的
+- **修复**：
+  1. concurrency group 改为 `${{ github.workflow }}-${{ github.ref }}`，确保同一分支同一工作流只有一个运行
+  2. `cancel-in-progress: true`，新推送自动取消旧的运行
+
+### 排查
+
+#### Docker 日志重复 3 次
+- **代码层面确认无重复日志**：
+  - `auditLog.ts` 中每个日志函数（`logInfo`/`logError`/`logWarn`/`logDebug`）只调用一次 `console.log`/`console.error`/`console.warn`
+  - 请求日志中间件只有一处 `res.on('finish')` 监听
+  - scheduler 有防重复机制（`if (currentTask) { currentTask.stop() }`）
+  - 无 winston/pino/morgan 等第三方日志库
+  - 无 cluster/worker/child_process 多进程
+- **可能原因（NAS Docker 配置层面）**：
+  1. NAS Docker 管理界面（群晖 Container Manager 等）可能同时启用了多种日志驱动
+  2. 容器被重复创建或端口/卷被多次映射
+  3. 某些 NAS 的 Docker 日志驱动对 dumb-init → su-exec → node 进程链的每个子进程都捕获日志
+- **建议排查**：
+  1. 在 NAS 上执行 `docker inspect trek --format='{{.HostConfig.LogConfig}}'` 检查日志驱动
+  2. 检查 NAS 上是否有多个 trek 容器在运行：`docker ps | grep trek`
+  3. 尝试在 docker-compose.yml 中显式指定日志驱动：
+     ```yaml
+     logging:
+       driver: json-file
+       options:
+         max-size: "10m"
+         max-file: "3"
+     ```
+
+### 涉及文件
+- `.github/workflows/docker-cn.yml`
+
 ## 2026-06-18 修复地铁图多项交互问题 v3.0.22-cn.44
 
 ### Bug修复

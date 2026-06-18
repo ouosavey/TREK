@@ -1,5 +1,20 @@
 # VERSION
 
+## v3.0.22-cn.45 - 2026-06-18
+
+### 变更
+- 修复 GitHub Actions 重复触发工作流问题：`docker-cn.yml` 的 concurrency group 改为 `${{ github.workflow }}-${{ github.ref }}`，`cancel-in-progress: true`，新推送自动取消旧的工作流运行
+- 排查 Docker 日志重复 3 次问题：代码层面无重复日志输出（每个 logInfo/logError 只调用一次 console.log），问题在 NAS Docker 配置层面
+
+### Docker 日志重复3次的原因分析
+代码层面确认无重复日志（auditLog.ts 中每个日志函数只调用一次 console.log/error/warn），问题在 NAS Docker 配置：
+1. **NAS Docker 管理界面日志驱动叠加**：群晖/威联通等 NAS 的 Container Manager 可能同时启用了 `json-file` 和 `journald` 两种日志驱动
+2. **容器被重复创建**：如果 NAS 上有多个容器都映射了相同的端口或卷，可能导致日志叠加
+3. **dumb-init + su-exec 进程链**：虽然 `dumb-init` → `su-exec` → `node` 是正常进程链，但某些 NAS 的 Docker 日志驱动可能对每个子进程都捕获日志
+
+### 涉及文件
+- `.github/workflows/docker-cn.yml`
+
 ## v3.0.22-cn.44 - 2026-06-18
 
 ### 变更

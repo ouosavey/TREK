@@ -14,8 +14,8 @@ permissions:
   packages: write
 
 concurrency:
-  group: cn-localized-build
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   REGISTRY: ghcr.io
