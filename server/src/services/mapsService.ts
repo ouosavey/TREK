@@ -1675,7 +1675,48 @@ export async function getAmapBusLineInfo(
       return emptyResult;
     }
 
-    const line = data.buslines[0];
+    // 从所有返回的线路中找到最佳匹配
+    // 高德 API 对 "1号线八通线" 的查询可能返回多条线路（1号线、八通线分开），需选最佳匹配
+    const buslines: any[] = data.buslines;
+    let line = buslines[0];
+
+    // 去掉查询名中的"地铁"/"轨道"前缀，提取核心关键词
+    const queryCore = lineName.replace(/^(地铁|轨道交通|轨道)/, '').trim();
+    // 提取查询中的线路标识，如 "1号线八通线" → ["1号线", "八通线"]
+    const queryParts = queryCore.match(/\d+号线|[^\d\s]+线/g) || [queryCore];
+
+    // 评分函数：匹配度越高分数越大
+    function scoreLine(bl: any): number {
+      const name = (bl.name || '').replace(/^(地铁|轨道交通|轨道)/, '');
+      // 去掉方向括号
+      const nameCore = name.replace(/\([^)]*\)/g, '').trim();
+      let score = 0;
+      // 精确匹配
+      if (nameCore === queryCore) score += 100;
+      // 查询名包含在线路名中（或反过来）
+      if (nameCore.includes(queryCore) || queryCore.includes(nameCore)) score += 50;
+      // 每个查询关键词都在线路名中出现，加分
+      let matchedParts = 0;
+      for (const part of queryParts) {
+        if (nameCore.includes(part)) matchedParts++;
+      }
+      score += matchedParts * 20;
+      // 所有关键词都匹配，额外加分
+      if (matchedParts === queryParts.length && queryParts.length > 1) score += 30;
+      // 线路越长越可能是合并线路（如1号线八通线比单独1号线长）
+      score += Math.min(parseInt(bl.total_distance || '0', 10) / 1000, 20);
+      return score;
+    }
+
+    // 找评分最高的线路
+    let bestScore = -1;
+    for (const bl of buslines) {
+      const s = scoreLine(bl);
+      if (s > bestScore) {
+        bestScore = s;
+        line = bl;
+      }
+    }
     const parseStops = (stops: Array<{ name?: string; location?: string }>) =>
       (stops || []).map(s => {
         const [lngStr, latStr] = (s.location || ',').split(',');
