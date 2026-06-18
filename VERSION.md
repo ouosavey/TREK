@@ -1,5 +1,30 @@
 # VERSION
 
+## v3.0.22-cn.37 - 2026-06-18
+
+### 变更
+用 iframe 方案彻底修复地铁图 JS API 的所有 UI 问题：
+1. **tab 栏变形**：根因是地铁图脚本注入全局 CSS 污染页面样式，"卸载时清理"不够（显示期间已污染）。修复：用 iframe 加载独立的 subway.html，实现完全的 CSS 隔离
+2. **城市切换无反应**：根因是 subway() 函数不支持多次调用。修复：城市切换在 iframe 内部处理（destroy + 重新创建实例），通过 postMessage 通信
+3. **路线规划线路名称**：添加线路列表面板，subway.complete 后调用 getLineList() 获取所有线路名称和颜色，点击线路项可高亮该线路（showLine + setCenter）
+4. **居中显示**：地铁图 easy 模式加载后自动适配视图
+5. **电脑端/手机端适配**：
+   - 工具栏：手机端 padding/fontSize 更小
+   - 线路面板：手机端 maxHeight 140px，电脑端 240px
+   - 底部导航栏：手机端 bottom: var(--bottom-nav-h)，电脑端 bottom: 0
+   - 路线提示：手机端字体更小，maxWidth 更窄
+
+### 新增文件
+- `client/public/subway.html` - 独立的地铁图页面（iframe 加载）
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/public/subway.html`（新增）
+- `client/src/components/Map/SubwayMapView.tsx`
+
 ## v3.0.22-cn.36 - 2026-06-18
 
 ### 变更

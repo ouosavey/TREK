@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, shrink-to-fit=no"/>
+<title>地铁图</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; }
+  #subway-container { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<div id="subway-container"></div>
+<script>
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var key = params.get('key') || '';
+  var securityCode = params.get('securityCode') || '';
+  var initialAdcode = params.get('adcode') || '1100';
+
+  if (securityCode) {
+    window._AMapSecurityConfig = { securityJsCode: securityCode };
+  }
+
+  var subwayInstance = null;
+  var subwayFn = null;
+  var currentAdcode = initialAdcode;
+  var instanceCreated = false;
+
+  function createInstance(adcode) {
+    if (!subwayFn) return;
+
+    // 销毁旧实例
+    if (subwayInstance) {
+      try { subwayInstance.destroy(); } catch(e) {}
+      subwayInstance = null;
+    }
+
+    // 清空容器
+    var container = document.getElementById('subway-container');
+    container.innerHTML = '';
+
+    try {
+      // 创建新实例：subway(id, opts)，第一个参数是容器的 id 字符串
+      subwayInstance = subwayFn('subway-container', { adcode: adcode, easy: 1 });
+      instanceCreated = true;
+
+      // 地铁图加载完成事件
+      subwayInstance.event.on('subway.complete', function() {
+        parent.postMessage({ type: 'subwayComplete' }, '*');
+        // 获取线路列表（帮助用户识别线路名称）
+        try {
+          subwayInstance.getLineList(function(lines) {
+            if (lines && Array.isArray(lines)) {
+              parent.postMessage({ type: 'subwayLineList', lines: lines }, '*');
+            }
+          });
+        } catch(e) {}
+      });
+
+      subwayInstance.event.on('subway.fail', function() {
+        parent.postMessage({ type: 'subwayFail', msg: '地铁图数据加载失败，该城市可能暂不支持' }, '*');
+      });
+    } catch(err) {
+      parent.postMessage({ type: 'subwayError', msg: '地铁图加载失败：' + String(err) }, '*');
+    }
+  }
+
+  // 定义 cbk 回调：subway 全局函数仅在此回调内可用
+  window.cbk = function() {
+    try {
+      subwayFn = window.subway || window.Subway;
+      if (!subwayFn || typeof subwayFn !== 'function') {
+        parent.postMessage({ type: 'subwayError', msg: '地铁图组件未就绪，请检查密钥是否已开通地铁图服务' }, '*');
+        return;
+      }
+
+      // 创建实例
+      createInstance(currentAdcode);
+      // 通知父页面 iframe 已就绪
+      parent.postMessage({ type: 'subwayReady' }, '*');
+    } catch(err) {
+      parent.postMessage({ type: 'subwayError', msg: String(err) }, '*');
+    }
+  };
+
+  // 加载地铁图脚本
+  var script = document.createElement('script');
+  script.src = 'https://webapi.amap.com/subway?v=1.0&key=' + encodeURIComponent(key) + '&callback=cbk';
+  script.async = true;
+  script.onerror = function() {
+    parent.postMessage({ type: 'subwayError', msg: '地铁图脚本加载失败，请检查网络连接' }, '*');
+  };
+  document.head.appendChild(script);
+
+  // 监听父页面的消息（城市切换 + 线路高亮）
+  window.addEventListener('message', function(e) {
+    if (!e.data || typeof e.data.type !== 'string') return;
+
+    if (e.data.type === 'switchCity') {
+      currentAdcode = e.data.adcode;
+      parent.postMessage({ type: 'subwayLoading' }, '*');
+      createInstance(currentAdcode);
+    } else if (e.data.type === 'showLine') {
+      // 高亮指定线路
+      try {
+        if (subwayInstance && e.data.lineName) {
+          subwayInstance.showLine(e.data.lineName);
+          var center = subwayInstance.getSelectedLineCenter && subwayInstance.getSelectedLineCenter();
+          if (center) subwayInstance.setCenter && subwayInstance.setCenter(center);
+        }
+      } catch(err) {}
+    }
+  });
+
+  // 超时兜底（15秒）
+  setTimeout(function() {
+    if (!instanceCreated) {
+      parent.postMessage({ type: 'subwayTimeout', msg: '地铁图加载超时，请检查网络或密钥配置' }, '*');
+    }
+  }, 15000);
+})();
+</script>
+</body>
+</html>

@@ -1,5 +1,54 @@
 # CHANGELOG
 
+## 2026-06-18 用iframe方案彻底修复地铁图所有UI问题 v3.0.22-cn.37
+
+### 背景
+前几轮修复（v3.0.22-cn.35、cn.36）尝试用"卸载时清理 CSS"和"销毁重建实例"方案，但问题仍然存在：
+1. tab 栏在地铁图显示期间就已经变形（CSS 污染在显示期间发生，不是卸载后才需要清理）
+2. 城市切换仍然无反应（subway() 函数可能不支持多次调用）
+
+### 解决方案：iframe 完全隔离
+
+#### 1. 新增 client/public/subway.html
+独立的地铁图页面，由 iframe 加载，实现完全的 CSS 隔离：
+- 接收 URL 参数：key, securityCode, adcode
+- 加载地铁图脚本 `https://webapi.amap.com/subway?v=1.0&key=xxx&callback=cbk`
+- 在 cbk 回调内创建实例：`subway('subway-container', {adcode, easy:1})`
+- 通过 postMessage 与父页面通信：
+  - `subwayReady` - iframe 脚本加载完成
+  - `subwayComplete` - 地铁图加载完成
+  - `subwayLoading` - 正在加载
+  - `subwayFail/Error/Timeout` - 错误
+  - `subwayLineList` - 线路列表数据
+- 接收父页面的消息：
+  - `switchCity` - 切换城市（destroy 旧实例 + 重新创建）
+  - `showLine` - 高亮指定线路（showLine + getSelectedLineCenter + setCenter）
+
+#### 2. 重写 client/src/components/Map/SubwayMapView.tsx
+用 iframe 加载 subway.html，通过 postMessage 通信：
+- **iframe src**：`/subway.html?key=xxx&securityCode=xxx&adcode=xxx`（只在 amapKey 变化时重新加载）
+- **城市切换**：通过 postMessage 发送 `switchCity` 消息，iframe 内部 destroy + 重新创建实例
+- **线路列表**：接收 iframe 的 `subwayLineList` 消息，在工具栏下方显示线路列表面板
+- **点击线路**：通过 postMessage 发送 `showLine` 消息，iframe 内部高亮该线路并居中
+
+#### 3. 电脑端/手机端适配
+- **工具栏**：手机端 padding 6px 10px / fontSize 12px，电脑端 8px 14px / 13px
+- **城市选择器**：手机端 minWidth 90px / maxWidth 110px，电脑端 minWidth 120px
+- **线路面板**：手机端 maxHeight 140px，电脑端 240px
+- **底部导航栏**：手机端 bottom: var(--bottom-nav-h)（84px），电脑端 bottom: 0（--bottom-nav-h 为 0px）
+- **路线提示**：手机端 fontSize 10px / maxWidth 160px，电脑端 11px / 220px
+- **关闭按钮**：手机端 28x28px，电脑端 32x32px
+
+### 为什么 iframe 方案能彻底解决问题
+1. **tab 栏变形**：iframe 有独立的 DOM 和 CSS 上下文，地铁图注入的 CSS 完全不影响父页面
+2. **城市切换**：iframe 内部可以自由 destroy + 重新创建实例，不受父页面 React 生命周期影响
+3. **CSP 兼容**：frameSrc 已允许 'self'，scriptSrc 已允许 https://webapi.amap.com，connectSrc 已允许 http://*.amap.com
+4. **PWA 兼容**：subway.html 会被 service worker 缓存，registerType: 'autoUpdate' 会自动更新
+
+### 涉及文件
+- `client/public/subway.html`（新增）
+- `client/src/components/Map/SubwayMapView.tsx`（重写）
+
 ## 2026-06-18 修复地铁图城市切换+tab栏变形+线路名称 v3.0.22-cn.36
 
 ### Bug修复
