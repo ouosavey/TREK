@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## 2026-06-18 修复地铁图Mixed Content阻止请求 v3.0.22-cn.43
+
+### Bug修复
+
+#### 地铁图加载超时 - Mixed Content 阻止 HTTP 请求
+- **错误日志**：
+  ```
+  [subway] cbk invoked
+  [subway] creating instance adcode: 1100
+  Mixed Content: The page at 'https://trekcn.689894.xyz:9999/trips/1' was loaded over HTTPS,
+  but requested an insecure XMLHttpRequest endpoint 'http://webapi.amap.com/subway/data/citylist.json'.
+  This request has been blocked; the content must be served over HTTPS.
+  main?v=1.0&version=1.0.13:8 Uncaught ReferenceError: error is not defined
+  ```
+- **根因**：Blob URL 文档继承了父页面的 HTTPS origin（`https://trekcn.689894.xyz:9999`）。高德地铁图 JS API 内部用 XMLHttpRequest 请求 `http://webapi.amap.com/subway/data/citylist.json`（HTTP 协议），浏览器阻止了 Mixed Content（HTTPS 页面不允许 HTTP XHR 请求）。请求被阻止后，地铁图数据无法加载，`subway.complete` 事件永远不触发，10 秒后超时
+- **修复**：在 Blob URL iframe 的 HTML `<head>` 中添加：
+  ```html
+  <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
+  ```
+  此 CSP 指令让浏览器在发起请求前，自动将所有 HTTP URL 升级为 HTTPS。地铁图 API 的 `http://webapi.amap.com/...` 请求会被升级为 `https://webapi.amap.com/...`，避免 Mixed Content 阻止
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+
 ## 2026-06-18 修复地铁图srcdoc内JS语法错误（改用Blob URL方案） v3.0.22-cn.42
 
 ### Bug修复

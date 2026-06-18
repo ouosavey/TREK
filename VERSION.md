@@ -1,6 +1,12 @@
 # VERSION
 
-## v3.0.22-cn.42 - 2026-06-18
+## v3.0.22-cn.43 - 2026-06-18
+
+### 变更
+修复地铁图 Blob URL 方案下 Mixed Content 阻止请求：
+- **根因**：Blob URL 文档继承了父页面的 HTTPS origin，地铁图 API 内部用 HTTP 请求 `http://webapi.amap.com/subway/data/citylist.json`，浏览器阻止了 Mixed Content（HTTPS 页面不允许 HTTP XHR 请求）
+- **错误日志**：`Mixed Content: The page at 'https://trekcn.689894.xyz:9999/trips/1' was loaded over HTTPS, but requested an insecure XMLHttpRequest endpoint 'http://webapi.amap.com/subway/data/citylist.json'. This request has been blocked.`
+- **修复**：在 Blob URL iframe 的 HTML `<head>` 中添加 `<meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">`，将所有 HTTP 请求自动升级为 HTTPS
 
 ### 变更
 修复地铁图 srcdoc 内 JS 语法错误（missing ) after argument list），改用 Blob URL 方案：
@@ -19,7 +25,7 @@
 ### 涉及文件
 - `client/src/components/Map/SubwayMapView.tsx`
 
-## v3.0.22-cn.41 - 2026-06-18
+## v3.0.22-cn.42 - 2026-06-18
 
 ### 变更
 修复地铁图白屏（ReferenceError: useMemo is not defined）：

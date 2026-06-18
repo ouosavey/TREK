@@ -47,7 +47,7 @@ function useIsMobile() {
  * - 不用 srcdoc → 避免 srcdoc 内嵌 JS 的语法错误难以调试
  * - CSS 完全隔离 → 地铁图注入的 CSS 不影响父页面 tab 栏
  * - frameSrc 已允许 blob: → CSP 不会阻止
- * - Blob 文档无 CSP 限制 → 地铁图 API 可自由加载
+ * - Blob 文档内添加 upgrade-insecure-requests → 地铁图 API 的 HTTP 请求自动升级为 HTTPS
  *
  * 通信：通过 postMessage 与父页面双向通信
  */
@@ -90,6 +90,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       '<meta charset="UTF-8">',
       '<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,shrink-to-fit=no">',
       '<title>地铁图</title>',
+      '<meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">',
       '<style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;background:#fff}#sc{width:100%;height:100%}</style>',
       '</head><body><div id="sc"></div>',
       '<script>',
