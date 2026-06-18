@@ -1,5 +1,35 @@
 # VERSION
 
+## v3.0.22-cn.52 - 2026-06-18
+
+### 变更
+地铁图居中用 move() 方法 + 路线标注递归解析：
+
+#### 1. 地铁图居中显示（根因修复）
+- **问题**：电脑版地铁图还是没有在整个屏幕居中显示
+- **根因**：
+  1. `setFitView(obj)` 官方文档参数是"选中的站点或线路的DOM"，无参数调用不生效
+  2. `getCenter()` 方法在官方文档中不存在，之前代码 `si.getCenter&&si.getCenter()` 永远返回 undefined
+  3. `margin:0 auto` 对绝对定位的 SVG 元素无效
+- **修复**：改用官方 `move(deltaX, deltaY)` 方法手动计算偏移量居中
+  1. 获取 `#sc` 容器和 SVG 的 `getBoundingClientRect()`
+  2. 计算 `deltaX = (容器宽度 - SVG宽度) / 2 - (SVG左边距 - 容器左边距)`
+  3. 计算 `deltaY = (容器高度 - SVG高度) / 2 - (SVG上边距 - 容器上边距)`
+  4. 调用 `si.move(deltaX, deltaY)` 移动到中心
+  5. 只在 SVG 小于容器时才移动，避免大图被错误偏移
+  6. 在 5 个时间点调用（100ms、500ms、1000ms、2000ms、3000ms）确保渲染完成后生效
+
+#### 2. 路线标注几号线（递归解析改进）
+- **问题**：路线规划完成后仍无法标注几号线
+- **修复**：
+  1. 改用递归搜索方式解析 routeComplete 数据：深度优先遍历对象，搜索所有含"号线"或以"线"结尾的字符串字段
+  2. 检查更多字段名：line、lineName、name、line_title、title、lineName_txt、lname
+  3. 保留 DOM 备选方案：从 SVG text/tspan 元素提取线路名
+  4. 保留调试日志，打印原始数据
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+
 ## v3.0.22-cn.51 - 2026-06-18
 
 ### 变更
