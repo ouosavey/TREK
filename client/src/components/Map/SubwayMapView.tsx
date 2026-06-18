@@ -56,8 +56,9 @@ const SUBWAY_CONTAINER_ID = 'subway-map-container'
  * 实现方式：直接在主文档中加载地铁图脚本（不用 iframe，避免 sandbox 和 frameSrc CSP 问题）。
  * 关键点：
  * 1. subway 全局函数仅在 cbk 回调内可用，必须在 cbk 内创建实例。
- * 2. subway(id, opts) 的第一个参数是容器的 **id 字符串**（不是 DOM 元素），
- *    官方示例：var mysubway = subway("mysubway", {easy: 1});
+ * 2. subway(id, opts) 的第一个参数是容器的 **id 字符串**（不是 DOM 元素）。
+ * 3. 切换城市用 subway.setAdcode(adcode)，不重新加载脚本。
+ * 4. 地铁图定位在 Navbar + Tab 栏下方，不遮挡顶部菜单。
  */
 export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
   const amapKey = useSettingsStore(s => s.settings.amap_key || '')
@@ -70,7 +71,10 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const subwayRef = useRef<any>(null)
   const scriptRef = useRef<HTMLScriptElement | null>(null)
+  // 标记实例是否已创建（用于区分"首次加载"和"切换城市"）
+  const instanceReadyRef = useRef<boolean>(false)
 
+  // ── 主 useEffect：加载脚本 + 创建实例（只在 amapKey 变化时执行）──────────
   useEffect(() => {
     if (!amapKey || !containerRef.current) return
 
@@ -80,10 +84,10 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
     }
 
     let destroyed = false
-    // 用局部变量跟踪加载是否完成，避免闭包过期问题（setLoading 是异步的，闭包里的 loading 值不会更新）
     let loadCompleted = false
     setLoading(true)
     setErrorMsg('')
+    instanceReadyRef.current = false
 
     // 清理旧实例和旧脚本
     if (subwayRef.current) {
@@ -94,17 +98,13 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       scriptRef.current.remove()
       scriptRef.current = null
     }
-    // 清理旧的 cbk
     try { delete (window as any).cbk } catch { (window as any).cbk = undefined }
 
     // ── 定义 cbk 回调：subway 全局函数仅在此回调内可用 ──────────────
-    // 脚本加载完成后会调用 window.cbk()，此时 subway 函数已定义
     (window as any).cbk = function() {
       if (destroyed || !containerRef.current) return
 
       try {
-        // subway 是全局函数（不是 window.subway 属性，而是脚本内定义的全局函数）
-        // 在 cbk 回调内可以直接调用
         const subwayFn = (window as any).subway || (window as any).Subway
         if (!subwayFn || typeof subwayFn !== 'function') {
           console.error('[SubwayMapView] subway function not found in cbk callback')
@@ -114,25 +114,27 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
           return
         }
 
-        // 清空容器
         containerRef.current.innerHTML = ''
 
-        // 创建地铁图实例：subway(id, opts)
-        // ⚠️ 重要：第一个参数是容器的 **id 字符串**，不是 DOM 元素！
-        // 官方示例：var mysubway = subway("mysubway", {easy: 1});
-        // 参考手册：subway(id,opts) 其中id为容器的id
+        // 创建地铁图实例：subway(id, opts)，第一个参数是容器的 id 字符串
         const subway = subwayFn(SUBWAY_CONTAINER_ID, {
           adcode: selectedAdcode,
           easy: 1,
         })
         subwayRef.current = subway
+        instanceReadyRef.current = true
 
-        // 地铁图加载完成事件（事件名是 "subway.complete"，带点）
+        // 地铁图加载完成事件
         subway.event.on('subway.complete', () => {
           if (destroyed) return
           loadCompleted = true
           setLoading(false)
           setErrorMsg('')
+          // 居中显示：获取选中线路的中心点并设置（如果有的话），否则地铁图会自动适配
+          try {
+            const center = subway.getSelectedLineCenter?.()
+            if (center) subway.setCenter?.(center)
+          } catch { /* 忽略 */ }
         })
 
         subway.event.on('subway.fail', () => {
@@ -150,9 +152,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       }
     }
 
-    // ── 加载地铁图脚本 ──────────────────────────────────────────────
-    // 脚本 URL：https://webapi.amap.com/subway?v=1.0&key=xxx&callback=cbk
-    // 加载完成后会调用 window.cbk()
+    // 加载地铁图脚本
     const script = document.createElement('script')
     script.src = `https://webapi.amap.com/subway?v=1.0&key=${encodeURIComponent(amapKey)}&callback=cbk`
     script.async = true
@@ -168,8 +168,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
 
     document.head.appendChild(script)
 
-    // ── 超时兜底（15秒）────────────────────────────────────────────
-    // 用局部变量 loadCompleted 判断，而不是闭包里的 loading（loading 不会随 setState 更新）
+    // 超时兜底（15秒）
     const timeoutId = setTimeout(() => {
       if (destroyed) return
       if (!loadCompleted) {
@@ -183,21 +182,35 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
     return () => {
       destroyed = true
       clearTimeout(timeoutId)
-      // 清理 cbk 回调
       try { delete (window as any).cbk } catch { (window as any).cbk = undefined }
-      // 清理地铁图实例
       if (subwayRef.current) {
         try { subwayRef.current.destroy?.() } catch { /* 忽略 */ }
         subwayRef.current = null
       }
-      // 移除脚本
       if (scriptRef.current) {
         scriptRef.current.remove()
         scriptRef.current = null
       }
+      instanceReadyRef.current = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amapKey, amapSecurityCode, selectedAdcode])
+  }, [amapKey, amapSecurityCode])
+
+  // ── 副 useEffect：切换城市（用 setAdcode，不重新加载脚本）──────────────
+  useEffect(() => {
+    // 只在实例已创建后才处理城市切换
+    if (!instanceReadyRef.current || !subwayRef.current) return
+    // 首次加载时 selectedAdcode 已在主 useEffect 中使用，跳过
+    try {
+      setLoading(true)
+      subwayRef.current.setAdcode?.(selectedAdcode)
+      // setAdcode 后会重新触发 subway.complete
+    } catch (err) {
+      console.error('[SubwayMapView] setAdcode failed:', err)
+      setLoading(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAdcode])
 
   // ── 未配置 amap_key：显示提示信息 ──────────────────────────────────
   if (!amapKey) {
@@ -205,7 +218,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
       <div
         style={{
           position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
+          top: 'calc(var(--nav-h) + 44px)', left: 0, right: 0, bottom: 0,
           zIndex: 2000,
           background: '#ffffff',
           display: 'flex',
@@ -243,8 +256,9 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
   return (
     <div
       style={{
+        // 定位在 Navbar + Tab 栏下方，不遮挡顶部菜单和 tab 栏
         position: 'fixed',
-        top: 0, left: 0, right: 0, bottom: 0,
+        top: 'calc(var(--nav-h) + 44px)', left: 0, right: 0, bottom: 0,
         zIndex: 2000,
         background: '#ffffff',
         display: 'flex',
@@ -258,7 +272,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '10px 14px',
+          padding: '8px 14px',
           borderBottom: '1px solid #f0f0f0',
           background: '#ffffff',
           flexShrink: 0,
@@ -289,27 +303,33 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
           </select>
         </div>
 
-        <button
-          onClick={onClose}
-          title="关闭"
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: 6,
-            border: 'none',
-            background: 'transparent',
-            color: '#6b7280',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'background 0.15s',
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = '#f3f4f6')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-        >
-          <X size={18} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* 路线规划提示 */}
+          <span style={{ fontSize: 11, color: '#9ca3af', maxWidth: 200, textAlign: 'right' }}>
+            点击站点设置起终点查看路线
+          </span>
+          <button
+            onClick={onClose}
+            title="关闭"
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 6,
+              border: 'none',
+              background: 'transparent',
+              color: '#6b7280',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = '#f3f4f6')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+          >
+            <X size={18} />
+          </button>
+        </div>
       </div>
 
       {/* ── 地铁图显示区域 ──────────────────────────────────────────── */}
@@ -360,7 +380,7 @@ export default function SubwayMapView({ onClose }: SubwayMapViewProps) {
             <div style={{ fontSize: 11, color: '#9ca3af' }}>
               请确认：1) 已配置高德 JS API 密钥（amap_key）<br/>
               2) 密钥已开通地铁图服务<br/>
-              3) 已更新到最新版本（v3.0.22-cn.33+）<br/>
+              3) 已更新到最新版本（v3.0.22-cn.34+）<br/>
               4) 清除浏览器缓存后重试（Ctrl+Shift+R）
             </div>
           </div>

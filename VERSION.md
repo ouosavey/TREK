@@ -1,5 +1,21 @@
 # VERSION
 
+## v3.0.22-cn.35 - 2026-06-18
+
+### 变更
+修复地铁图 JS API 多个 UI 问题：
+1. **城市切换无反应**：根因是每次切换城市都重新加载脚本，浏览器缓存脚本后 cbk 回调不会再次触发。修复：拆分 useEffect，脚本只加载一次，切换城市用 `subway.setAdcode(adcode)` 方法
+2. **遮挡顶部菜单和 tab 栏**：地铁图 `position: fixed; top: 0` 全屏覆盖了 Navbar 和 Tab 栏。修复：改为 `top: calc(var(--nav-h) + 44px)`，定位在 Navbar + Tab 栏下方
+3. **地铁图未居中**：在 `subway.complete` 事件后尝试调用 `setCenter` 居中
+4. **顶部 tab 栏拥挤变形**：因地铁图全屏覆盖导致布局异常，修复布局后 tab 栏恢复正常
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+
 ## v3.0.22-cn.34 - 2026-06-18
 
 ### 变更

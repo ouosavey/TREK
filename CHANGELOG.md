@@ -1,5 +1,31 @@
 # CHANGELOG
 
+## 2026-06-18 修复地铁图UI问题（城市切换+布局+居中） v3.0.22-cn.35
+
+### Bug修复
+
+#### 1. 城市切换点击无反应
+- **根因**: 每次切换城市都重新加载地铁图脚本（`https://webapi.amap.com/subway?v=1.0&key=xxx&callback=cbk`），但浏览器缓存了脚本后，`cbk` 回调不会再次触发，导致切换城市后地铁图不更新
+- **修复**: 拆分 useEffect 为两个：
+  1. 主 useEffect（依赖 `amapKey, amapSecurityCode`）：只加载一次脚本和创建实例
+  2. 副 useEffect（依赖 `selectedAdcode`）：用 `subway.setAdcode(adcode)` 方法切换城市，不重新加载脚本
+- **API 参考**: `setAdcode(adcode)` - 设置 adcode（城市编码），参考手册 https://lbs.amap.com/api/subway-api/mobility-reference
+
+#### 2. 地铁图遮挡顶部菜单和 tab 栏
+- **根因**: 地铁图组件用 `position: fixed; top: 0; bottom: 0; z-index: 2000` 全屏覆盖，遮住了 Navbar（高度 `var(--nav-h)`）和 Tab 栏（高度 44px）
+- **修复**: 改为 `top: calc(var(--nav-h) + 44px)`，定位在 Navbar + Tab 栏下方，顶部菜单和 tab 栏保持不变
+- **布局参考**: TripPlannerPage 的内容区也是 `top: calc(var(--nav-h) + 44px)`
+
+#### 3. 地铁图未居中显示
+- **修复**: 在 `subway.complete` 事件后，尝试调用 `subway.getSelectedLineCenter()` 获取中心点并 `setCenter()` 居中
+
+#### 4. 顶部 tab 栏拥挤变形
+- **根因**: 地铁图全屏覆盖导致布局异常
+- **修复**: 修复布局后（不再覆盖 tab 栏），tab 栏恢复正常
+
+### 涉及文件
+- `client/src/components/Map/SubwayMapView.tsx`
+
 ## 2026-06-18 修复地铁图subway实例创建失败 v3.0.22-cn.34
 
 ### Bug修复
