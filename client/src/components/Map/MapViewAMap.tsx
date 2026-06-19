@@ -536,6 +536,7 @@ export const MapViewAMap = memo(function MapViewAMap({
   const [searchLoading, setSearchLoading] = useState(false)                   // 搜索中
   const [showKeywordInput, setShowKeywordInput] = useState(false)             // 是否显示关键词输入框
   const [showResultsPanel, setShowResultsPanel] = useState(true)              // 结果面板是否展开
+  const [resultsPanelHeight, setResultsPanelHeight] = useState(170)           // 结果面板高度（手机端可拖动调整）
 
   // 同步 polygonSearchActive 到 ref，供地图事件回调使用
   useEffect(() => {
@@ -1665,8 +1666,9 @@ export const MapViewAMap = memo(function MapViewAMap({
     const map = mapRef.current
     if (!AMap || !map || !place.lat || !place.lng) return
     try {
-      // 搜索结果是 WGS-84 坐标，需要转换为 GCJ-02 才能在高德地图上正确定位
-      const [gcjLng, gcjLat] = wgs84ToGcj02(place.lat, place.lng)
+      // 后端返回的坐标已经是 GCJ-02（来自高德 API），可直接用于 AMap
+      const gcjLng = place.lng
+      const gcjLat = place.lat
       map.setZoomAndCenter(16, [gcjLng, gcjLat])
       // 打开信息窗口
       if (polygonInfoWindowRef.current) {
@@ -1900,16 +1902,15 @@ export const MapViewAMap = memo(function MapViewAMap({
         {searchResults.length > 0 && !polygonSearchActive && (
           <div style={{
             position: 'absolute',
-            // 手机端：底部tab栏高度约56px，弹窗定位在tab栏上方
-            // 电脑端：底部无tab栏，定位在底部20px
-            bottom: isMobile ? 64 : 20,
+            // 手机端：使用 CSS 变量确保在底部 tab 栏上方
+            // 电脑端：底部无 tab 栏，定位在底部 20px
+            bottom: isMobile ? 'calc(var(--bottom-nav-h, 84px) + 12px)' : 20,
             left: '50%',
             transform: 'translateX(-50%)',
             zIndex: 150,
             width: isMobile ? 'calc(100% - 24px)' : 420,
-            // 手机端：限制为约3个结果的高度（每项约44px + 头部约36px ≈ 170px）
-            // 电脑端：最多显示6个结果
-            maxHeight: isMobile ? 170 : 360,
+            // 手机端：使用可拖动调整的高度；电脑端：最多显示6个结果
+            maxHeight: isMobile ? resultsPanelHeight : 360,
             background: 'rgba(255,255,255,0.98)',
             borderRadius: 12,
             boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
@@ -1919,7 +1920,40 @@ export const MapViewAMap = memo(function MapViewAMap({
             fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif",
             backdropFilter: 'blur(8px)',
             WebkitBackdropFilter: 'blur(8px)',
+            transition: isMobile ? 'max-height 0.15s ease-out' : 'none',
           }}>
+            {/* 手机端可拖动调整高度的把手 */}
+            {isMobile && (
+              <div
+                style={{
+                  height: 6,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'ns-resize',
+                  background: '#f9fafb',
+                  flexShrink: 0,
+                  touchAction: 'none',
+                }}
+                onTouchStart={(e) => {
+                  const startY = e.touches[0].clientY
+                  const startH = resultsPanelHeight
+                  const onMove = (ev: TouchEvent) => {
+                    const delta = startY - ev.touches[0].clientY
+                    const newH = Math.max(120, Math.min(window.innerHeight * 0.7, startH + delta))
+                    setResultsPanelHeight(newH)
+                  }
+                  const onEnd = () => {
+                    document.removeEventListener('touchmove', onMove)
+                    document.removeEventListener('touchend', onEnd)
+                  }
+                  document.addEventListener('touchmove', onMove, { passive: false })
+                  document.addEventListener('touchend', onEnd)
+                }}
+              >
+                <div style={{ width: 36, height: 4, borderRadius: 2, background: '#d1d5db' }} />
+              </div>
+            )}
             <div
               style={{
                 padding: isMobile ? '8px 12px' : '10px 14px',

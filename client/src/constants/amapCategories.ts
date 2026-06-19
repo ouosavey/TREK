@@ -1,5 +1,5 @@
 // 高德一级分类 → 项目分类映射表（方案C：预置映射）
-// 高德共23个一级分类，这里映射旅行相关的分类
+// 高德共23个一级分类，这里映射全部分类
 export const AMAP_CATEGORY_MAP: Record<string, { name: string; icon: string; color: string }> = {
   '餐饮服务': { name: '餐饮', icon: 'UtensilsCrossed', color: '#f97316' },
   '住宿服务': { name: '住宿', icon: 'BedDouble', color: '#8b5cf6' },
@@ -21,6 +21,11 @@ export const AMAP_CATEGORY_MAP: Record<string, { name: string; icon: string; col
   '公共设施': { name: '设施', icon: 'MapPin', color: '#94a3b8' },
   '宗教': { name: '宗教', icon: 'Church', color: '#a16207' },
   '自然地物': { name: '自然', icon: 'TreePine', color: '#16a34a' },
+  // 补充高德剩余一级分类
+  '事件活动': { name: '活动', icon: 'Calendar', color: '#f59e0b' },
+  '地名地址': { name: '地址', icon: 'MapPin', color: '#94a3b8' },
+  '室内设施': { name: '设施', icon: 'MapPin', color: '#94a3b8' },
+  '通行设施': { name: '交通', icon: 'Bus', color: '#3b82f6' },
 }
 
 // 高德二级分类（typecode前4位）→ 项目分类映射表
@@ -43,6 +48,7 @@ export const AMAP_TYPECODE_MAP: Record<string, { name: string; icon: string; col
 
 // 根据 category 和 typecode 查找最佳分类映射
 // 优先使用 typecode 前缀匹配（更精确），回退到一级分类匹配
+// 如果都不匹配，使用高德原始分类名创建新分类（确保每个地点都有分类）
 export function findAmapCategoryMapping(
   category: string | null | undefined,
   typecode: string | null | undefined,
@@ -59,6 +65,11 @@ export function findAmapCategoryMapping(
   const primaryCategory = category ? category.split(';')[0] : null
   if (primaryCategory && AMAP_CATEGORY_MAP[primaryCategory]) {
     return AMAP_CATEGORY_MAP[primaryCategory]
+  }
+
+  // 3. 都不匹配时，使用高德原始分类名作为新分类名（确保每个地点都有分类）
+  if (primaryCategory) {
+    return { name: primaryCategory, icon: 'MapPin', color: '#6366f1' }
   }
 
   return null
