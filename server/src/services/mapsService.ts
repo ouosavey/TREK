@@ -64,6 +64,7 @@ interface AmapPoi {
   id: string
   name: string
   type?: string
+  typecode?: string  // 高德分类编码，6位数字（前2位=一级大类，中间2位=二级中类，后2位=三级细类）
   address?: string
   location?: string  // "lng,lat" format (GCJ-02)
   pname?: string     // province

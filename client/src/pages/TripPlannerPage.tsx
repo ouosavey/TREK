@@ -225,7 +225,9 @@ export default function TripPlannerPage(): React.ReactElement | null {
     for (const mapping of missingMappings) {
       if (seen.has(mapping.name)) continue
       seen.add(mapping.name)
-      tripActions.addCategory?.({ name: mapping.name, color: mapping.color, icon: mapping.icon }).catch(() => {})
+      tripActions.addCategory?.({ name: mapping.name, color: mapping.color, icon: mapping.icon }).catch(err => {
+        console.error('[TripPlannerPage] Auto-create category failed:', mapping.name, err)
+      })
     }
   }, [categories, tripId, trip])
 
@@ -1256,7 +1258,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
         )}
       </div>
 
-      <PlaceFormModal isOpen={showPlaceForm} onClose={() => { setShowPlaceForm(false); setEditingPlace(null); setEditingAssignmentId(null); setPrefillCoords(null) }} onSave={handleSavePlace} place={editingPlace} prefillCoords={prefillCoords} assignmentId={editingAssignmentId} dayAssignments={editingAssignmentId ? Object.values(assignments).flat() : []} tripId={tripId} categories={categories} onCategoryCreated={cat => tripActions.addCategory?.(cat)} />
+      <PlaceFormModal isOpen={showPlaceForm} onClose={() => { setShowPlaceForm(false); setEditingPlace(null); setEditingAssignmentId(null); setPrefillCoords(null) }} onSave={handleSavePlace} place={editingPlace} prefillCoords={prefillCoords} assignmentId={editingAssignmentId} dayAssignments={editingAssignmentId ? Object.values(assignments).flat() : []} tripId={tripId} categories={categories} onCategoryCreated={async (cat) => { return await tripActions.addCategory?.(cat) }} />
       <TripFormModal isOpen={showTripForm} onClose={() => setShowTripForm(false)} onSave={async (data) => { await tripActions.updateTrip(tripId, data); toast.success(t('trip.toast.tripUpdated')) }} trip={trip} />
       <TripMembersModal isOpen={showMembersModal} onClose={() => setShowMembersModal(false)} tripId={tripId} tripTitle={trip?.title} />
       <ReservationModal isOpen={showReservationModal} onClose={() => { setShowReservationModal(false); setEditingReservation(null); setBookingForAssignmentId(null) }} onSave={handleSaveReservation} reservation={editingReservation} days={days} places={places} assignments={assignments} selectedDayId={selectedDayId} files={files} onFileUpload={canUploadFiles ? (fd) => tripActions.addFile(tripId, fd) : undefined} onFileDelete={(id) => tripActions.deleteFile(tripId, id)} accommodations={tripAccommodations} defaultAssignmentId={bookingForAssignmentId} />

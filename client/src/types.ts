@@ -116,6 +116,7 @@ export interface Tag {
 export interface Category {
   id: number
   name: string
+  color?: string | null
   icon: string | null
   user_id: number
 }

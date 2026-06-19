@@ -1,5 +1,42 @@
 # CHANGELOG
 
+## 2026-06-19 深入修复地点无分类（PWA缓存+类型签名+接口缺失） v3.0.22-cn.61
+
+### Bug修复
+
+#### 1. PWA Service Worker 缓存导致前端代码未更新（核心根因）
+- **问题**：v3.0.22-cn.60 移除了 adminOnly 并添加了 await，但用户更新镜像后问题仍然存在
+- **根因**：PWA Service Worker 配置只有 `registerType: 'autoUpdate'`，没有 `skipWaiting` 和 `clientsClaim`。新版本 Service Worker 会在后台下载安装但不立即激活，用户浏览器仍在使用旧前端代码缓存（没有 await 的版本）
+- **修复**：`client/vite.config.js` 的 PWA workbox 配置添加 `skipWaiting: true` 和 `clientsClaim: true`，新版本 Service Worker 立即激活并控制所有客户端
+
+#### 2. onCategoryCreated 类型签名错误
+- **问题**：类型签名声明为 `(category: Category) => void`（返回 void），但实际使用 `await onCategoryCreated?.(...)` 期望返回 Promise
+- **修复**：改为 `(category: Partial<Category>) => Promise<Category | undefined>`，TripPlannerPage 中改为 `async (cat) => { return await tripActions.addCategory?.(cat) }`
+
+#### 3. Category 接口缺少 color 字段
+- **问题**：`Category` 接口没有 `color` 字段，但 `findAmapCategoryMapping` 返回 `{ name, icon, color }`，导致类型不匹配
+- **修复**：`client/src/types.ts` 的 `Category` 接口添加 `color?: string | null`
+
+#### 4. AmapPoi 接口缺少 typecode 字段
+- **问题**：`AmapPoi` 接口没有 `typecode` 字段声明，但代码中使用 `poi.typecode`
+- **修复**：`server/src/services/mapsService.ts` 的 `AmapPoi` 接口添加 `typecode?: string`
+
+#### 5. Google/OSM 路径和搜索结果列表点击缺少 await
+- **修复**：所有调用 `handleSelectMapsResult` 的路径都添加 `await`
+
+#### 6. 分类创建失败被静默吞掉
+- **修复**：
+  1. `handleSelectMapsResult` 中分类创建失败改为 `console.error` + `toast.error` 显示错误提示
+  2. `TripPlannerPage` 的 useEffect 中 `.catch(err => console.error(...))` 打印错误日志
+  3. `handleSelectMapsResult` 添加详细诊断日志
+
+### 涉及文件
+- `client/vite.config.js`（PWA skipWaiting + clientsClaim）
+- `client/src/types.ts`（Category 接口添加 color）
+- `client/src/components/Planner/PlaceFormModal.tsx`（类型签名+日志+错误提示+await）
+- `client/src/pages/TripPlannerPage.tsx`（async onCategoryCreated+useEffect 错误日志）
+- `server/src/services/mapsService.ts`（AmapPoi 接口添加 typecode）
+
 ## 2026-06-19 修复地点无分类根因+多边形搜索距离排序+导航功能 v3.0.22-cn.60
 
 ### Bug修复

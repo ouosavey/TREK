@@ -77,7 +77,7 @@ interface PlaceFormModalProps {
   prefillCoords?: { lat: number; lng: number; name?: string; address?: string; google_place_id?: string; image_url?: string } | null
   tripId: number
   categories: Category[]
-  onCategoryCreated: (category: Category) => void
+  onCategoryCreated: (category: Partial<Category>) => Promise<Category | undefined>
   assignmentId: number | null
   dayAssignments?: Assignment[]
 }
@@ -325,11 +325,19 @@ export default function PlaceFormModal({
     // 在 setForm 之前计算，避免闭包过期问题
     let newCategoryId: string | null = null
     const mapping = findAmapCategoryMapping(result.category, result.amap_typecode)
+    console.log('[PlaceFormModal] handleSelectMapsResult:', {
+      name: result.name,
+      category: result.category,
+      amap_typecode: result.amap_typecode,
+      mapping,
+      existingCategories: categories?.map(c => c.name),
+    })
     if (mapping) {
       // 1. 先在已有分类中查找名称匹配的
       const existingCat = categories?.find(c => c.name === mapping.name)
       if (existingCat) {
         newCategoryId = String(existingCat.id)
+        console.log('[PlaceFormModal] Found existing category:', existingCat.name, 'id:', existingCat.id)
       }
     }
 
@@ -351,12 +359,17 @@ export default function PlaceFormModal({
     // 2. 如果没有匹配的已有分类，但有映射，异步创建新分类
     if (mapping && !newCategoryId) {
       try {
+        console.log('[PlaceFormModal] Creating new category:', mapping.name)
         const newCat = await onCategoryCreated?.({ name: mapping.name, color: mapping.color, icon: mapping.icon })
+        console.log('[PlaceFormModal] Category created:', newCat)
         if (newCat?.id) {
           setForm(prev => (!prev.category_id ? { ...prev, category_id: String(newCat.id) } : prev))
+        } else {
+          console.warn('[PlaceFormModal] Category creation returned no id:', newCat)
         }
       } catch (err) {
-        console.warn('[PlaceFormModal] Failed to auto-create category:', err)
+        console.error('[PlaceFormModal] Failed to auto-create category:', err)
+        toast.error(`分类创建失败: ${err instanceof Error ? err.message : '未知错误'}`)
       }
     }
 
@@ -400,7 +413,7 @@ export default function PlaceFormModal({
     try {
       const result = await mapsApi.details(suggestion.placeId, language)
       if (result.place) {
-        handleSelectMapsResult(result.place)
+        await handleSelectMapsResult(result.place)
       } else {
         setMapsSearch(previousSearch)
         toast.error(t('places.mapsSearchError'))
@@ -633,7 +646,7 @@ export default function PlaceFormModal({
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => handleSelectMapsResult(result)}
+                  onClick={async () => { await handleSelectMapsResult(result) }}
                   className="w-full text-left px-3 py-2 hover:bg-slate-50 border-b border-slate-100 last:border-0"
                 >
                   <div className="font-medium text-sm">{result.name}</div>
