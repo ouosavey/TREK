@@ -73,15 +73,12 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复: PWA Service Worker 缓存导致前端代码未更新（核心根因）**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: PWA 配置没有 skipWaiting/clientsClaim，新版本 Service Worker 不立即激活，用户浏览器使用旧前端代码缓存" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 添加 skipWaiting: true 和 clientsClaim: true，新版本立即激活" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复: onCategoryCreated 类型签名错误**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: 类型签名声明返回 void，但实际使用 await 期望返回 Promise" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 改为 Promise<Category | undefined>，TripPlannerPage 改为 async 箭头函数" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复: Category 接口缺少 color 字段 + AmapPoi 接口缺少 typecode 字段**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 补充类型定义" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复: Google/OSM 路径和搜索结果列表点击缺少 await**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 所有调用 handleSelectMapsResult 的路径都添加 await" >> $GITHUB_STEP_SUMMARY
-          echo "- **改进: 分类创建失败不再静默吞掉**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 添加 toast.error 错误提示 + console.error 日志 + 详细诊断日志" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复: findAmapCategoryMapping 缺少 typecode 前2位回退（核心根因）**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: 高德某些POI不返回type字段但返回typecode，原代码在category为空且typecode前4位不在映射表时返回null" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: 添加AMAP_TYPECODE_PREFIX2_MAP（typecode前2位→一级分类），覆盖全部23个大类" >> $GITHUB_STEP_SUMMARY
+          echo "  - 示例: 八达岭长城typecode=110200，前2位11→风景名胜→景点" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复: 保存按钮竞态条件**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: details API加载中时保存按钮可点击，导致category_id为空的地点被保存" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: 保存按钮disabled条件添加isSearchingMaps" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复: AMap details获取失败无提示**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: 添加toast.error提示用户分类可能无法自动匹配" >> $GITHUB_STEP_SUMMARY

@@ -332,6 +332,12 @@ export default function PlaceFormModal({
       mapping,
       existingCategories: categories?.map(c => c.name),
     })
+    if (!mapping) {
+      console.warn('[PlaceFormModal] No category mapping found for place:', result.name, {
+        category: result.category,
+        amap_typecode: result.amap_typecode,
+      })
+    }
     if (mapping) {
       // 1. 先在已有分类中查找名称匹配的
       const existingCat = categories?.find(c => c.name === mapping.name)
@@ -400,8 +406,9 @@ export default function PlaceFormModal({
           await handleSelectMapsResult(result.place)
         }
       } catch (err) {
-        // 详情获取失败不影响已填充的基本信息
+        // 详情获取失败不影响已填充的基本信息，但提示用户分类可能缺失
         console.warn('[PlaceFormModal] Failed to fetch AMap place details:', err)
+        toast.error('获取地点详情失败，分类可能无法自动匹配，请手动选择分类')
       } finally {
         setIsSearchingMaps(false)
       }
@@ -533,7 +540,7 @@ export default function PlaceFormModal({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isSaving || hasTimeError}
+            disabled={isSaving || hasTimeError || isSearchingMaps}
             className="px-6 py-2 bg-slate-900 text-white text-sm rounded-lg hover:bg-slate-700 disabled:opacity-60 font-medium"
           >
             {isSaving ? t('common.saving') : place ? t('common.update') : t('common.add')}

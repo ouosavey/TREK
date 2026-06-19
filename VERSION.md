@@ -1,5 +1,28 @@
 # VERSION
 
+## v3.0.22-cn.62 - 2026-06-19
+
+### 变更
+修复高德某些 POI 不返回 type 字段导致地点无分类的问题（如"八达岭长城"）。
+
+#### 1. findAmapCategoryMapping 缺少 typecode 前2位回退（核心根因）
+- **问题**：v3.0.22-cn.61 修复后部分地点仍无分类（如"八达岭长城(瓮城登长城入口)"）
+- **根因**：高德 API 对某些 POI 不返回 `type` 字段（category 为空），但返回了 `typecode`。原 `findAmapCategoryMapping` 在 category 为空且 typecode 前4位不在 `AMAP_TYPECODE_MAP`（仅9个条目）中时返回 null，导致无分类
+- **修复**：添加 `AMAP_TYPECODE_PREFIX2_MAP`（typecode 前2位→一级分类名映射，覆盖全部23个大类），在 category 匹配失败后用 typecode 前2位推断一级分类。如八达岭长城 typecode=110200，前2位"11"→"风景名胜"→"景点"
+
+#### 2. 保存按钮竞态条件
+- **问题**：用户通过自动补全选择地点后，details API 还在加载中时保存按钮可点击，导致 category_id 为空的地点被保存
+- **修复**：保存按钮 disabled 条件添加 `isSearchingMaps`
+
+#### 3. AMap details 获取失败无提示
+- **问题**：handleSelectSuggestion 的 amap 路径中 details API 失败只 console.warn，用户无感知，可能直接保存无分类地点
+- **修复**：添加 toast.error 提示"获取地点详情失败，分类可能无法自动匹配，请手动选择分类"
+
+### Docker 镜像
+- GHCR: `ghcr.io/ouosavey/trek:cn-localized` (linux/amd64)
+
+---
+
 ## v3.0.22-cn.61 - 2026-06-19
 
 ### 变更

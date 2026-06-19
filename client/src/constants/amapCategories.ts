@@ -46,9 +46,37 @@ export const AMAP_TYPECODE_MAP: Record<string, { name: string; icon: string; col
   '0109': { name: '汽车', icon: 'Car', color: '#64748b' },         // 汽车租赁
 }
 
+// 高德 typecode 前2位（一级大类）→ 高德一级分类名映射
+// 用于 type 字段为空但 typecode 存在时的回退匹配
+// typecode 6位结构：前2位=一级大类，中间2位=二级中类，后2位=三级细类
+const AMAP_TYPECODE_PREFIX2_MAP: Record<string, string> = {
+  '01': '汽车服务',
+  '02': '汽车销售',
+  '03': '汽车维修',
+  '05': '餐饮服务',
+  '06': '购物服务',
+  '07': '生活服务',
+  '08': '体育休闲服务',
+  '09': '医疗保健服务',
+  '10': '住宿服务',
+  '11': '风景名胜',
+  '12': '商务住宅',
+  '13': '政府机构及社会团体',
+  '14': '科教文化服务',
+  '15': '交通设施服务',
+  '16': '金融保险服务',
+  '17': '公司企业',
+  '18': '公共设施',
+  '19': '事件活动',
+  '20': '室内设施',
+  '21': '通行设施',
+  '22': '地名地址',
+  '23': '自然地物',
+}
+
 // 根据 category 和 typecode 查找最佳分类映射
-// 优先使用 typecode 前缀匹配（更精确），回退到一级分类匹配
-// 如果都不匹配，使用高德原始分类名创建新分类（确保每个地点都有分类）
+// 优先级：typecode前4位(二级) > 一级分类名 > typecode前2位(一级大类) > 高德原始分类名
+// 确保每个有 typecode 或 category 的地点都能匹配到分类
 export function findAmapCategoryMapping(
   category: string | null | undefined,
   typecode: string | null | undefined,
@@ -61,13 +89,23 @@ export function findAmapCategoryMapping(
     }
   }
 
-  // 2. 回退到一级分类匹配
+  // 2. 回退到一级分类名匹配
   const primaryCategory = category ? category.split(';')[0] : null
   if (primaryCategory && AMAP_CATEGORY_MAP[primaryCategory]) {
     return AMAP_CATEGORY_MAP[primaryCategory]
   }
 
-  // 3. 都不匹配时，使用高德原始分类名作为新分类名（确保每个地点都有分类）
+  // 3. type 为空或不匹配时，用 typecode 前2位推断一级分类
+  //    解决高德某些 POI 不返回 type 字段但返回 typecode 的问题
+  if (typecode && typecode.length >= 2) {
+    const prefix2 = typecode.slice(0, 2)
+    const primaryName = AMAP_TYPECODE_PREFIX2_MAP[prefix2]
+    if (primaryName && AMAP_CATEGORY_MAP[primaryName]) {
+      return AMAP_CATEGORY_MAP[primaryName]
+    }
+  }
+
+  // 4. 都不匹配时，使用高德原始分类名作为新分类名（确保每个地点都有分类）
   if (primaryCategory) {
     return { name: primaryCategory, icon: 'MapPin', color: '#6366f1' }
   }
