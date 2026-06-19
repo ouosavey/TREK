@@ -384,7 +384,7 @@ export default function PlaceFormModal({
       try {
         const result = await mapsApi.details(suggestion.placeId, language)
         if (result.place) {
-          handleSelectMapsResult(result.place)
+          await handleSelectMapsResult(result.place)
         }
       } catch (err) {
         // 详情获取失败不影响已填充的基本信息

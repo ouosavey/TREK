@@ -1,5 +1,44 @@
 # VERSION
 
+## v3.0.22-cn.60 - 2026-06-19
+
+### 变更
+修复3个问题：地点无分类根因（权限+竞态）、多边形搜索结果按距离排序、多边形搜索结果导航功能：
+
+#### 1. 地点无分类根因修复 - "八达岭长城(瓮城登长城入口)"等地点添加后依然无分类
+- **问题**：v3.0.22-cn.59 已补充分类映射回退逻辑，但实际添加地点后仍然无分类
+- **根因**：
+  1. **权限限制**：`POST /api/categories` 路由有 `adminOnly` 中间件，非管理员调用返回 403，前端 `onCategoryCreated` 的 Promise 被 catch 静默吞掉，分类创建失败
+  2. **竞态条件**：`PlaceFormModal.tsx` 中 `handleSelectMapsResult(result.place)` 未被 `await`，分类创建还未完成就提交了地点表单，地点的 `category_id` 为空
+- **修复**：
+  1. `/workspace/server/src/routes/categories.ts`：移除 `POST /` 的 `adminOnly` 中间件，所有登录用户都可以创建分类（与项目"用户自管理分类"的设计一致）
+  2. `/workspace/client/src/components/Planner/PlaceFormModal.tsx`：`handleSelectMapsResult(result.place)` 前添加 `await`，确保分类创建完成后再继续
+
+#### 2. 多边形搜索结果按距离排序
+- **问题**：多边形搜索结果列表无序，用户难以判断哪个最近
+- **修复**：在 `handlePerformSearch` 中新增 haversine 距离计算，按距离当前定位由近到远排序
+  - 每个结果添加 `_distance` 字段（单位 km）
+  - 列表项显示距离（<1km 显示 m，≥1km 显示 km）
+  - 信息窗口也显示距离
+
+#### 3. 多边形搜索结果导航功能
+- **问题**：搜索结果只能查看，无法直接导航
+- **修复**：
+  1. 新增 `handleNavigate(place)` 函数，使用高德 URI API 唤起导航：
+     `https://uri.amap.com/navigation?to=lng,lat,name&mode=car&src=trek&coordinate=gaode&callnative=1`
+  2. 搜索结果列表项新增"导航"按钮（蓝色，`e.stopPropagation()` 防止触发列表项点击）
+  3. 信息窗口新增"导航前往"链接
+  4. `callnative=1` 会尝试唤起高德地图 App，未安装时在浏览器打开网页版导航
+
+### 涉及文件
+- `server/src/routes/categories.ts`（移除 adminOnly）
+- `client/src/components/Planner/PlaceFormModal.tsx`（添加 await）
+- `client/src/components/Map/MapViewAMap.tsx`（距离排序 + 导航功能）
+
+### Docker 镜像
+- `ghcr.io/ouosavey/trek:cn-localized`
+- `ghcr.io/ouosavey/trek:cn-<sha>`
+
 ## v3.0.22-cn.59 - 2026-06-19
 
 ### 变更

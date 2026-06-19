@@ -1570,7 +1570,25 @@ export const MapViewAMap = memo(function MapViewAMap({
         return { lat: wgsLat, lng: wgsLng }
       })
       const data = await mapsApi.searchPolygonAmap(wgsPolygon, searchKeywords.trim())
-      const places = (data?.places || []) as any[]
+      let places = (data?.places || []) as any[]
+
+      // 按距离当前定位由近到远排序
+      if (userPosition && places.length > 0) {
+        const userLat = userPosition.lat
+        const userLng = userPosition.lng
+        places = places.map(p => {
+          // 计算距离（简化版 haversine，单位 km）
+          const R = 6371
+          const dLat = (p.lat - userLat) * Math.PI / 180
+          const dLng = (p.lng - userLng) * Math.PI / 180
+          const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                    Math.cos(userLat * Math.PI / 180) * Math.cos(p.lat * Math.PI / 180) *
+                    Math.sin(dLng/2) * Math.sin(dLng/2)
+          const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+          return { ...p, _distance: dist }
+        }).sort((a, b) => (a._distance || 0) - (b._distance || 0))
+      }
+
       setSearchResults(places)
       setShowResultsPanel(true)
 
@@ -1672,17 +1690,34 @@ export const MapViewAMap = memo(function MapViewAMap({
       map.setZoomAndCenter(16, [gcjLng, gcjLat])
       // 打开信息窗口
       if (polygonInfoWindowRef.current) {
+        const distText = place._distance != null
+          ? (place._distance < 1 ? `${Math.round(place._distance * 1000)}m` : `${place._distance.toFixed(1)}km`)
+          : ''
+        const navUrl = `https://uri.amap.com/navigation?to=${gcjLng},${gcjLat},${encodeURIComponent(place.name || '目的地')}&mode=car&src=trek&coordinate=gaode&callnative=1`
         const html = `
           <div style="padding:4px;min-width:180px;max-width:260px;font-family:-apple-system,system-ui,sans-serif;">
             <div style="font-weight:600;font-size:13px;color:#111827;margin-bottom:4px;">${place.name || '未知'}</div>
             ${place.address ? `<div style="font-size:11px;color:#6b7280;margin-bottom:2px;">${place.address}</div>` : ''}
-            ${place.category ? `<div style="font-size:11px;color:#9ca3af;">${place.category}</div>` : ''}
+            ${place.category ? `<div style="font-size:11px;color:#9ca3af;margin-bottom:4px;">${place.category}</div>` : ''}
+            ${distText ? `<div style="font-size:11px;color:#3b82f6;margin-bottom:6px;">距您 ${distText}</div>` : ''}
+            <a href="${navUrl}" target="_blank" style="display:inline-block;padding:4px 12px;background:#3b82f6;color:white;text-decoration:none;border-radius:6px;font-size:12px;">导航前往</a>
           </div>
         `
         polygonInfoWindowRef.current.setContent(html)
         polygonInfoWindowRef.current.open(map, new AMap.LngLat(gcjLng, gcjLat))
       }
     } catch { /* ignore */ }
+  }
+
+  // 导航到指定地点（调用高德导航）
+  function handleNavigate(place: any) {
+    if (!place.lat || !place.lng) return
+    const gcjLng = place.lng
+    const gcjLat = place.lat
+    // 使用高德 URI API 唤起导航，callnative=1 会尝试唤起高德地图 App
+    // 坐标已是 GCJ-02，使用 coordinate=gaode
+    const navUrl = `https://uri.amap.com/navigation?to=${gcjLng},${gcjLat},${encodeURIComponent(place.name || '目的地')}&mode=car&src=trek&coordinate=gaode&callnative=1`
+    window.open(navUrl, '_blank')
   }
 
   // ── No AMap key placeholder ──────────────────────────────────────────
@@ -2001,23 +2036,52 @@ export const MapViewAMap = memo(function MapViewAMap({
                       padding: isMobile ? '6px 12px' : '8px 14px',
                       cursor: 'pointer',
                       borderBottom: '1px solid #f5f5f5',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      justifyContent: 'space-between',
+                      gap: 8,
                     }}
                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#f0f7ff'}
                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
                   >
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {place.name || '未知'}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {place.name || '未知'}
+                      </div>
+                      {place.address && (
+                        <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {place.address}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                        {place._distance != null && (
+                          <span style={{ fontSize: isMobile ? 9 : 10, color: '#3b82f6' }}>
+                            {place._distance < 1 ? `${Math.round(place._distance * 1000)}m` : `${place._distance.toFixed(1)}km`}
+                          </span>
+                        )}
+                        {place.category && (
+                          <span style={{ fontSize: isMobile ? 9 : 10, color: '#9ca3af' }}>
+                            {place.category}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    {place.address && (
-                      <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {place.address}
-                      </div>
-                    )}
-                    {place.category && (
-                      <div style={{ fontSize: isMobile ? 9 : 10, color: '#9ca3af', marginTop: 1 }}>
-                        {place.category}
-                      </div>
-                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleNavigate(place) }}
+                      style={{
+                        border: 'none',
+                        background: '#3b82f6',
+                        color: 'white',
+                        cursor: 'pointer',
+                        borderRadius: 6,
+                        padding: isMobile ? '4px 8px' : '4px 10px',
+                        fontSize: 11,
+                        flexShrink: 0,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      导航
+                    </button>
                   </div>
                 ))}
               </div>

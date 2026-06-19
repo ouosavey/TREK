@@ -9,7 +9,7 @@ router.get('/', authenticate, (_req: Request, res: Response) => {
   res.json({ categories: categoryService.listCategories() });
 });
 
-router.post('/', authenticate, adminOnly, (req: Request, res: Response) => {
+router.post('/', authenticate, (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { name, color, icon } = req.body;
   if (!name) return res.status(400).json({ error: 'Category name is required' });
