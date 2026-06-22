@@ -1,5 +1,24 @@
 # CHANGELOG
 
+## 2026-06-22 修复地图右键添加地点无分类 v3.0.22-cn.65
+
+### Bug修复
+
+#### 1. 地图右键添加地点无分类（核心根因）
+- **问题**：通过地图右键添加的地点全都是无分类，通过搜索结果添加的有的有分类有的没有
+- **根因**：地图右键添加地点时，`reverseGeocodeAmap` 函数没有从高德 API 返回的 POI 列表中提取 `type` 和 `typecode` 字段。前端 `prefillCoords` 也没有传递 `amap_category` 和 `amap_typecode` 字段。因此 v3.0.22-cn.64 的服务端自动分类兜底无法工作
+- **修复**：
+  1. 后端 `reverseGeocodeAmap` 返回 `poiCategory` 和 `poiTypecode`
+  2. 前端 `prefillCoords` 类型添加 `amap_category` 和 `amap_typecode`
+  3. 前端逆地理编码回调传递分类信息
+  4. `PlaceFormModal` 的 `prefillCoords` 分支设置分类信息
+- **涉及文件**：
+  - `server/src/services/mapsService.ts`（reverseGeocodeAmap 返回 poiCategory/poiTypecode）
+  - `client/src/pages/TripPlannerPage.tsx`（prefillCoords 类型+逆地理编码回调）
+  - `client/src/components/Planner/PlaceFormModal.tsx`（prefillCoords 分支设置分类信息）
+
+---
+
 ## 2026-06-19 添加服务端自动分类兜底机制 v3.0.22-cn.64
 
 ### Bug修复

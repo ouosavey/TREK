@@ -78,7 +78,7 @@ interface PlaceFormModalProps {
   onClose: () => void
   onSave: (data: PlaceFormData, files?: File[]) => Promise<void> | void
   place: Place | null
-  prefillCoords?: { lat: number; lng: number; name?: string; address?: string; google_place_id?: string; image_url?: string } | null
+  prefillCoords?: { lat: number; lng: number; name?: string; address?: string; google_place_id?: string; image_url?: string; amap_category?: string; amap_typecode?: string } | null
   tripId: number
   categories: Category[]
   onCategoryCreated: (category: Partial<Category>) => Promise<Category | undefined>
@@ -153,6 +153,9 @@ export default function PlaceFormModal({
         // AMap 逆地理编码返回的 POI 信息
         google_place_id: prefillCoords.google_place_id || '',
         image_url: prefillCoords.image_url || '',
+        // 高德分类信息，用于服务端自动分类兜底
+        amap_category: prefillCoords.amap_category || '',
+        amap_typecode: prefillCoords.amap_typecode || '',
       }))
     } else {
       setForm(DEFAULT_FORM)

@@ -1,5 +1,24 @@
 # VERSION
 
+## v3.0.22-cn.65 - 2026-06-22
+
+### 变更
+修复地图右键添加地点无分类的问题。
+
+#### 1. 地图右键添加地点无分类（核心根因）
+- **问题**：通过地图右键添加的地点全都是无分类，通过搜索结果添加的有的有分类有的没有
+- **根因**：地图右键添加地点时，`handleMapContextMenu` 调用逆地理编码 API 获取地点信息，但 `reverseGeocodeAmap` 函数没有从高德 API 返回的 POI 列表中提取 `type`（分类）和 `typecode`（分类编码）字段。前端 `prefillCoords` 也没有传递 `amap_category` 和 `amap_typecode` 字段。`PlaceFormModal` 的 `prefillCoords` 分支也没有设置这些字段。因此服务端自动分类兜底（v3.0.22-cn.64）无法工作
+- **修复**：
+  1. 后端 `reverseGeocodeAmap` 返回 `poiCategory` 和 `poiTypecode`（从高德逆地理编码 POI 列表的 type/typecode 字段提取）
+  2. 前端 `prefillCoords` 类型添加 `amap_category` 和 `amap_typecode`
+  3. 前端逆地理编码回调传递 `poiCategory` 和 `poiTypecode`
+  4. `PlaceFormModal` 的 `prefillCoords` 分支设置 `amap_category` 和 `amap_typecode`
+
+### Docker 镜像
+- GHCR: `ghcr.io/ouosavey/trek:cn-localized` (linux/amd64)
+
+---
+
 ## v3.0.22-cn.64 - 2026-06-19
 
 ### 变更

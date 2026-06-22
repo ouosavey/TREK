@@ -950,19 +950,19 @@ export async function searchAmap(query: string, city?: string, lang?: string, us
   return { places, source: 'amap' }
 }
 
-export async function reverseGeocodeAmap(lat: string, lng: string, userId?: number): Promise<{ name: string | null; address: string | null; city: string | null; poiId: string | null; poiName: string | null; photoUrl: string | null }> {
+export async function reverseGeocodeAmap(lat: string, lng: string, userId?: number): Promise<{ name: string | null; address: string | null; city: string | null; poiId: string | null; poiName: string | null; photoUrl: string | null; poiCategory: string | null; poiTypecode: string | null }> {
   const amapKey = getAmapKey(userId)
-  if (!amapKey) return { name: null, address: null, city: null, poiId: null, poiName: null, photoUrl: null }
+  if (!amapKey) return { name: null, address: null, city: null, poiId: null, poiName: null, photoUrl: null, poiCategory: null, poiTypecode: null }
 
   const params = new URLSearchParams({
     key: amapKey,
     location: `${lng},${lat}`,  // AMap uses "lng,lat" order
-    extensions: 'all',  // 返回附近POI信息（含id、name、photos）
+    extensions: 'all',  // 返回附近POI信息（含id、name、photos、type、typecode）
     output: 'JSON',
   })
   try {
     const response = await fetch(`https://restapi.amap.com/v3/geocode/regeo?${params}`)
-    if (!response.ok) return { name: null, address: null, city: null, poiId: null, poiName: null, photoUrl: null }
+    if (!response.ok) return { name: null, address: null, city: null, poiId: null, poiName: null, photoUrl: null, poiCategory: null, poiTypecode: null }
     const data = await response.json() as {
       status: string;
       regeocode?: {
@@ -973,10 +973,10 @@ export async function reverseGeocodeAmap(lat: string, lng: string, userId?: numb
           city?: string | string[] | { name?: string };
           province?: string;
         };
-        pois?: { id?: string; name?: string; photos?: { url?: string }[] }[];
+        pois?: { id?: string; name?: string; type?: string; typecode?: string; photos?: { url?: string }[] }[];
       }
     }
-    if (data.status !== '1') return { name: null, address: null, city: null, poiId: null, poiName: null, photoUrl: null }
+    if (data.status !== '1') return { name: null, address: null, city: null, poiId: null, poiName: null, photoUrl: null, poiCategory: null, poiTypecode: null }
     const addr = data.regeocode
     const name = addr?.addressComponent?.neighborhood?.name || addr?.addressComponent?.township || null
     // city 可能是字符串、对象或数组（高德 API 版本差异）
@@ -999,8 +999,10 @@ export async function reverseGeocodeAmap(lat: string, lng: string, userId?: numb
     const poiId = nearestPoi?.id ? `amap:${nearestPoi.id}` : null
     const poiName = nearestPoi?.name || null
     const photoUrl = nearestPoi?.photos?.[0]?.url || null
-    return { name, address: addr?.formatted_address || null, city, poiId, poiName, photoUrl }
-  } catch { return { name: null, address: null, city: null, poiId: null, poiName: null, photoUrl: null } }
+    const poiCategory = nearestPoi?.type || null
+    const poiTypecode = nearestPoi?.typecode || null
+    return { name, address: addr?.formatted_address || null, city, poiId, poiName, photoUrl, poiCategory, poiTypecode }
+  } catch { return { name: null, address: null, city: null, poiId: null, poiName: null, photoUrl: null, poiCategory: null, poiTypecode: null } }
 }
 
 export async function autocompleteAmap(input: string, city?: string, userId?: number): Promise<{ suggestions: { placeId: string; mainText: string; secondaryText: string }[]; source: string }> {

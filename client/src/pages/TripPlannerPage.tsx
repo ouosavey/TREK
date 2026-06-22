@@ -287,7 +287,7 @@ export default function TripPlannerPage(): React.ReactElement | null {
   const [dayDetailCollapsed, setDayDetailCollapsed] = useState(false)
   const [showPlaceForm, setShowPlaceForm] = useState<boolean>(false)
   const [editingPlace, setEditingPlace] = useState<Place | null>(null)
-  const [prefillCoords, setPrefillCoords] = useState<{ lat: number; lng: number; name?: string; address?: string; google_place_id?: string; image_url?: string } | null>(null)
+  const [prefillCoords, setPrefillCoords] = useState<{ lat: number; lng: number; name?: string; address?: string; google_place_id?: string; image_url?: string; amap_category?: string; amap_typecode?: string } | null>(null)
   const [editingAssignmentId, setEditingAssignmentId] = useState<number | null>(null)
   const [showTripForm, setShowTripForm] = useState<boolean>(false)
   const [showMembersModal, setShowMembersModal] = useState<boolean>(false)
@@ -510,6 +510,9 @@ export default function TripPlannerPage(): React.ReactElement | null {
           // AMap 逆地理编码 extensions=all 返回最近 POI 信息
           google_place_id: data.poiId || prev.google_place_id || '',
           image_url: data.photoUrl || prev.image_url || '',
+          // 高德分类信息，用于服务端自动分类兜底
+          amap_category: data.poiCategory || prev.amap_category || '',
+          amap_typecode: data.poiTypecode || prev.amap_typecode || '',
         } : prev)
       }
     } catch (err) {
