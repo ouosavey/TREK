@@ -1,5 +1,20 @@
 # VERSION
 
+## v3.0.22-cn.71 - 2026-06-22
+
+### 变更
+修复移动端 App 无法连接服务器的紧急 bug。
+
+#### 1. 移动端 App 连接服务器失败
+- **问题**：更新到 v3.0.22-cn.70 后，移动端 App 连接服务器显示"Failed to fetch"
+- **根因**：无 `ALLOWED_ORIGINS` 时 production 模式 `corsOrigin = false`，不添加 CORS 头，移动端跨域请求被拒绝
+- **修复**：无 `ALLOWED_ORIGINS` 时 production 模式也允许所有 origin（`corsOrigin = true`）
+
+### Docker 镜像
+- GHCR: `ghcr.io/ouosavey/trek:cn-localized` (linux/amd64)
+
+---
+
 ## v3.0.22-cn.70 - 2026-06-22
 
 ### 变更

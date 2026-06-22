@@ -80,8 +80,10 @@ export function createApp(): express.Application {
       else callback(new Error('Not allowed by CORS'));
     };
   } else {
-    // 无白名单时：dev 允许所有，production 不添加 CORS 头（同源请求正常工作）
-    corsOrigin = process.env.NODE_ENV?.toLowerCase() === 'production' ? false : true;
+    // 无白名单时：dev 允许所有，production 也允许所有（反射 origin）
+    // 移动端 App 是跨域请求（https://localhost → 服务器），需要 CORS 头
+    // 网页端是同源请求，不受影响
+    corsOrigin = true;
   }
 
   const shouldForceHttps = process.env.FORCE_HTTPS?.toLowerCase() === 'true';

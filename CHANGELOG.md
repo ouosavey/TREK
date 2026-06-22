@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 2026-06-22 修复移动端 App 无法连接服务器 v3.0.22-cn.71
+
+### Bug修复（紧急）
+
+#### 1. 移动端 App 连接服务器失败
+- **问题**：更新到 v3.0.22-cn.70 后，移动端 App 连接服务器时显示"无法连接到服务器：Failed to fetch"
+- **根因**：v3.0.22-cn.70 的修复太激进 —— 无 `ALLOWED_ORIGINS` 时 production 模式设置 `corsOrigin = false`，不添加 CORS 头。移动端是跨域请求（`https://localhost` → 服务器），需要 CORS 头才能工作
+- **修复**：无 `ALLOWED_ORIGINS` 时，production 模式也允许所有 origin（`corsOrigin = true`，反射 origin）。网页端是同源请求不受影响，移动端跨域请求可以正常工作
+- **涉及文件**：`server/src/app.ts`
+
+---
+
 ## 2026-06-22 修复 CORS 过严导致网页端无法访问 v3.0.22-cn.70
 
 ### Bug修复（紧急）

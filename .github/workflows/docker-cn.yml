@@ -73,7 +73,7 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **紧急修复: CORS 过严导致网页端 Internal Server Error**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: v3.0.22-cn.68 CORS修改引入bug，无ALLOWED_ORIGINS时production模式只允许localhost" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 无白名单时恢复原行为(corsOrigin=false)；有白名单时才额外允许Capacitor origin" >> $GITHUB_STEP_SUMMARY
-          echo "  - 影响: 网页端和移动端均可正常访问" >> $GITHUB_STEP_SUMMARY
+          echo "- **紧急修复: 移动端 App 无法连接服务器**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: v3.0.22-cn.70 修复太激进，无ALLOWED_ORIGINS时production模式corsOrigin=false不添加CORS头" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: 无ALLOWED_ORIGINS时production模式也允许所有origin(corsOrigin=true)" >> $GITHUB_STEP_SUMMARY
+          echo "  - 效果: 网页端同源请求不受影响，移动端跨域请求可以正常工作" >> $GITHUB_STEP_SUMMARY
