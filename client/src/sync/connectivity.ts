@@ -1,3 +1,5 @@
+import { getApiBaseUrl } from '../utils/serverConfig'
+
 const PROBE_INTERVAL_MS = 30_000
 const PROBE_TIMEOUT_MS = 1_500
 
@@ -15,7 +17,8 @@ async function probe(): Promise<void> {
   try {
     const ctrl = new AbortController()
     const t = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS)
-    const res = await fetch('/api/health', {
+    // 移动端使用配置的服务器地址（getApiBaseUrl 返回 https://server/api）
+    const res = await fetch(`${getApiBaseUrl()}/health`, {
       method: 'GET',
       credentials: 'include',
       cache: 'no-store',

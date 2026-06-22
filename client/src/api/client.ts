@@ -575,7 +575,7 @@ export const backupApi = {
   list: () => apiClient.get('/backup/list').then(r => r.data),
   create: () => apiClient.post('/backup/create').then(r => r.data),
   download: async (filename: string): Promise<void> => {
-    const res = await fetch(`/api/backup/download/${filename}`, {
+    const res = await fetch(`${getApiBaseUrl()}/backup/download/${filename}`, {
       credentials: 'include',
     })
     if (!res.ok) throw new Error('Download failed')

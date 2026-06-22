@@ -13,6 +13,7 @@ import { calculateRoute, generateGoogleMapsUrl, generateAmapUrl, optimizeRoute }
 import PlaceAvatar from '../shared/PlaceAvatar'
 import { useContextMenu, ContextMenu } from '../shared/ContextMenu'
 import Markdown from 'react-markdown'
+import { getApiBaseUrl } from '../../utils/serverConfig'
 import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
 import WeatherWidget from '../Weather/WeatherWidget'
@@ -1217,7 +1218,7 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
             <button
               onClick={async () => {
                 try {
-                  const res = await fetch(`/api/trips/${tripId}/export.ics`, {
+                  const res = await fetch(`${getApiBaseUrl()}/trips/${tripId}/export.ics`, {
                     credentials: 'include',
                   })
                   if (!res.ok) throw new Error()

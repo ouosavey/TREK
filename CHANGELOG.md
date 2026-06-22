@@ -1,5 +1,32 @@
 # CHANGELOG
 
+## 2026-06-22 修复移动端 App 登录和白屏问题 v3.0.22-cn.72
+
+### Bug修复（核心）
+
+#### 1. 移动端 App 无法登录（Cookie SameSite 问题）
+- **问题**：移动端 App 连接服务器后显示"创建管理员账号"，无法正常登录
+- **根因**：服务器设置的 session cookie 使用 `SameSite=Lax`，Capacitor Android 使用 `https://localhost` 作为 origin，从 `https://localhost` 到服务器的请求是跨站请求，`SameSite=Lax` 会阻止 cookie 发送，导致登录后仍被视为未认证
+- **修复**：`server/src/services/cookie.ts` 检测 Capacitor 移动端请求（origin 是 `https://localhost` 等），对这种请求使用 `SameSite=None; Secure`，允许跨站 cookie
+
+#### 2. 移动端 App 白屏（connectivity probe 使用相对路径）
+- **问题**：关闭 App 重新打开后一直白屏
+- **根因**：`client/src/sync/connectivity.ts` 的 `probe()` 函数使用相对路径 `/api/health`，在移动端会请求 `https://localhost/api/health` 而失败，`isReachable()` 返回 false，触发 `apiClient` 拦截器的 `unregisterSWAndReload()`，导致白屏循环
+- **修复**：`probe()` 使用 `getApiBaseUrl()` 拼接完整的服务器地址
+
+#### 3. 其他相对路径 fetch 请求修复
+- **问题**：代码中多处使用 `fetch('/api/...')` 相对路径，在移动端会请求 `https://localhost/api/...` 而失败
+- **修复**：所有 `fetch('/api/...')` 改为 `fetch(`${getApiBaseUrl()}/...`)`
+- **涉及文件**：
+  - `client/src/store/authStore.ts`（logout 请求）
+  - `client/src/pages/LoginPage.tsx`（OIDC exchange 请求）
+  - `client/src/api/client.ts`（backup download 请求）
+  - `client/src/api/authUrl.ts`（resource-token 请求）
+  - `client/src/pages/JourneyDetailPage.tsx`（memories 相关请求）
+  - `client/src/components/Planner/DayPlanSidebar.tsx`（export.ics 请求）
+
+---
+
 ## 2026-06-22 修复移动端 App 无法连接服务器 v3.0.22-cn.71
 
 ### Bug修复（紧急）

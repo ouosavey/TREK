@@ -73,7 +73,7 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **紧急修复: 移动端 App 无法连接服务器**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: v3.0.22-cn.70 修复太激进，无ALLOWED_ORIGINS时production模式corsOrigin=false不添加CORS头" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 无ALLOWED_ORIGINS时production模式也允许所有origin(corsOrigin=true)" >> $GITHUB_STEP_SUMMARY
-          echo "  - 效果: 网页端同源请求不受影响，移动端跨域请求可以正常工作" >> $GITHUB_STEP_SUMMARY
+          echo "- **核心修复: 移动端 App 登录和白屏问题**" >> $GITHUB_STEP_SUMMARY
+          echo "  - Cookie SameSite: Capacitor移动端跨站请求使用 SameSite=None; Secure" >> $GITHUB_STEP_SUMMARY
+          echo "  - 白屏: connectivity probe使用相对路径失败，改为getApiBaseUrl()拼接完整地址" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复6个文件中的相对路径fetch请求" >> $GITHUB_STEP_SUMMARY

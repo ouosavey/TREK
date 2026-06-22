@@ -28,6 +28,7 @@ import {
   Archive, ArchiveRestore,
 } from 'lucide-react'
 import MobileMapTimeline from '../components/Journey/MobileMapTimeline'
+import { getApiBaseUrl } from '../utils/serverConfig'
 import MobileEntryView from '../components/Journey/MobileEntryView'
 import { useIsMobile } from '../hooks/useIsMobile'
 import type { JourneyEntry, JourneyPhoto, GalleryPhoto, JourneyTrip, JourneyDetail } from '../store/journeyStore'
@@ -1009,7 +1010,7 @@ function GalleryView({ entries, gallery, journeyId, userId, trips, onPhotoClick,
         const connected: { id: string; name: string }[] = []
         for (const p of enabledProviders) {
           try {
-            const res = await fetch(`/api/integrations/memories/${p.id}/status`, { credentials: 'include' })
+            const res = await fetch(`${getApiBaseUrl()}/integrations/memories/${p.id}/status`, { credentials: 'include' })
             if (res.ok) {
               const status = await res.json()
               if (status.connected) connected.push({ id: p.id, name: p.name })
@@ -1708,7 +1709,7 @@ function ProviderPicker({ provider, userId, entries, trips, existingAssetIds, on
     setSearchTo(to)
     setSearchPage(page)
     try {
-      const res = await fetch(`/api/integrations/memories/${provider}/search`, {
+      const res = await fetch(`${getApiBaseUrl()}/integrations/memories/${provider}/search`, {
         method: 'POST', credentials: 'include', signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ from, to, page, size: 50 }),
@@ -1739,7 +1740,7 @@ function ProviderPicker({ provider, userId, entries, trips, existingAssetIds, on
     setHasMore(false)
     try {
       const qs = album.passphrase ? `?passphrase=${encodeURIComponent(album.passphrase)}` : ''
-      const res = await fetch(`/api/integrations/memories/${provider}/albums/${album.id}/photos${qs}`, { credentials: 'include', signal })
+      const res = await fetch(`${getApiBaseUrl()}/integrations/memories/${provider}/albums/${album.id}/photos${qs}`, { credentials: 'include', signal })
       if (res.ok) setPhotos((await res.json()).assets || [])
     } catch (e: any) { if (e.name !== 'AbortError') {} }
     if (!signal.aborted) setLoading(false)
@@ -1747,7 +1748,7 @@ function ProviderPicker({ provider, userId, entries, trips, existingAssetIds, on
 
   const loadAlbums = async () => {
     try {
-      const res = await fetch(`/api/integrations/memories/${provider}/albums`, { credentials: 'include' })
+      const res = await fetch(`${getApiBaseUrl()}/integrations/memories/${provider}/albums`, { credentials: 'include' })
       if (res.ok) setAlbums((await res.json()).albums || [])
     } catch {}
   }

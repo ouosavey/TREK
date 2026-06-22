@@ -7,6 +7,7 @@ import { getApiErrorMessage } from '../types'
 import { tripSyncManager } from '../sync/tripSyncManager'
 import { clearAll } from '../db/offlineDb'
 import { useSystemNoticeStore } from './systemNoticeStore.js'
+import { getApiBaseUrl } from '../utils/serverConfig'
 
 interface AuthResponse {
   user: User
@@ -162,7 +163,7 @@ export const useAuthStore = create<AuthState>()(
     disconnect()
     useSystemNoticeStore.getState().reset()
     // Tell server to clear the httpOnly cookie
-    fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {})
+    fetch(`${getApiBaseUrl()}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {})
     // Clear service worker caches containing sensitive data
     if ('caches' in window) {
       caches.delete('api-data').catch(() => {})

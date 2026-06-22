@@ -1,5 +1,29 @@
 # VERSION
 
+## v3.0.22-cn.72 - 2026-06-22
+
+### 变更
+修复移动端 App 登录和白屏问题。
+
+#### 1. 移动端 App 无法登录（Cookie SameSite）
+- **根因**：session cookie 使用 `SameSite=Lax`，移动端跨站请求无法发送 cookie
+- **修复**：Capacitor 移动端请求使用 `SameSite=None; Secure`
+
+#### 2. 移动端 App 白屏（connectivity probe 相对路径）
+- **根因**：`probe()` 使用相对路径 `/api/health`，移动端请求 `https://localhost/api/health` 失败，触发白屏循环
+- **修复**：使用 `getApiBaseUrl()` 拼接完整服务器地址
+
+#### 3. 其他相对路径 fetch 请求
+- 修复 6 个文件中的 `fetch('/api/...')` 为 `fetch(`${getApiBaseUrl()}/...`)`
+
+### Docker 镜像
+- GHCR: `ghcr.io/ouosavey/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## v3.0.22-cn.71 - 2026-06-22
 
 ### 变更

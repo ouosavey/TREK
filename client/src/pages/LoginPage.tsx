@@ -7,6 +7,7 @@ import { authApi, configApi } from '../api/client'
 import { hasStoredLanguage } from '../store/settingsStore'
 import { getApiErrorMessage } from '../types'
 import { Plane, Eye, EyeOff, Mail, Lock, MapPin, Calendar, Package, User, Globe, Zap, Users, Wallet, Map, CheckSquare, BookMarked, FolderOpen, Route, Shield, KeyRound, ChevronDown } from 'lucide-react'
+import { getApiBaseUrl } from '../utils/serverConfig'
 
 interface AppConfig {
   has_users: boolean
@@ -83,7 +84,7 @@ export default function LoginPage(): React.ReactElement {
       if (exchangeInitiated.current) return
       exchangeInitiated.current = true
       setIsLoading(true)
-      fetch('/api/auth/oidc/exchange?code=' + encodeURIComponent(oidcCode), { credentials: 'include' })
+      fetch(`${getApiBaseUrl()}/auth/oidc/exchange?code=` + encodeURIComponent(oidcCode), { credentials: 'include' })
         .then(r => r.json())
         .then(async data => {
           window.history.replaceState({}, '', '/login')
