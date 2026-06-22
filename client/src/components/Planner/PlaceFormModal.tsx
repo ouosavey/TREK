@@ -404,11 +404,54 @@ export default function PlaceFormModal({
         const result = await mapsApi.details(suggestion.placeId, language)
         if (result.place) {
           await handleSelectMapsResult(result.place)
+        } else {
+          // details 被禁用或返回 null：用 searchAmap 回退获取分类信息
+          console.log('[PlaceFormModal] Details returned null, falling back to searchAmap for category:', suggestion.mainText)
+          try {
+            const searchResult = await mapsApi.searchAmap(suggestion.mainText, undefined, 'zh')
+            if (searchResult.places && searchResult.places.length > 0) {
+              // 找到名称最匹配的结果
+              const matched = searchResult.places.find(p => p.name === suggestion.mainText) || searchResult.places[0]
+              // 合并 suggestion 的基本信息和搜索结果的分类信息
+              await handleSelectMapsResult({
+                ...matched,
+                // 保留 suggestion 已填充的信息（避免被搜索结果覆盖）
+                name: suggestion.mainText || matched.name,
+                lat: suggestion.lat ?? matched.lat,
+                lng: suggestion.lng ?? matched.lng,
+                address: suggestion.address || matched.address,
+                osm_id: suggestion.placeId,
+              })
+            } else {
+              console.warn('[PlaceFormModal] searchAmap fallback returned no results for:', suggestion.mainText)
+              toast.error('无法获取地点分类信息，请手动选择分类')
+            }
+          } catch (searchErr) {
+            console.warn('[PlaceFormModal] searchAmap fallback failed:', searchErr)
+            toast.error('无法获取地点分类信息，请手动选择分类')
+          }
         }
       } catch (err) {
-        // 详情获取失败不影响已填充的基本信息，但提示用户分类可能缺失
-        console.warn('[PlaceFormModal] Failed to fetch AMap place details:', err)
-        toast.error('获取地点详情失败，分类可能无法自动匹配，请手动选择分类')
+        // 详情获取失败：尝试用 searchAmap 回退获取分类信息
+        console.warn('[PlaceFormModal] Failed to fetch AMap place details, trying searchAmap fallback:', err)
+        try {
+          const searchResult = await mapsApi.searchAmap(suggestion.mainText, undefined, 'zh')
+          if (searchResult.places && searchResult.places.length > 0) {
+            const matched = searchResult.places.find(p => p.name === suggestion.mainText) || searchResult.places[0]
+            await handleSelectMapsResult({
+              ...matched,
+              name: suggestion.mainText || matched.name,
+              lat: suggestion.lat ?? matched.lat,
+              lng: suggestion.lng ?? matched.lng,
+              address: suggestion.address || matched.address,
+              osm_id: suggestion.placeId,
+            })
+          } else {
+            toast.error('获取地点详情失败，分类可能无法自动匹配，请手动选择分类')
+          }
+        } catch (searchErr) {
+          toast.error('获取地点详情失败，分类可能无法自动匹配，请手动选择分类')
+        }
       } finally {
         setIsSearchingMaps(false)
       }

@@ -1,5 +1,24 @@
 # VERSION
 
+## v3.0.22-cn.63 - 2026-06-19
+
+### 变更
+修复 places_details_enabled 禁用时 autocomplete 添加地点无分类的问题。
+
+#### 1. details 被禁用时 handleSelectMapsResult 不被调用（核心根因）
+- **问题**：v3.0.22-cn.62 后部分地点仍无分类（如"八达岭长城(瓮城登长城入口)"）
+- **根因**：当 `places_details_enabled` 为 false 时，后端 `/maps/details/:placeId` 返回 `{ place: null, disabled: true }`（HTTP 200）。前端 `handleSelectSuggestion` 中 `if (result.place)` 为 false，`handleSelectMapsResult` 不被调用，分类不会被设置，且无任何提示。这解释了"有的无分类"——通过 autocomplete 添加的地点无分类，通过搜索结果列表添加的地点有分类（searchAmap 直接返回 category/typecode）
+- **修复**：当 details 返回 null 或失败时，用 `searchAmap` 回退搜索地点名称，取第一个匹配结果的 category 和 typecode 进行分类匹配。合并 suggestion 的基本信息和搜索结果的分类信息后调用 `handleSelectMapsResult`
+
+#### 2. details 失败时也添加 searchAmap 回退
+- **问题**：details API 调用失败（网络错误等）时只显示 toast.error，不尝试回退
+- **修复**：catch 块中也添加 searchAmap 回退逻辑
+
+### Docker 镜像
+- GHCR: `ghcr.io/ouosavey/trek:cn-localized` (linux/amd64)
+
+---
+
 ## v3.0.22-cn.62 - 2026-06-19
 
 ### 变更

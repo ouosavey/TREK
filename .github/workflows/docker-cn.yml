@@ -73,12 +73,9 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复: findAmapCategoryMapping 缺少 typecode 前2位回退（核心根因）**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: 高德某些POI不返回type字段但返回typecode，原代码在category为空且typecode前4位不在映射表时返回null" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 添加AMAP_TYPECODE_PREFIX2_MAP（typecode前2位→一级分类），覆盖全部23个大类" >> $GITHUB_STEP_SUMMARY
-          echo "  - 示例: 八达岭长城typecode=110200，前2位11→风景名胜→景点" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复: 保存按钮竞态条件**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: details API加载中时保存按钮可点击，导致category_id为空的地点被保存" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 保存按钮disabled条件添加isSearchingMaps" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复: AMap details获取失败无提示**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 添加toast.error提示用户分类可能无法自动匹配" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复: details被禁用时autocomplete添加地点无分类（核心根因）**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: places_details_enabled为false时后端返回{place:null}，handleSelectMapsResult不被调用" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: details返回null或失败时用searchAmap回退搜索地点名称获取分类信息" >> $GITHUB_STEP_SUMMARY
+          echo "  - 影响: 通过autocomplete添加的地点现在能正确自动分类" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复: details失败时也添加searchAmap回退**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: catch块中也添加searchAmap回退逻辑" >> $GITHUB_STEP_SUMMARY
