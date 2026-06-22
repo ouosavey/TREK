@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 2026-06-22 修复 APK 构建 - Capacitor CLI 要求 Node 22 v3.0.22-cn.67
+
+### Bug修复
+
+#### 1. Capacitor sync 失败（核心根因）
+- **问题**：GitHub Actions `build-apk.yml` 工作流在 "Sync Capacitor" 步骤失败，53秒退出
+- **错误信息**：`[fatal] The Capacitor CLI requires NodeJS >=22.0.0 Please install the latest LTS version.`
+- **根因**：Capacitor CLI（@capacitor/cli）要求 NodeJS >=22.0.0，但 workflow 配置的是 Node 20。同时 GitHub Actions 已弃用 Node 20，默认使用 Node 24
+- **修复**：将 `actions/setup-node` 的 `node-version` 从 `'20'` 改为 `'22'`（LTS 版本）
+- **涉及文件**：`.github/workflows/build-apk.yml`
+
+---
+
 ## 2026-06-22 新增 Capacitor 移动端 App 支持 v3.0.22-cn.66
 
 ### 新功能

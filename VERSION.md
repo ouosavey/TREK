@@ -1,5 +1,23 @@
 # VERSION
 
+## v3.0.22-cn.67 - 2026-06-22
+
+### 变更
+修复 GitHub Actions APK 构建失败的问题。
+
+#### 1. Capacitor sync 失败
+- **问题**：`build-apk.yml` 工作流在 "Sync Capacitor" 步骤失败，错误信息 `[fatal] The Capacitor CLI requires NodeJS >=22.0.0`
+- **根因**：Capacitor CLI 要求 NodeJS >=22.0.0，但 workflow 配置的是 Node 20（已被 GitHub Actions 弃用）
+- **修复**：将 `actions/setup-node` 的 `node-version` 从 `'20'` 改为 `'22'`（LTS 版本）
+
+### Docker 镜像
+- GHCR: `ghcr.io/ouosavey/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## v3.0.22-cn.66 - 2026-06-22
 
 ### 变更
