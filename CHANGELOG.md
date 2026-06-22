@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## 2026-06-22 APK图标替换为PWA图标 v3.0.22-cn.69
+
+### 优化
+
+#### 1. APK 图标替换
+- **问题**：Android APK 使用 Capacitor 默认图标（绿色机器人），用户希望使用 PWA 的图标
+- **修复**：
+  1. 用 PWA 图标（`icon-512x512.png`）生成 Android 各尺寸的 `ic_launcher.png` 和 `ic_launcher_round.png`（mdpi 48x48、hdpi 72x72、xhdpi 96x96、xxhdpi 144x144、xxxhdpi 192x192）
+  2. 生成 `ic_launcher_foreground.png`（前景图标，居中占 66.67%，符合 adaptive-icon 规范，各尺寸 108/162/216/324/432）
+  3. 背景色从白色（#FFFFFF）改为 TREK 深色背景（#0f172a），与 PWA 的 `background_color` 一致
+  4. 删除旧的 drawable XML 图标文件（grid 背景、Capacitor 前景）
+- **涉及文件**：
+  - `client/android/app/src/main/res/mipmap-*/ic_launcher.png`（5个尺寸，新生成）
+  - `client/android/app/src/main/res/mipmap-*/ic_launcher_round.png`（5个尺寸，新生成）
+  - `client/android/app/src/main/res/mipmap-*/ic_launcher_foreground.png`（5个尺寸，新生成）
+  - `client/android/app/src/main/res/values/ic_launcher_background.xml`（背景色改为 #0f172a）
+  - 删除 `client/android/app/src/main/res/drawable/ic_launcher_background.xml`（grid 背景）
+  - 删除 `client/android/app/src/main/res/drawable-v24/ic_launcher_foreground.xml`（Capacitor 前景）
+
+---
+
 ## 2026-06-22 修复移动端 App 无法连接服务器（CORS） v3.0.22-cn.68
 
 ### Bug修复

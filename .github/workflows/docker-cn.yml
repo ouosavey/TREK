@@ -73,7 +73,7 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **核心修复: 移动端 App 无法连接服务器（CORS）**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: Capacitor Android 使用 https://localhost 作为 origin，被服务器 CORS 白名单拒绝" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: CORS 和 WebSocket 配置总是允许 Capacitor 移动端的 origin" >> $GITHUB_STEP_SUMMARY
-          echo "  - 效果: 移动端 App 现在可以连接到用户配置的 NAS 服务器" >> $GITHUB_STEP_SUMMARY
+          echo "- **优化: APK 图标替换为 PWA 图标**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 用 PWA 图标替换 Capacitor 默认图标（绿色机器人）" >> $GITHUB_STEP_SUMMARY
+          echo "  - 生成 Android 各尺寸的 ic_launcher 和 ic_launcher_foreground" >> $GITHUB_STEP_SUMMARY
+          echo "  - 背景色改为 TREK 深色背景（#0f172a），与 PWA 一致" >> $GITHUB_STEP_SUMMARY

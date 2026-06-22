@@ -1,5 +1,26 @@
 # VERSION
 
+## v3.0.22-cn.69 - 2026-06-22
+
+### 变更
+将 Android APK 图标替换为 PWA 图标。
+
+#### 1. APK 图标替换
+- **问题**：Android APK 使用 Capacitor 默认图标（绿色机器人），用户希望使用 PWA 的图标
+- **修复**：
+  1. 用 PWA 图标（`icon-512x512.png`）生成 Android 各尺寸的 `ic_launcher.png` 和 `ic_launcher_round.png`（mdpi/hdpi/xhdpi/xxhdpi/xxxhdpi）
+  2. 生成 `ic_launcher_foreground.png`（前景图标，居中占 66.67%，符合 adaptive-icon 规范）
+  3. 背景色从白色（#FFFFFF）改为 TREK 深色背景（#0f172a），与 PWA 的 `background_color` 一致
+  4. 删除旧的 drawable XML 图标文件（grid 背景、Capacitor 前景）
+
+### Docker 镜像
+- GHCR: `ghcr.io/ouosavey/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## v3.0.22-cn.68 - 2026-06-22
 
 ### 变更
