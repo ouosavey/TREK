@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios'
+import { Capacitor } from '@capacitor/core'
 import { getSocketId } from './websocket'
 import { isReachable, probeNow } from '../sync/connectivity'
 import { getApiBaseUrl } from '../utils/serverConfig'
@@ -99,7 +100,8 @@ apiClient.interceptors.response.use(
       // as a CORS error with no response object. Probe the health endpoint to
       // distinguish a proxy auth challenge from a genuine outage. If the server
       // is reachable, a top-level reload lets the edge proxy run its auth flow.
-      if (!error.response && navigator.onLine) {
+      // 移动端 App 不经过 CF Access/Pangolin 代理，跳过此逻辑避免白屏循环
+      if (!error.response && navigator.onLine && !Capacitor.isNativePlatform()) {
         await probeNow()
         // Both the original request and the health probe failed while the device
         // has a network interface. This matches the proxy-auth-challenge pattern
@@ -118,7 +120,8 @@ apiClient.interceptors.response.use(
       // Pangolin header-auth extended compatibility mode: returns 401 with an
       // HTML body (a JS redirect page) instead of a 302. TREK's own 401s are
       // always application/json, so checking for text/html is unambiguous.
-      if (error.response?.status === 401) {
+      // 移动端 App 不经过 Pangolin 代理，跳过此逻辑
+      if (error.response?.status === 401 && !Capacitor.isNativePlatform()) {
         const ct = (error.response.headers?.['content-type'] as string | undefined) ?? ''
         if (ct.includes('text/html')) {
           const { pathname } = window.location

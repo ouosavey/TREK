@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from '../utils/serverConfig'
+import { getApiBaseUrl, isServerUrlConfigured } from '../utils/serverConfig'
 
 const PROBE_INTERVAL_MS = 30_000
 const PROBE_TIMEOUT_MS = 1_500
@@ -14,6 +14,8 @@ function setReachable(v: boolean): void {
 
 async function probe(): Promise<void> {
   if (!navigator.onLine) { setReachable(false); return }
+  // 移动端：服务器地址未配置时跳过探测（首次启动未配置服务器地址）
+  if (!isServerUrlConfigured()) { setReachable(false); return }
   try {
     const ctrl = new AbortController()
     const t = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS)

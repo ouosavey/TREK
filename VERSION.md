@@ -1,5 +1,40 @@
 # VERSION
 
+## v3.0.22-cn.74 - 2026-06-22
+
+### 变更
+彻底修复移动端 App "创建管理员账号"和白屏问题。v3.0.22-cn.73 的 `refreshApiBaseUrl()` 修复是必要的但不充分——真正的根因是**多个 useEffect 和 connectivity probe 在服务器地址初始化之前就发起了 API 请求**。
+
+#### 1. main.tsx：移动端启动时先初始化服务器地址再渲染
+- **根因**：`startConnectivityProbe()` 在模块加载时就运行，此时 `cachedServerUrl` 为空，probe 请求 `https://localhost/api/health` 失败 → `isReachable()=false`。同时 App 的 useEffect 也并行运行 `loadUser()` 和 `getAppConfig()`，用错误的 baseURL 发起请求
+- **修复**：将渲染和 probe 包装在 `async bootstrap()` 中，移动端先 `await initServerUrl()` + `refreshApiBaseUrl()` 再渲染和启动 probe
+
+#### 2. App.tsx：第二个 useEffect 依赖 serverReady
+- **根因**：React 的所有 useEffect 在首次渲染后同时运行，第二个 useEffect（加载用户和配置）不等待第一个 useEffect（初始化服务器地址）完成就用错误的 baseURL 发起 API 请求
+- **修复**：第二个 useEffect 添加 `if (shouldShowServerConfig() && !serverReady) return` 守卫，依赖数组改为 `[serverReady]`。同样处理 loadSettings/loadAddons 和 registerSyncTriggers 的 useEffect
+
+#### 3. api/client.ts：移动端跳过代理认证重载逻辑
+- **根因**：响应拦截器检测到请求失败且 `isReachable()=false` 时，调用 `unregisterSWAndReload()` 触发页面重载。移动端 App 不经过 CF Access/Pangolin 代理，此逻辑无意义且导致白屏循环
+- **修复**：两个代理认证检测块都添加 `!Capacitor.isNativePlatform()` 条件，移动端直接跳过
+
+#### 4. connectivity.ts：服务器地址未配置时跳过 probe
+- **根因**：首次启动未配置服务器地址时，probe 请求 `https://localhost/api/health` 必然失败
+- **修复**：`probe()` 添加 `if (!isServerUrlConfigured()) { setReachable(false); return }` 守卫
+
+### 涉及文件
+- `client/src/main.tsx`（async bootstrap：先 initServerUrl + refreshApiBaseUrl 再渲染）
+- `client/src/App.tsx`（第二个 useEffect 依赖 serverReady + loadSettings/registerSyncTriggers 也加守卫）
+- `client/src/api/client.ts`（响应拦截器移动端跳过代理认证重载）
+- `client/src/sync/connectivity.ts`（probe 服务器地址未配置时跳过）
+
+### Docker 镜像
+- GHCR: `ghcr.io/ouosavey/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## v3.0.22-cn.73 - 2026-06-22
 
 ### 变更

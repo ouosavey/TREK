@@ -73,7 +73,8 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **核心修复: 移动端 App 登录和白屏问题**" >> $GITHUB_STEP_SUMMARY
-          echo "  - Cookie SameSite: Capacitor移动端跨站请求使用 SameSite=None; Secure" >> $GITHUB_STEP_SUMMARY
-          echo "  - 白屏: connectivity probe使用相对路径失败，改为getApiBaseUrl()拼接完整地址" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复6个文件中的相对路径fetch请求" >> $GITHUB_STEP_SUMMARY
+          echo "- **核心修复: 移动端 App 启动时序问题 v3.0.22-cn.74**" >> $GITHUB_STEP_SUMMARY
+          echo "  - main.tsx: 移动端先初始化服务器地址再渲染和启动probe" >> $GITHUB_STEP_SUMMARY
+          echo "  - App.tsx: 第二个useEffect依赖serverReady，等待服务器地址初始化" >> $GITHUB_STEP_SUMMARY
+          echo "  - api/client.ts: 移动端跳过CF Access/Pangolin代理认证重载逻辑" >> $GITHUB_STEP_SUMMARY
+          echo "  - connectivity.ts: 服务器地址未配置时跳过probe" >> $GITHUB_STEP_SUMMARY

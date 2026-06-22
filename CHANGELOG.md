@@ -1,5 +1,51 @@
 # CHANGELOG
 
+## 2026-06-22 彻底修复移动端 App 启动时序问题 v3.0.22-cn.74
+
+### Bug修复（核心）
+
+#### 问题
+移动端 App 配置过服务器地址后，重新打开仍然显示"创建管理员账号"和白屏。v3.0.22-cn.73 的 `refreshApiBaseUrl()` 修复是必要的但不充分。
+
+#### 根因分析
+v3.0.22-cn.73 只修复了 `apiClient.defaults.baseURL` 的更新问题，但**多个 useEffect 和 connectivity probe 在服务器地址初始化之前就发起了 API 请求**：
+
+1. **`main.tsx` 的 `startConnectivityProbe()` 在模块加载时就运行**：此时 `cachedServerUrl` 为空，`getApiBaseUrl()` 返回 `/api`，probe 请求 `https://localhost/api/health` 失败 → `isReachable()=false`
+
+2. **`App.tsx` 的第二个 useEffect 与第一个 useEffect 并行运行**：React 的所有 useEffect 在首次渲染后同时触发。第二个 useEffect（调用 `loadUser()` 和 `authApi.getAppConfig()`）不等待第一个 useEffect（`initServerUrl()`）完成，用错误的 baseURL `/api` 发起请求 → 请求发送到 `https://localhost/api/...` 失败
+
+3. **响应拦截器触发白屏循环**：请求失败后，响应拦截器检测到 `!error.response && navigator.onLine`，调用 `probeNow()` → `isReachable()=false` → 调用 `unregisterSWAndReload()` → 页面重载 → 同样的问题再次发生 → 白屏循环
+
+4. **LoginPage 的 `getAppConfig()` 失败**：`getAppConfig()` 请求失败后，回退到 localStorage 缓存。如果缓存为空或 `has_users: false`，LoginPage 切换到 register 模式，显示"创建管理员账号"
+
+#### 修复方案
+
+##### 1. `client/src/main.tsx`：移动端启动时先初始化服务器地址再渲染
+- 将渲染和 probe 包装在 `async bootstrap()` 中
+- 移动端先 `await initServerUrl()` + `refreshApiBaseUrl()` 再渲染和启动 probe
+- 确保 `cachedServerUrl` 和 `apiClient.defaults.baseURL` 在任何组件挂载前就已正确设置
+
+##### 2. `client/src/App.tsx`：第二个 useEffect 依赖 serverReady
+- 添加 `if (shouldShowServerConfig() && !serverReady) return` 守卫
+- 依赖数组从 `[]` 改为 `[serverReady]`
+- 同样处理 `loadSettings`/`loadAddons` 和 `registerSyncTriggers` 的 useEffect
+
+##### 3. `client/src/api/client.ts`：移动端跳过代理认证重载逻辑
+- 两个代理认证检测块都添加 `!Capacitor.isNativePlatform()` 条件
+- 移动端 App 不经过 CF Access/Pangolin 代理，此逻辑无意义且导致白屏循环
+
+##### 4. `client/src/sync/connectivity.ts`：服务器地址未配置时跳过 probe
+- `probe()` 添加 `if (!isServerUrlConfigured()) { setReachable(false); return }` 守卫
+- 首次启动未配置服务器地址时不再发起注定失败的 probe 请求
+
+### 涉及文件
+- `client/src/main.tsx`
+- `client/src/App.tsx`
+- `client/src/api/client.ts`
+- `client/src/sync/connectivity.ts`
+
+---
+
 ## 2026-06-22 修复移动端 App apiClient baseURL 未刷新 v3.0.22-cn.73
 
 ### Bug修复（核心）

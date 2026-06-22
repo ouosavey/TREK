@@ -129,7 +129,12 @@ export default function App() {
     })
   }, [])
 
+  // 加载用户和应用配置
+  // 移动端：必须等待 serverReady 后才发起 API 请求，否则 baseURL 还是 /api
   useEffect(() => {
+    // 移动端：服务器地址未就绪时跳过（首次启动或未配置时）
+    if (shouldShowServerConfig() && !serverReady) return
+
     if (!location.pathname.startsWith('/shared/') && !location.pathname.startsWith('/public/') && !location.pathname.startsWith('/login')) {
       // If the persist snapshot already has an authenticated user, validate
       // silently so the PWA shell renders immediately without a spinner.
@@ -175,23 +180,25 @@ export default function App() {
         localStorage.setItem('trek_app_version', config.version)
       }
     }).catch(() => {})
-  }, [])
+  }, [serverReady])
 
   const { settings } = useSettingsStore()
 
   useInAppNotificationListener()
 
   useEffect(() => {
+    if (shouldShowServerConfig() && !serverReady) return
     if (isAuthenticated) {
       loadSettings()
       loadAddons()
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, serverReady])
 
   useEffect(() => {
+    if (shouldShowServerConfig() && !serverReady) return
     registerSyncTriggers()
     return () => unregisterSyncTriggers()
-  }, [])
+  }, [serverReady])
 
   const location = useLocation()
   const isSharedPage = location.pathname.startsWith('/shared/')
