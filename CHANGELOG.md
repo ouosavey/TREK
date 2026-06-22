@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## 2026-06-19 添加服务端自动分类兜底机制 v3.0.22-cn.64
+
+### Bug修复
+
+#### 1. 服务端自动分类兜底（核心修复）
+- **问题**：v3.0.22-cn.61~cn.63 多次修复前端分类匹配逻辑，但地点仍然无分类
+- **根因**：分类匹配逻辑只在前端执行，前端各种不可控因素（React 状态批处理、异步竞态、API 失败、PWA 缓存、浏览器兼容性等）导致 category_id 无法可靠设置
+- **修复**：在服务端 placeService.createPlace/updatePlace 中添加自动分类兜底。前端传递 amap_category 和 amap_typecode，服务端使用相同的映射逻辑自动查找或创建分类并设置 category_id
+- **涉及文件**：
+  - `server/src/constants/amapCategories.ts`（新增：服务端分类映射逻辑）
+  - `server/src/services/categoryService.ts`（新增 findOrCreateCategory）
+  - `server/src/services/placeService.ts`（createPlace/updatePlace 添加自动分类）
+  - `server/src/routes/places.ts`（传递 userId 给 placeService）
+  - `client/src/components/Planner/PlaceFormModal.tsx`（PlaceFormData 添加 amap_category/amap_typecode）
+
+---
+
 ## 2026-06-19 修复details禁用时autocomplete添加地点无分类 v3.0.22-cn.63
 
 ### Bug修复

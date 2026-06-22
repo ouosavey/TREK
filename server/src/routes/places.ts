@@ -53,7 +53,7 @@ router.post('/', authenticate, requireTripAccess, validateStringLengths({ name: 
 
   let place;
   try {
-    place = createPlace(tripId, req.body);
+    place = createPlace(tripId, req.body, authReq.user.id);
   } catch (err) {
     console.error('[createPlace] Error creating place:', err);
     console.error('[createPlace] Request body:', JSON.stringify(req.body, null, 2));
@@ -219,7 +219,7 @@ router.put('/:id', authenticate, requireTripAccess, validateStringLengths({ name
 
   const { tripId, id } = req.params;
 
-  const place = updatePlace(tripId, id, req.body);
+  const place = updatePlace(tripId, id, req.body, authReq.user.id);
   if (!place) {
     return res.status(404).json({ error: 'Place not found' });
   }

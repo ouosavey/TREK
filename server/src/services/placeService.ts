@@ -4,6 +4,7 @@ import { db, getPlaceWithTags } from '../db/database';
 import { loadTagsByPlaceIds } from './queryHelpers';
 import { checkSsrf } from '../utils/ssrfGuard';
 import { Place } from '../types';
+import { findOrCreateCategory } from './categoryService';
 import {
   buildCategoryNameLookup,
   createKmlImportSummary,
@@ -123,15 +124,29 @@ export function createPlace(
     duration_minutes?: number; notes?: string; image_url?: string;
     google_place_id?: string; osm_id?: string; website?: string; phone?: string;
     transport_mode?: string; tags?: number[];
+    amap_category?: string; amap_typecode?: string;
   },
+  userId?: number,
 ) {
 
-  const {
+  let {
     name, description, lat, lng, address, category_id, price, currency,
     place_time, end_time,
     duration_minutes, notes, image_url, google_place_id, osm_id, website, phone,
     transport_mode, tags = [],
+    amap_category, amap_typecode,
   } = body;
+
+  // 服务端自动分类兜底：如果前端没有设置 category_id，但有高德分类信息，自动分配分类
+  if (!category_id && (amap_category || amap_typecode) && userId) {
+    const autoCategoryId = findOrCreateCategory(userId, amap_category, amap_typecode);
+    if (autoCategoryId) {
+      console.log('[placeService] Auto-assigned category_id:', autoCategoryId, 'for place:', name, '(amap_category:', amap_category, ', amap_typecode:', amap_typecode, ')');
+      category_id = autoCategoryId;
+    } else {
+      console.warn('[placeService] Could not auto-assign category for place:', name, '(amap_category:', amap_category, ', amap_typecode:', amap_typecode, ')');
+    }
+  }
 
   // 动态构建 INSERT 语句，只包含数据库中实际存在的列
   const hasGooglePlaceId = placesHasColumn('google_place_id');
@@ -216,17 +231,29 @@ export function updatePlace(
     duration_minutes?: number; notes?: string; image_url?: string;
     google_place_id?: string; osm_id?: string; website?: string; phone?: string;
     transport_mode?: string; tags?: number[];
+    amap_category?: string; amap_typecode?: string;
   },
+  userId?: number,
 ) {
   const existingPlace = db.prepare('SELECT * FROM places WHERE id = ? AND trip_id = ?').get(placeId, tripId) as Place | undefined;
   if (!existingPlace) return null;
 
-  const {
+  let {
     name, description, lat, lng, address, category_id, price, currency,
     place_time, end_time,
     duration_minutes, notes, image_url, google_place_id, osm_id, website, phone,
     transport_mode, tags,
+    amap_category, amap_typecode,
   } = body;
+
+  // 服务端自动分类兜底：如果前端没有设置 category_id，但有高德分类信息，自动分配分类
+  if (!category_id && (amap_category || amap_typecode) && userId) {
+    const autoCategoryId = findOrCreateCategory(userId, amap_category, amap_typecode);
+    if (autoCategoryId) {
+      console.log('[placeService] Auto-assigned category_id:', autoCategoryId, 'for place:', name || existingPlace.name, '(amap_category:', amap_category, ', amap_typecode:', amap_typecode, ')');
+      category_id = autoCategoryId;
+    }
+  }
 
   // 动态构建 UPDATE 语句，只包含数据库中实际存在的列
   const hasGooglePlaceId = placesHasColumn('google_place_id');

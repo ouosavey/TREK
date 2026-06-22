@@ -30,6 +30,8 @@ interface PlaceFormData {
   image_url: string
   osm_id: string
   phone: string
+  amap_category: string
+  amap_typecode: string
 }
 
 function isGoogleMapsUrl(input: string): boolean {
@@ -67,6 +69,8 @@ const DEFAULT_FORM: PlaceFormData = {
   image_url: '',
   osm_id: '',
   phone: '',
+  amap_category: '',
+  amap_typecode: '',
 }
 
 interface PlaceFormModalProps {
@@ -360,6 +364,9 @@ export default function PlaceFormModal({
       image_url: result.photo_url || result.image_url || prev.image_url,
       // 仅当当前没有分类时才自动设置
       category_id: (!prev.category_id && newCategoryId) ? newCategoryId : prev.category_id,
+      // 存储高德分类信息，用于服务端兜底自动分类
+      amap_category: result.category || prev.amap_category,
+      amap_typecode: result.amap_typecode || prev.amap_typecode,
     }))
 
     // 2. 如果没有匹配的已有分类，但有映射，异步创建新分类
@@ -555,6 +562,8 @@ export default function PlaceFormModal({
         lat: form.lat ? parseFloat(form.lat) : null,
         lng: form.lng ? parseFloat(form.lng) : null,
         category_id: form.category_id || null,
+        amap_category: form.amap_category || undefined,
+        amap_typecode: form.amap_typecode || undefined,
         _pendingFiles: pendingFiles.length > 0 ? pendingFiles : undefined,
       })
       onClose()

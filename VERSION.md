@@ -1,5 +1,30 @@
 # VERSION
 
+## v3.0.22-cn.64 - 2026-06-19
+
+### 变更
+添加服务端自动分类兜底机制，彻底解决地点无分类问题。
+
+#### 1. 服务端自动分类兜底（核心修复）
+- **问题**：v3.0.22-cn.61~cn.63 多次修复前端分类匹配逻辑，但地点仍然无分类。前端分类匹配不可靠（React 状态更新时序、API 失败、PWA 缓存等），无论怎么修前端都无法保证 100% 正确
+- **根因**：分类匹配逻辑只在前端执行，前端各种不可控因素（React 状态批处理、异步竞态、API 失败、PWA 缓存、浏览器兼容性等）导致 category_id 无法可靠设置
+- **修复**：在服务端 placeService.createPlace/updatePlace 中添加自动分类兜底。前端传递 `amap_category`（高德分类字符串，如"风景名胜;风景名胜;国家级景点"）和 `amap_typecode`（高德分类编码，如"110200"），服务端使用相同的映射逻辑自动查找或创建分类并设置 category_id
+- **优势**：服务端逻辑确定性高，不受前端任何因素影响，保证每个有高德分类信息的地点都能正确分配分类
+
+#### 2. 服务端 amapCategories.ts 映射逻辑
+- 新增 `server/src/constants/amapCategories.ts`，包含与前端相同的分类映射表和查找函数
+- 新增 `categoryService.findOrCreateCategory()`，根据高德分类信息查找或创建分类
+
+#### 3. 前端传递高德分类信息
+- PlaceFormData 添加 `amap_category` 和 `amap_typecode` 字段
+- handleSelectMapsResult 存储这些值到 form
+- handleSubmit 传递给服务端
+
+### Docker 镜像
+- GHCR: `ghcr.io/ouosavey/trek:cn-localized` (linux/amd64)
+
+---
+
 ## v3.0.22-cn.63 - 2026-06-19
 
 ### 变更

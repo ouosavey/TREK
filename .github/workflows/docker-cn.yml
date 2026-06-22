@@ -73,9 +73,8 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复: details被禁用时autocomplete添加地点无分类（核心根因）**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: places_details_enabled为false时后端返回{place:null}，handleSelectMapsResult不被调用" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: details返回null或失败时用searchAmap回退搜索地点名称获取分类信息" >> $GITHUB_STEP_SUMMARY
-          echo "  - 影响: 通过autocomplete添加的地点现在能正确自动分类" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复: details失败时也添加searchAmap回退**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: catch块中也添加searchAmap回退逻辑" >> $GITHUB_STEP_SUMMARY
+          echo "- **核心修复: 添加服务端自动分类兜底机制**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: 前端分类匹配不可靠(React状态批处理/异步竞态/API失败/PWA缓存等)，cn.61~cn.63多次修前端仍无法保证100%正确" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: 在服务端placeService.createPlace/updatePlace中添加自动分类兜底" >> $GITHUB_STEP_SUMMARY
+          echo "  - 前端传递amap_category和amap_typecode，服务端使用映射逻辑自动查找或创建分类" >> $GITHUB_STEP_SUMMARY
+          echo "  - 优势: 服务端逻辑确定性高，不受前端任何因素影响" >> $GITHUB_STEP_SUMMARY
