@@ -1,5 +1,23 @@
 # VERSION
 
+## v3.0.22-cn.68 - 2026-06-22
+
+### 变更
+修复移动端 App 无法连接服务器的问题。
+
+#### 1. 移动端 App 连接服务器失败（CORS）
+- **问题**：移动端 App 输入正确的服务器地址后点击"连接服务器"，弹出"无法连接到服务器：Failed to fetch"
+- **根因**：Capacitor Android 使用 `https://localhost` 作为 origin，但服务器的 CORS 配置使用 `ALLOWED_ORIGINS` 环境变量白名单，`https://localhost` 不在白名单中被拒绝
+- **修复**：CORS 和 WebSocket 配置总是允许 Capacitor 移动端的 origin（`https://localhost`、`http://localhost`、`capacitor://localhost`）
+
+### Docker 镜像
+- GHCR: `ghcr.io/ouosavey/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## v3.0.22-cn.67 - 2026-06-22
 
 ### 变更

@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-06-22 修复移动端 App 无法连接服务器（CORS） v3.0.22-cn.68
+
+### Bug修复
+
+#### 1. 移动端 App 连接服务器失败（核心根因）
+- **问题**：移动端 App 输入正确的服务器地址后点击"连接服务器"，弹出"无法连接到服务器：Failed to fetch"
+- **根因**：Capacitor Android 使用 `https://localhost` 作为 origin（因为 `androidScheme: 'https'`），但服务器的 CORS 配置使用 `ALLOWED_ORIGINS` 环境变量白名单。如果用户设置了 `ALLOWED_ORIGINS=https://trekcn.689894.xyz`，那么来自 `https://localhost` 的请求会被 CORS 拒绝，导致 `fetch` 失败
+- **修复**：
+  1. `server/src/app.ts`：CORS 配置总是允许 Capacitor 移动端的 origin（`https://localhost`、`http://localhost`、`capacitor://localhost`），无论 `ALLOWED_ORIGINS` 如何配置
+  2. `server/src/websocket.ts`：WebSocket 的 `verifyClient` 也总是允许 Capacitor 移动端的 origin
+- **涉及文件**：
+  - `server/src/app.ts`（CORS 允许 Capacitor origin）
+  - `server/src/websocket.ts`（WebSocket 允许 Capacitor origin）
+
+---
+
 ## 2026-06-22 修复 APK 构建 - Capacitor CLI 要求 Node 22 v3.0.22-cn.67
 
 ### Bug修复

@@ -70,13 +70,20 @@ export function createApp(): express.Application {
       : null;
 
   let corsOrigin: cors.CorsOptions['origin'];
+  // Capacitor 移动端 App 使用 https://localhost 或 http://localhost 作为 origin
+  // 需要总是允许，否则移动端 App 的所有 API 请求都会被 CORS 拒绝
+  const capacitorOrigins = ['https://localhost', 'http://localhost', 'capacitor://localhost'];
   if (allowedOrigins) {
     corsOrigin = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      if (!origin || allowedOrigins.includes(origin)) callback(null, true);
+      if (!origin || allowedOrigins.includes(origin) || capacitorOrigins.includes(origin)) callback(null, true);
       else callback(new Error('Not allowed by CORS'));
     };
   } else if (process.env.NODE_ENV?.toLowerCase() === 'production') {
-    corsOrigin = false;
+    // 即使没有配置 ALLOWED_ORIGINS，也允许 Capacitor 移动端
+    corsOrigin = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      if (!origin || capacitorOrigins.includes(origin)) callback(null, true);
+      else callback(new Error('Not allowed by CORS'));
+    };
   } else {
     corsOrigin = true;
   }

@@ -34,16 +34,21 @@ function setupWebSocket(server: http.Server): void {
     ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
     : null;
 
+  // Capacitor 移动端 App 使用 https://localhost 或 http://localhost 作为 origin
+  // 需要总是允许，否则移动端 App 的 WebSocket 连接会被拒绝
+  const capacitorOrigins = ['https://localhost', 'http://localhost', 'capacitor://localhost'];
+
   wss = new WebSocketServer({
     server,
     path: '/ws',
     maxPayload: 64 * 1024, // 64 KB max message size
-    verifyClient: allowedOrigins
-      ? ({ origin }, cb) => {
-          if (!origin || allowedOrigins.includes(origin)) cb(true);
-          else cb(false, 403, 'Origin not allowed');
-        }
-      : undefined,
+    verifyClient: ({ origin }, cb) => {
+      // 没有配置 ALLOWED_ORIGINS 时允许所有来源
+      if (!allowedOrigins) return cb(true);
+      // 允许白名单中的 origin 或 Capacitor 移动端的 origin
+      if (!origin || allowedOrigins.includes(origin) || capacitorOrigins.includes(origin)) cb(true);
+      else cb(false, 403, 'Origin not allowed');
+    },
   });
 
   const HEARTBEAT_INTERVAL = 30000; // 30 seconds
