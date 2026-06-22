@@ -74,18 +74,14 @@ export function createApp(): express.Application {
   // 需要总是允许，否则移动端 App 的所有 API 请求都会被 CORS 拒绝
   const capacitorOrigins = ['https://localhost', 'http://localhost', 'capacitor://localhost'];
   if (allowedOrigins) {
+    // 有白名单时：允许白名单中的 origin + Capacitor 移动端 + 无 origin（同源/服务端）
     corsOrigin = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
       if (!origin || allowedOrigins.includes(origin) || capacitorOrigins.includes(origin)) callback(null, true);
       else callback(new Error('Not allowed by CORS'));
     };
-  } else if (process.env.NODE_ENV?.toLowerCase() === 'production') {
-    // 即使没有配置 ALLOWED_ORIGINS，也允许 Capacitor 移动端
-    corsOrigin = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      if (!origin || capacitorOrigins.includes(origin)) callback(null, true);
-      else callback(new Error('Not allowed by CORS'));
-    };
   } else {
-    corsOrigin = true;
+    // 无白名单时：dev 允许所有，production 不添加 CORS 头（同源请求正常工作）
+    corsOrigin = process.env.NODE_ENV?.toLowerCase() === 'production' ? false : true;
   }
 
   const shouldForceHttps = process.env.FORCE_HTTPS?.toLowerCase() === 'true';

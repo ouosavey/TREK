@@ -1,5 +1,20 @@
 # VERSION
 
+## v3.0.22-cn.70 - 2026-06-22
+
+### 变更
+修复 CORS 配置过严导致网页端无法访问的紧急 bug。
+
+#### 1. CORS 配置过严导致 Internal Server Error
+- **问题**：更新镜像后电脑网页端登录显示 "Internal server error"，Docker 日志大量 "Unhandled error: Not allowed by CORS"
+- **根因**：v3.0.22-cn.68 的 CORS 修改引入 bug —— 当 `ALLOWED_ORIGINS` 未设置时，production 模式下只允许 Capacitor 的 `localhost` origin，拒绝了正常的网页端 origin
+- **修复**：无 `ALLOWED_ORIGINS` + production 时恢复原行为；有白名单时才额外允许 Capacitor 移动端 origin
+
+### Docker 镜像
+- GHCR: `ghcr.io/ouosavey/trek:cn-localized` (linux/amd64)
+
+---
+
 ## v3.0.22-cn.69 - 2026-06-22
 
 ### 变更
