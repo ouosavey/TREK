@@ -1,5 +1,59 @@
 # CHANGELOG
 
+## 2026-06-22 新增 Capacitor 移动端 App 支持 v3.0.22-cn.66
+
+### 新功能
+
+#### 1. Capacitor 移动端架构
+- **方案**：使用 Capacitor 将现有 PWA 包装为原生 Android APK，鸿蒙系统通过 Android 兼容层直接安装运行
+- **优势**：复用现有 Web 代码，一套代码同时支持 Web/iOS/Android/鸿蒙，维护成本低
+- **依赖**：`@capacitor/core`、`@capacitor/cli`、`@capacitor/android`、`@capacitor/app`、`@capacitor/preferences`、`@capacitor/status-bar`、`@capacitor/splash-screen`
+
+#### 2. 可配置服务器地址（核心）
+- **问题**：移动端 App 不像 Web 端有固定的 `window.location.origin`，需要让用户配置 TREK 服务器地址（用户自家 NAS）
+- **修复**：
+  1. 新增 `client/src/utils/serverConfig.ts`：使用 Capacitor Preferences API 持久化存储服务器地址，提供 `getBaseUrl()`、`initServerUrl()`、`setServerUrl()`、`getApiBaseUrl()`、`getOrigin()`、`isServerUrlConfigured()`、`refreshApiBaseUrl()` 等函数
+  2. 新增 `client/src/components/ServerConfigScreen.tsx`：移动端首次启动时让用户输入服务器地址，测试连通性（`/api/health`）后保存到 Preferences，刷新 API baseURL
+  3. `client/src/api/client.ts`：API 客户端支持动态 baseURL，移动端指向用户配置的服务器；新增 `refreshApiBaseUrl()` 函数
+  4. `client/src/api/websocket.ts`：WebSocket 连接支持移动端服务器地址，`getWsUrl()` 使用 `getOrigin()` 替代 `window.location.origin`
+  5. `client/src/App.tsx`：app 入口添加移动端服务器配置逻辑，首次启动显示配置页面，已配置则直接进入主应用
+
+#### 3. Android 权限和网络配置
+- `AndroidManifest.xml` 添加权限：INTERNET、ACCESS_NETWORK_STATE、ACCESS_FINE_LOCATION、ACCESS_COARSE_LOCATION、READ_EXTERNAL_STORAGE、WRITE_EXTERNAL_STORAGE
+- `usesCleartextTraffic="true"` 和 `networkSecurityConfig` 允许明文 HTTP
+- `network_security_config.xml`：允许明文 HTTP 流量（用户 NAS 可能用 HTTP 而非 HTTPS），信任系统和用户证书
+
+#### 4. GitHub Actions 自动构建 APK
+- 新增 `.github/workflows/build-apk.yml`：每次推送到 cn-localized 分支（client/** 或 workflow 文件变更）自动构建 APK
+- 构建步骤：Checkout → Setup Node 20 → Setup Java 21 → Setup Android SDK → npm ci → npm run build → npx cap sync android → ./gradlew assembleDebug → Upload artifact
+- 触发条件：push to cn-localized + workflow_dispatch（支持手动触发）
+- 产物：`client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+#### 5. Capacitor 配置
+- `client/capacitor.config.ts`：
+  - appId: `com.trek.app`
+  - appName: `TREK`
+  - webDir: `dist`
+  - server: `androidScheme: 'https'`, `clearText: true`
+  - android: `allowMixedContent: true`, `webContentsDebuggingEnabled: true`
+  - SplashScreen: 启动显示 1500ms，背景色 `#0f172a`
+  - StatusBar: 深色样式，背景色 `#111827`
+
+### 涉及文件
+- `client/capacitor.config.ts`（新增：Capacitor 配置）
+- `client/src/utils/serverConfig.ts`（新增：服务器地址配置工具）
+- `client/src/components/ServerConfigScreen.tsx`（新增：服务器配置页面）
+- `client/src/api/client.ts`（修改：动态 baseURL）
+- `client/src/api/websocket.ts`（修改：移动端 WebSocket 支持）
+- `client/src/App.tsx`（修改：移动端服务器配置逻辑）
+- `client/android/`（新增：Android 平台代码）
+- `client/android/app/src/main/AndroidManifest.xml`（修改：权限和网络配置）
+- `client/android/app/src/main/res/xml/network_security_config.xml`（新增：网络安全配置）
+- `.github/workflows/build-apk.yml`（新增：APK 构建工作流）
+- `client/package.json`（修改：添加 Capacitor 依赖）
+
+---
+
 ## 2026-06-22 修复地图右键添加地点无分类 v3.0.22-cn.65
 
 ### Bug修复

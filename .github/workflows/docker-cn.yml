@@ -73,7 +73,10 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **核心修复: 地图右键添加地点无分类**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 根因: reverseGeocodeAmap没有从高德API返回的POI列表中提取type/typecode字段" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复: 后端返回poiCategory/poiTypecode，前端prefillCoords传递amap_category/amap_typecode" >> $GITHUB_STEP_SUMMARY
-          echo "  - 效果: 地图右键添加的地点现在能正确自动分类（配合v3.0.22-cn.64服务端兜底）" >> $GITHUB_STEP_SUMMARY
+          echo "- **核心新功能: Capacitor 移动端 App 支持（Android + 鸿蒙）**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 新增 Capacitor 配置，将 PWA 包装为原生 Android APK" >> $GITHUB_STEP_SUMMARY
+          echo "  - 新增可配置服务器地址功能（serverConfig.ts + ServerConfigScreen.tsx）" >> $GITHUB_STEP_SUMMARY
+          echo "  - API 客户端和 WebSocket 支持动态 baseURL，移动端指向用户配置的 NAS 服务器" >> $GITHUB_STEP_SUMMARY
+          echo "  - Android 权限和网络配置：允许明文 HTTP、定位、存储权限" >> $GITHUB_STEP_SUMMARY
+          echo "  - 新增 GitHub Actions 自动构建 APK 工作流（build-apk.yml）" >> $GITHUB_STEP_SUMMARY
+          echo "  - 鸿蒙系统通过 Android 兼容层直接安装运行" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,91 @@
+name: Build Android APK (CN)
+
+on:
+  push:
+    branches: [cn-localized]
+    paths:
+      - 'client/**'
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools build-tools;34.0.0 platforms;android-34'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web assets
+        run: npm run build
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Build APK
+        working-directory: client/android
+        run: ./gradlew assembleDebug --no-daemon -x lint
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trek-android-apk
+          path: client/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      - name: Get APK info
+        id: apk-info
+        run: |
+          APK_PATH="android/app/build/outputs/apk/debug/app-debug.apk"
+          if [ -f "$APK_PATH" ]; then
+            APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
+            echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
+            echo "✅ APK 构建成功: $APK_SIZE" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ APK 构建失败" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Build summary
+        run: |
+          echo "## TREK Android APK 构建" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 项目 | 值 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| **分支** | \`cn-localized\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **APK 大小** | ${{ steps.apk-info.outputs.apk_size }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **架构** | universal (all ABIs) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **构建类型** | debug |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 下载" >> $GITHUB_STEP_SUMMARY
+          echo "在 Artifacts 区域下载 \`trek-android-apk\` 压缩包，解压后得到 \`app-debug.apk\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 安装" >> $GITHUB_STEP_SUMMARY
+          echo "1. 将 APK 传到手机" >> $GITHUB_STEP_SUMMARY
+          echo "2. 允许\"安装未知应用\"" >> $GITHUB_STEP_SUMMARY
+          echo "3. 点击安装" >> $GITHUB_STEP_SUMMARY
+          echo "4. 首次启动输入 TREK 服务器地址" >> $GITHUB_STEP_SUMMARY

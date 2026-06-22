@@ -1,5 +1,43 @@
 # VERSION
 
+## v3.0.22-cn.66 - 2026-06-22
+
+### 变更
+新增 Capacitor 移动端 App 支持（Android + 鸿蒙），通过 GitHub Actions 自动构建 APK。
+
+#### 1. Capacitor 移动端架构
+- **方案**：使用 Capacitor 将现有 PWA 包装为原生 Android APK，鸿蒙系统通过 Android 兼容层直接安装运行
+- **优势**：复用现有 Web 代码，一套代码同时支持 Web/iOS/Android/鸿蒙，维护成本低
+- **appId**：`com.trek.app`
+- **appName**：`TREK`
+
+#### 2. 可配置服务器地址
+- **问题**：移动端 App 不像 Web 端有固定的 `window.location.origin`，需要让用户配置 TREK 服务器地址（用户自家 NAS）
+- **修复**：
+  1. 新增 `client/src/utils/serverConfig.ts`：使用 Capacitor Preferences API 持久化存储服务器地址
+  2. 新增 `client/src/components/ServerConfigScreen.tsx`：移动端首次启动时让用户输入服务器地址，测试连通性后保存
+  3. `client/src/api/client.ts`：API 客户端支持动态 baseURL，移动端指向用户配置的服务器
+  4. `client/src/api/websocket.ts`：WebSocket 连接支持移动端服务器地址
+  5. `client/src/App.tsx`：app 入口添加移动端服务器配置逻辑，首次启动显示配置页面
+
+#### 3. Android 权限和网络配置
+- `AndroidManifest.xml` 添加权限：INTERNET、ACCESS_NETWORK_STATE、ACCESS_FINE_LOCATION、ACCESS_COARSE_LOCATION、READ_EXTERNAL_STORAGE、WRITE_EXTERNAL_STORAGE
+- `network_security_config.xml`：允许明文 HTTP 流量（用户 NAS 可能用 HTTP 而非 HTTPS），信任系统和用户证书
+
+#### 4. GitHub Actions 自动构建 APK
+- 新增 `.github/workflows/build-apk.yml`：每次推送到 cn-localized 分支（client/** 或 workflow 文件变更）自动构建 APK
+- 构建步骤：Checkout → Setup Node 20 → Setup Java 21 → Setup Android SDK → npm ci → npm run build → npx cap sync android → ./gradlew assembleDebug → Upload artifact
+- 触发条件：push to cn-localized + workflow_dispatch（支持手动触发）
+
+### Docker 镜像
+- GHCR: `ghcr.io/ouosavey/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+- 下载方式：GitHub Actions 运行页面 → Artifacts → 下载 `trek-apk` 压缩包
+
+---
+
 ## v3.0.22-cn.65 - 2026-06-22
 
 ### 变更

@@ -1,4 +1,4 @@
-import React, { useEffect, ReactNode } from 'react'
+import React, { useEffect, useState, ReactNode } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 import { useSettingsStore } from './store/settingsStore'
@@ -28,6 +28,8 @@ import { useInAppNotificationListener } from './hooks/useInAppNotificationListen
 import { registerSyncTriggers, unregisterSyncTriggers } from './sync/syncTriggers'
 import OfflineBanner from './components/Layout/OfflineBanner'
 import { SystemNoticeHost } from './components/SystemNotices/SystemNoticeHost.js'
+import ServerConfigScreen, { shouldShowServerConfig } from './components/ServerConfigScreen'
+import { initServerUrl, isServerUrlConfigured } from './utils/serverConfig'
 // Notice action registrations (side-effect imports):
 import './pages/Trips/noticeActions.js'
 
@@ -105,6 +107,23 @@ export default function App() {
   const { loadUser, isAuthenticated, demoMode, setDemoMode, setDevMode, setIsPrerelease, setAppVersion, setHasMapsKey, setServerTimezone, setAppRequireMfa, setTripRemindersEnabled, setPlacesPhotosEnabled, setPlacesAutocompleteEnabled, setPlacesDetailsEnabled } = useAuthStore()
   const { loadSettings } = useSettingsStore()
   const { loadAddons } = useAddonStore()
+  // 移动端服务器地址配置状态
+  const [serverReady, setServerReady] = useState(!shouldShowServerConfig())
+  const [serverChecking, setServerChecking] = useState(shouldShowServerConfig())
+
+  // 移动端：启动时初始化服务器地址
+  useEffect(() => {
+    if (!shouldShowServerConfig()) {
+      setServerChecking(false)
+      return
+    }
+    initServerUrl().then(() => {
+      if (isServerUrlConfigured()) {
+        setServerReady(true)
+      }
+      setServerChecking(false)
+    })
+  }, [])
 
   useEffect(() => {
     if (!location.pathname.startsWith('/shared/') && !location.pathname.startsWith('/public/') && !location.pathname.startsWith('/login')) {
@@ -203,6 +222,20 @@ export default function App() {
     || location.pathname.startsWith('/register')
     || location.pathname.startsWith('/forgot-password')
     || location.pathname.startsWith('/reset-password')
+
+  // 移动端：服务器地址未配置或正在检查时，显示配置页面/加载页
+  if (shouldShowServerConfig()) {
+    if (serverChecking) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-900">
+          <div className="w-10 h-10 border-4 border-slate-700 border-t-indigo-500 rounded-full animate-spin"></div>
+        </div>
+      )
+    }
+    if (!serverReady) {
+      return <ServerConfigScreen onConfigured={() => setServerReady(true)} />
+    }
+  }
 
   return (
     <TranslationProvider>

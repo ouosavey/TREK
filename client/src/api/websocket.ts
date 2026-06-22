@@ -1,5 +1,7 @@
 // Singleton WebSocket manager for real-time collaboration
 
+import { getOrigin, getApiBaseUrl } from '../utils/serverConfig'
+
 type WebSocketListener = (event: Record<string, unknown>) => void
 type RefetchCallback = (tripId: string) => void
 
@@ -35,13 +37,21 @@ export function setPreReconnectHook(fn: (() => Promise<void>) | null): void {
 }
 
 function getWsUrl(wsToken: string): string {
-  const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${protocol}://${location.host}/ws?token=${wsToken}`
+  const origin = getOrigin()
+  // Web 环境：用 location.protocol/host
+  if (!origin) {
+    const protocol = location.protocol === 'https:' ? 'wss' : 'ws'
+    return `${protocol}://${location.host}/ws?token=${wsToken}`
+  }
+  // 移动端：用配置的服务器地址，https→wss, http→ws
+  const wsProtocol = origin.startsWith('https') ? 'wss' : 'ws'
+  const wsHost = origin.replace(/^https?:\/\//, '')
+  return `${wsProtocol}://${wsHost}/ws?token=${wsToken}`
 }
 
 async function fetchWsToken(): Promise<string | null> {
   try {
-    const resp = await fetch('/api/auth/ws-token', {
+    const resp = await fetch(`${getApiBaseUrl()}/auth/ws-token`, {
       method: 'POST',
       credentials: 'include',
     })

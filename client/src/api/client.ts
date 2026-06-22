@@ -1,6 +1,7 @@
 import axios, { AxiosInstance } from 'axios'
 import { getSocketId } from './websocket'
 import { isReachable, probeNow } from '../sync/connectivity'
+import { getApiBaseUrl } from '../utils/serverConfig'
 import en from '../i18n/translations/en'
 import br from '../i18n/translations/br'
 import de from '../i18n/translations/de'
@@ -32,13 +33,19 @@ function translateRateLimit(): string {
 }
 
 export const apiClient: AxiosInstance = axios.create({
-  baseURL: '/api',
+  // 动态 baseURL：Web 用相对路径 /api，移动端用配置的服务器地址
+  baseURL: getApiBaseUrl(),
   withCredentials: true,
   timeout: 8000,
   headers: {
     'Content-Type': 'application/json',
   },
 })
+
+// 移动端：服务器地址变更后更新 baseURL
+export function refreshApiBaseUrl(): void {
+  apiClient.defaults.baseURL = getApiBaseUrl()
+}
 
 const MUTATING_METHODS = new Set(['post', 'put', 'patch', 'delete'])
 
