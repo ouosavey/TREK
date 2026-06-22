@@ -30,6 +30,7 @@ import OfflineBanner from './components/Layout/OfflineBanner'
 import { SystemNoticeHost } from './components/SystemNotices/SystemNoticeHost.js'
 import ServerConfigScreen, { shouldShowServerConfig } from './components/ServerConfigScreen'
 import { initServerUrl, isServerUrlConfigured } from './utils/serverConfig'
+import { refreshApiBaseUrl } from './api/client'
 // Notice action registrations (side-effect imports):
 import './pages/Trips/noticeActions.js'
 
@@ -119,6 +120,9 @@ export default function App() {
     }
     initServerUrl().then(() => {
       if (isServerUrlConfigured()) {
+        // 关键：initServerUrl 设置了 cachedServerUrl，但 apiClient 的 baseURL
+        // 在模块加载时就固定了，必须调用 refreshApiBaseUrl() 更新
+        refreshApiBaseUrl()
         setServerReady(true)
       }
       setServerChecking(false)

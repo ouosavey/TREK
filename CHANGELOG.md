@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 2026-06-22 修复移动端 App apiClient baseURL 未刷新 v3.0.22-cn.73
+
+### Bug修复（核心）
+
+#### 1. apiClient baseURL 未刷新（真正的根因）
+- **问题**：移动端 App 配置过服务器地址后，重新打开仍然显示"创建管理员账号"和白屏
+- **根因**：`apiClient` 在模块加载时创建，baseURL 固定为 `getApiBaseUrl()` 的返回值。此时 `cachedServerUrl` 是空的，所以 baseURL 是 `/api`。`initServerUrl()` 异步读取 Preferences 后设置了 `cachedServerUrl`，但 `apiClient.defaults.baseURL` 仍然是 `/api`，**没有调用 `refreshApiBaseUrl()` 更新**。导致所有 API 请求都发送到 `https://localhost/api/...` 而失败
+- **修复**：`App.tsx` 中 `initServerUrl()` 成功后调用 `refreshApiBaseUrl()` 更新 `apiClient.defaults.baseURL`
+- **涉及文件**：`client/src/App.tsx`
+
+---
+
 ## 2026-06-22 修复移动端 App 登录和白屏问题 v3.0.22-cn.72
 
 ### Bug修复（核心）

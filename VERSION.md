@@ -1,5 +1,22 @@
 # VERSION
 
+## v3.0.22-cn.73 - 2026-06-22
+
+### 变更
+修复移动端 App apiClient baseURL 未刷新的真正根因。
+
+#### 1. apiClient baseURL 未刷新
+- **根因**：`apiClient` 模块加载时 baseURL 固定为 `/api`，`initServerUrl()` 设置 `cachedServerUrl` 后没有调用 `refreshApiBaseUrl()` 更新 baseURL
+- **修复**：`initServerUrl()` 成功后调用 `refreshApiBaseUrl()`
+
+### Docker 镜像
+- GHCR: `ghcr.io/ouosavey/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## v3.0.22-cn.72 - 2026-06-22
 
 ### 变更
