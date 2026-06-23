@@ -1,5 +1,31 @@
 # CHANGELOG
 
+## 2026-06-23 管理页高德地图全局配置+用户默认地图提供商 v3.0.22-cn.86
+
+### 优化
+
+#### 优化1：管理页"用户默认设置"添加地图提供商选择器
+- **问题**：`/admin` 的"用户默认设置"中没有地图提供商选项，管理员无法控制新用户的默认地图
+- **修复**：在 DefaultUserSettingsTab 中添加地图提供商选择器（AMap 高德地图 / Leaflet / Mapbox GL），默认选中 AMap
+
+#### 优化2：管理页添加高德地图 JS API Key 和安全密钥全局配置
+- **问题**：管理员只能在 `/admin` 配置 Web 服务 Key，JS API Key 和安全密钥需要每个用户自己在 `/settings` 配置，新用户注册后无法直接使用高德地图
+- **修复**：
+  1. 后端 adminService 添加 `getAmapKey`/`updateAmapKey` 和 `getAmapSecurityCode`/`updateAmapSecurityCode` 方法
+  2. 后端 admin 路由添加 `/amap-key` 和 `/amap-security-code` 的 GET/PUT 接口
+  3. 前端 adminApi 添加 `getAmapKey`/`updateAmapKey` 和 `getAmapSecurityCode`/`updateAmapSecurityCode` 方法
+  4. AdminPage 添加"高德地图 JS API Key"和"高德地图安全密钥"配置 UI
+  5. 后端 `getUserSettings()` 已有从 `app_settings` 注入 `amap_key`、`amap_security_code`、`amap_web_service_key` 的逻辑，管理员配置后所有用户自动获得
+
+### 涉及文件
+- `client/src/components/Admin/DefaultUserSettingsTab.tsx`（添加地图提供商选择器）
+- `client/src/pages/AdminPage.tsx`（添加 JS API Key 和安全密钥配置 UI）
+- `client/src/api/client.ts`（添加 adminApi 方法）
+- `server/src/services/adminService.ts`（添加 get/update 方法）
+- `server/src/routes/admin.ts`（添加路由）
+
+---
+
 ## 2026-06-23 移除重复Web服务Key+新用户默认高德地图 v3.0.22-cn.85
 
 ### 优化

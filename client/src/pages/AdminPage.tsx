@@ -231,6 +231,20 @@ export default function AdminPage(): React.ReactElement {
   const [savingAmapKey, setSavingAmapKey] = useState<boolean>(false)
   useEffect(() => { adminApi.getAmapWebServiceKey().then(d => { setAmapKeyMasked(d.key); setAmapKeyConfigured(d.configured) }).catch(() => {}) }, [])
 
+  // AMap JS API Key
+  const [amapJsKeyMasked, setAmapJsKeyMasked] = useState<string>('')
+  const [amapJsKeyConfigured, setAmapJsKeyConfigured] = useState<boolean>(false)
+  const [amapJsKeyInput, setAmapJsKeyInput] = useState<string>('')
+  const [savingAmapJsKey, setSavingAmapJsKey] = useState<boolean>(false)
+  useEffect(() => { adminApi.getAmapKey().then(d => { setAmapJsKeyMasked(d.key); setAmapJsKeyConfigured(d.configured) }).catch(() => {}) }, [])
+
+  // AMap Security Code
+  const [amapSecurityCodeMasked, setAmapSecurityCodeMasked] = useState<string>('')
+  const [amapSecurityCodeConfigured, setAmapSecurityCodeConfigured] = useState<boolean>(false)
+  const [amapSecurityCodeInput, setAmapSecurityCodeInput] = useState<string>('')
+  const [savingAmapSecurityCode, setSavingAmapSecurityCode] = useState<boolean>(false)
+  useEffect(() => { adminApi.getAmapSecurityCode().then(d => { setAmapSecurityCodeMasked(d.code); setAmapSecurityCodeConfigured(d.configured) }).catch(() => {}) }, [])
+
   // Collab features
   const [collabFeatures, setCollabFeatures] = useState<{ chat: boolean; notes: boolean; polls: boolean; whatsnext: boolean }>({ chat: true, notes: true, polls: true, whatsnext: true })
   useEffect(() => { adminApi.getCollabFeatures().then(d => setCollabFeatures(d)).catch(() => {}) }, [])
@@ -1138,6 +1152,82 @@ export default function AdminPage(): React.ReactElement {
                     )}
                     <p className="text-[11px] text-slate-400 mt-1">
                       在 lbs.amap.com 申请 Web 服务 API Key
+                    </p>
+                  </div>
+
+                  {/* AMap JS API Key */}
+                  <div className="py-3 border-t border-slate-100 dark:border-slate-800">
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">高德地图 JS API Key</p>
+                    <p className="text-xs text-slate-400 mb-2">前端地图加载专用（服务平台选「Web端(JS API)」），配置后所有用户无需单独设置</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        value={amapJsKeyInput}
+                        onChange={e => setAmapJsKeyInput(e.target.value)}
+                        placeholder={amapJsKeyConfigured ? amapJsKeyMasked : '输入高德 JS API Key'}
+                        className="flex-1 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!amapJsKeyInput.trim()) return
+                          setSavingAmapJsKey(true)
+                          try {
+                            const result = await adminApi.updateAmapKey(amapJsKeyInput.trim())
+                            setAmapJsKeyConfigured(result.configured)
+                            setAmapJsKeyInput('')
+                            adminApi.getAmapKey().then(d => { setAmapJsKeyMasked(d.key); setAmapJsKeyConfigured(d.configured) })
+                          } catch { /* ignore */ }
+                          setSavingAmapJsKey(false)
+                        }}
+                        disabled={savingAmapJsKey || !amapJsKeyInput.trim()}
+                        className="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-slate-700 disabled:opacity-60"
+                      >
+                        {savingAmapJsKey ? '...' : '保存'}
+                      </button>
+                    </div>
+                    {amapJsKeyConfigured && (
+                      <p className="text-[11px] text-emerald-600 mt-1">已配置: {amapJsKeyMasked}</p>
+                    )}
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      在 lbs.amap.com 申请 JS API Key（服务平台选「Web端(JS API)」）
+                    </p>
+                  </div>
+
+                  {/* AMap Security Code */}
+                  <div className="py-3 border-t border-slate-100 dark:border-slate-800">
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">高德地图安全密钥</p>
+                    <p className="text-xs text-slate-400 mb-2">JS API 2.0 必填的安全密钥，配置后所有用户无需单独设置</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        value={amapSecurityCodeInput}
+                        onChange={e => setAmapSecurityCodeInput(e.target.value)}
+                        placeholder={amapSecurityCodeConfigured ? amapSecurityCodeMasked : '输入安全密钥'}
+                        className="flex-1 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!amapSecurityCodeInput.trim()) return
+                          setSavingAmapSecurityCode(true)
+                          try {
+                            const result = await adminApi.updateAmapSecurityCode(amapSecurityCodeInput.trim())
+                            setAmapSecurityCodeConfigured(result.configured)
+                            setAmapSecurityCodeInput('')
+                            adminApi.getAmapSecurityCode().then(d => { setAmapSecurityCodeMasked(d.code); setAmapSecurityCodeConfigured(d.configured) })
+                          } catch { /* ignore */ }
+                          setSavingAmapSecurityCode(false)
+                        }}
+                        disabled={savingAmapSecurityCode || !amapSecurityCodeInput.trim()}
+                        className="bg-slate-900 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-slate-700 disabled:opacity-60"
+                      >
+                        {savingAmapSecurityCode ? '...' : '保存'}
+                      </button>
+                    </div>
+                    {amapSecurityCodeConfigured && (
+                      <p className="text-[11px] text-emerald-600 mt-1">已配置: {amapSecurityCodeMasked}</p>
+                    )}
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      在 lbs.amap.com 控制台获取安全密钥
                     </p>
                   </div>
 

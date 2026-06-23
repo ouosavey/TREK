@@ -517,6 +517,30 @@ export function updateAmapWebServiceKey(key: string) {
   return { configured: !!key };
 }
 
+// ── AMap JS API Key & Security Code ──────────────────────────────────────
+
+export function getAmapKey() {
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_key'").get() as { value: string } | undefined;
+  const val = row?.value || '';
+  return { key: val ? val.slice(0, 4) + '****' + val.slice(-4) : '', configured: !!val };
+}
+
+export function updateAmapKey(key: string) {
+  db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('amap_key', ?)").run(key || '');
+  return { configured: !!key };
+}
+
+export function getAmapSecurityCode() {
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_security_code'").get() as { value: string } | undefined;
+  const val = row?.value || '';
+  return { code: val ? val.slice(0, 4) + '****' + val.slice(-4) : '', configured: !!val };
+}
+
+export function updateAmapSecurityCode(code: string) {
+  db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('amap_security_code', ?)").run(code || '');
+  return { configured: !!code };
+}
+
 // ── Collab Features ───────────────────────────────────────────────────────
 
 const COLLAB_FEATURE_KEYS = ['collab_chat_enabled', 'collab_notes_enabled', 'collab_polls_enabled', 'collab_whatsnext_enabled'] as const;

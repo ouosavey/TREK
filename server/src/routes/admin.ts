@@ -278,6 +278,46 @@ router.put('/amap-web-service-key', (req: Request, res: Response) => {
   res.json(result);
 });
 
+// ── AMap JS API Key ──────────────────────────────────────────────────────
+
+router.get('/amap-key', (_req: Request, res: Response) => {
+  res.json(svc.getAmapKey());
+});
+
+router.put('/amap-key', (req: Request, res: Response) => {
+  const key = req.body.key;
+  if (typeof key !== 'string') return res.status(400).json({ error: 'key must be a string' });
+  const result = svc.updateAmapKey(key);
+  const authReq = req as AuthRequest;
+  writeAudit({
+    userId: authReq.user.id,
+    action: 'admin.amap_key',
+    ip: getClientIp(req),
+    details: { configured: result.configured },
+  });
+  res.json(result);
+});
+
+// ── AMap Security Code ───────────────────────────────────────────────────
+
+router.get('/amap-security-code', (_req: Request, res: Response) => {
+  res.json(svc.getAmapSecurityCode());
+});
+
+router.put('/amap-security-code', (req: Request, res: Response) => {
+  const code = req.body.code;
+  if (typeof code !== 'string') return res.status(400).json({ error: 'code must be a string' });
+  const result = svc.updateAmapSecurityCode(code);
+  const authReq = req as AuthRequest;
+  writeAudit({
+    userId: authReq.user.id,
+    action: 'admin.amap_security_code',
+    ip: getClientIp(req),
+    details: { configured: result.configured },
+  });
+  res.json(result);
+});
+
 // ── Collab Features ───────────────────────────────────────────────────────
 
 router.get('/collab-features', (_req: Request, res: Response) => {

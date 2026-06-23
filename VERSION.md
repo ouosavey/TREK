@@ -1,5 +1,34 @@
 # VERSION
 
+## v3.0.22-cn.86 - 2026-06-23
+
+### 变更
+管理页高德地图全局配置+用户默认地图提供商选择器
+
+#### 优化1：管理页"用户默认设置"添加地图提供商选择器
+- **修复**：在 DefaultUserSettingsTab 中添加地图提供商选择器（AMap 高德地图 / Leaflet / Mapbox GL），默认选中 AMap
+
+#### 优化2：管理页添加高德地图 JS API Key 和安全密钥全局配置
+- **修复**：
+  1. 后端添加 amap-key 和 amap-security-code 的 admin API 路由
+  2. 前端 AdminPage 添加 JS API Key 和安全密钥配置 UI
+  3. 管理员配置后，所有用户自动获得这些 Key（后端已有注入逻辑）
+
+### 涉及文件
+- `client/src/components/Admin/DefaultUserSettingsTab.tsx`
+- `client/src/pages/AdminPage.tsx`
+- `client/src/api/client.ts`
+- `server/src/services/adminService.ts`
+- `server/src/routes/admin.ts`
+
+### Docker 镜像
+- GHCR: `ghcr.io/your-github-username/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## v3.0.22-cn.85 - 2026-06-23
 
 ### 变更

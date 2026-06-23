@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Settings2 } from 'lucide-react'
+import { Settings2, Map, Layers, Box } from 'lucide-react'
 import { adminApi } from '../../api/client'
 import { useTranslation } from '../../i18n'
 import { useToast } from '../shared/Toast'
@@ -23,6 +23,7 @@ type Defaults = {
   route_calculation?: boolean
   blur_booking_codes?: boolean
   map_tile_url?: string
+  map_provider?: string
 }
 
 function OptionRow({
@@ -234,6 +235,23 @@ export default function DefaultUserSettingsTab(): React.ReactElement {
             key={String(opt.value)}
             active={defaults.blur_booking_codes === opt.value}
             onClick={() => save({ blur_booking_codes: opt.value })}
+          >
+            {opt.label}
+          </OptionButton>
+        ))}
+      </OptionRow>
+
+      {/* Map Provider */}
+      <OptionRow label={<>{t('settings.mapProvider')} <ResetButton field="map_provider" /></>}>
+        {([
+          { value: 'amap', label: 'AMap 高德地图' },
+          { value: 'leaflet', label: 'Leaflet' },
+          { value: 'mapbox-gl', label: 'Mapbox GL' },
+        ] as const).map(opt => (
+          <OptionButton
+            key={opt.value}
+            active={defaults.map_provider === opt.value || (!defaults.map_provider && opt.value === 'amap')}
+            onClick={() => save({ map_provider: opt.value })}
           >
             {opt.label}
           </OptionButton>
