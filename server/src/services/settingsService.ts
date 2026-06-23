@@ -106,14 +106,27 @@ export function getUserSettings(userId: number): Record<string, unknown> {
   // Admin defaults fill in only for keys the user hasn't explicitly set
   const merged = { ...adminDefaults, ...userSettings };
 
-  // Inject AMap keys from app_settings so the client can use them for search/autocomplete
-  // (AMap keys are stored globally in app_settings, not per-user in settings table)
+  // Inject AMap key availability flags from app_settings (without revealing actual values)
+  // The frontend uses these flags to show "using global config" hints in the settings UI.
+  // Actual key values are only included if the user has their own keys in the settings table.
   const amapKeyRow = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_key'").get() as { value: string } | undefined;
-  if (amapKeyRow?.value) merged.amap_key = amapKeyRow.value;
   const amapWsKeyRow = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_web_service_key'").get() as { value: string } | undefined;
-  if (amapWsKeyRow?.value) merged.amap_web_service_key = amapWsKeyRow.value;
   const securityCodeRow = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_security_code'").get() as { value: string } | undefined;
-  if (securityCodeRow?.value) merged.amap_security_code = securityCodeRow.value;
+
+  // If user has their own keys, keep them (they take priority)
+  // If not, inject the global keys so the JS API can load, but mark them as global
+  if (amapKeyRow?.value && !merged.amap_key) {
+    merged.amap_key = amapKeyRow.value;
+    merged.amap_key_global = true;
+  }
+  if (securityCodeRow?.value && !merged.amap_security_code) {
+    merged.amap_security_code = securityCodeRow.value;
+    merged.amap_security_code_global = true;
+  }
+  if (amapWsKeyRow?.value && !merged.amap_web_service_key) {
+    merged.amap_web_service_key = amapWsKeyRow.value;
+    merged.amap_web_service_key_global = true;
+  }
 
   return merged;
 }

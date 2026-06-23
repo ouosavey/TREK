@@ -1,5 +1,31 @@
 # VERSION
 
+## v3.0.22-cn.87 - 2026-06-23
+
+### 变更
+高德地图Key安全保护+用户Key优先
+
+#### 优化1：用户设置页不显示管理员全局高德地图Key明文
+- **修复**：后端注入全局标志位而非明文，前端只显示"已使用全局配置"提示，用户可输入自己的 Key 覆盖
+
+#### 优化2：后端 API 调用优先使用用户自己的 Key
+- **修复**：mapsService/weatherService 优先级改为：用户 Key → 全局 Key
+
+### 涉及文件
+- `client/src/components/Settings/MapSettingsTab.tsx`
+- `client/src/store/settingsStore.ts`
+- `server/src/services/settingsService.ts`
+- `server/src/services/mapsService.ts`
+- `server/src/services/weatherService.ts`
+
+### Docker 镜像
+- GHCR: `ghcr.io/your-github-username/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## v3.0.22-cn.86 - 2026-06-23
 
 ### 变更

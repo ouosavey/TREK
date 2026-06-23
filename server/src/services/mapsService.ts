@@ -127,21 +127,22 @@ export function getMapsKey(userId: number): string | null {
 }
 
 export function getAmapKey(userId?: number): string | null {
-  // 1. 优先从 app_settings 读取 Web Service Key（全局配置）
-  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_web_service_key'").get() as { value: string } | undefined
-  if (row?.value) return row.value
-  // 2. 回退到用户级别的 Web Service Key
+  // 1. 优先读用户自己的 Web Service Key
   if (userId) {
     const userRow = db.prepare("SELECT value FROM settings WHERE user_id = ? AND key = 'amap_web_service_key'").get(userId) as { value: string } | undefined
     if (userRow?.value) return userRow.value
   }
-  // 3. 最后回退：尝试 amap_key（JS API Key，部分用户可能只配置了这一个）
-  const jsKeyRow = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_key'").get() as { value: string } | undefined
-  if (jsKeyRow?.value) return jsKeyRow.value
+  // 2. 回退到 app_settings 全局 Web Service Key
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_web_service_key'").get() as { value: string } | undefined
+  if (row?.value) return row.value
+  // 3. 回退：尝试用户自己的 amap_key（JS API Key）
   if (userId) {
     const userJsKeyRow = db.prepare("SELECT value FROM settings WHERE user_id = ? AND key = 'amap_key'").get(userId) as { value: string } | undefined
     if (userJsKeyRow?.value) return userJsKeyRow.value
   }
+  // 4. 最后回退：全局 amap_key（JS API Key）
+  const jsKeyRow = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_key'").get() as { value: string } | undefined
+  if (jsKeyRow?.value) return jsKeyRow.value
   return null
 }
 

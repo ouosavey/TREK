@@ -4,14 +4,14 @@
 import { db } from '../db/database';
 
 function getAmapKey(userId?: number): string | null {
-  // 优先从 app_settings 读取（全局配置）
-  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_web_service_key'").get() as { value: string } | undefined;
-  if (row?.value) return row.value;
-  // 回退到用户级别设置
+  // 1. 优先读用户自己的 Web Service Key
   if (userId) {
     const userRow = db.prepare("SELECT value FROM settings WHERE user_id = ? AND key = 'amap_web_service_key'").get(userId) as { value: string } | undefined;
     if (userRow?.value) return userRow.value;
   }
+  // 2. 回退到 app_settings 全局 Web Service Key
+  const row = db.prepare("SELECT value FROM app_settings WHERE key = 'amap_web_service_key'").get() as { value: string } | undefined;
+  if (row?.value) return row.value;
   return null;
 }
 

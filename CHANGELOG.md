@@ -1,5 +1,30 @@
 # CHANGELOG
 
+## 2026-06-23 高德地图Key安全保护+用户Key优先 v3.0.22-cn.87
+
+### 优化
+
+#### 优化1：用户设置页不显示管理员全局高德地图Key明文
+- **问题**：管理员在 `/admin` 配置的高德地图 API Key、安全密钥、Web服务 Key 会在 `/settings` 用户页明文显示，存在泄露风险
+- **修复**：
+  1. 后端 `getUserSettings()` 注入全局 Key 时添加 `amap_key_global`/`amap_security_code_global`/`amap_web_service_key_global` 标志位
+  2. 前端 MapSettingsTab 根据标志位判断：全局 Key 只显示"已使用全局配置"提示，不显示明文
+  3. 用户可输入自己的 Key 覆盖全局配置，保存后优先使用用户自己的 Key
+  4. 恢复 Web服务 Key 输入框（cn.85 移除了，现在恢复为用户可覆盖入口）
+
+#### 优化2：后端 API 调用优先使用用户自己的 Key
+- **问题**：之前 mapsService/weatherService 优先读全局 Key，用户配置自己的 Key 不生效
+- **修复**：修改 mapsService 和 weatherService 的 `getAmapKey()` 优先级为：用户自己的 Key → 全局 Key
+
+### 涉及文件
+- `client/src/components/Settings/MapSettingsTab.tsx`（不显示全局 Key 明文 + 恢复 Web服务 Key + 清除个人配置按钮）
+- `client/src/store/settingsStore.ts`（添加全局标志位字段）
+- `server/src/services/settingsService.ts`（注入全局标志位而非明文）
+- `server/src/services/mapsService.ts`（优先读用户 Key）
+- `server/src/services/weatherService.ts`（优先读用户 Key）
+
+---
+
 ## 2026-06-23 管理页高德地图全局配置+用户默认地图提供商 v3.0.22-cn.86
 
 ### 优化

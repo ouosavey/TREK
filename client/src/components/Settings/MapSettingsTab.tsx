@@ -147,8 +147,12 @@ export default function MapSettingsTab(): React.ReactElement {
   const [defaultLat, setDefaultLat] = useState<number | string>(settings.default_lat || 48.8566)
   const [defaultLng, setDefaultLng] = useState<number | string>(settings.default_lng || 2.3522)
   const [defaultZoom, setDefaultZoom] = useState<number | string>(settings.default_zoom || 10)
-  const [amapKey, setAmapKey] = useState<string>(settings.amap_key || '')
-  const [amapSecurityCode, setAmapSecurityCode] = useState<string>(settings.amap_security_code || '')
+  const [amapKey, setAmapKey] = useState<string>('')
+  const [amapSecurityCode, setAmapSecurityCode] = useState<string>('')
+  const [amapWebServiceKey, setAmapWebServiceKey] = useState<string>('')
+  const [amapKeyGlobal, setAmapKeyGlobal] = useState<boolean>(false)
+  const [amapSecurityCodeGlobal, setAmapSecurityCodeGlobal] = useState<boolean>(false)
+  const [amapWebServiceKeyGlobal, setAmapWebServiceKeyGlobal] = useState<boolean>(false)
 
   const [searchProvider, setSearchProvider] = useState<'auto' | 'amap' | 'google'>((settings.search_provider as 'auto' | 'amap' | 'google') || 'auto')
 
@@ -162,8 +166,14 @@ export default function MapSettingsTab(): React.ReactElement {
     setDefaultLat(settings.default_lat || 48.8566)
     setDefaultLng(settings.default_lng || 2.3522)
     setDefaultZoom(settings.default_zoom || 10)
-    setAmapKey(settings.amap_key || '')
-    setAmapSecurityCode(settings.amap_security_code || '')
+    // AMap keys: don't show global key values, only show user's own keys
+    setAmapKeyGlobal(!!settings.amap_key_global)
+    setAmapSecurityCodeGlobal(!!settings.amap_security_code_global)
+    setAmapWebServiceKeyGlobal(!!settings.amap_web_service_key_global)
+    // If user has their own keys (not from global), show them
+    setAmapKey(settings.amap_key && !settings.amap_key_global ? settings.amap_key : '')
+    setAmapSecurityCode(settings.amap_security_code && !settings.amap_security_code_global ? settings.amap_security_code : '')
+    setAmapWebServiceKey(settings.amap_web_service_key && !settings.amap_web_service_key_global ? settings.amap_web_service_key : '')
 
     setSearchProvider((settings.search_provider as 'auto' | 'amap' | 'google') || 'auto')
   }, [settings])
@@ -206,6 +216,7 @@ export default function MapSettingsTab(): React.ReactElement {
         mapbox_quality_mode: mapboxQuality,
         amap_key: amapKey,
         amap_security_code: amapSecurityCode,
+        amap_web_service_key: amapWebServiceKey,
         default_lat: parseFloat(String(defaultLat)),
         default_lng: parseFloat(String(defaultLng)),
         default_zoom: parseInt(String(defaultZoom)),
@@ -397,9 +408,20 @@ export default function MapSettingsTab(): React.ReactElement {
               type="text"
               value={amapKey}
               onChange={(e) => setAmapKey(e.target.value)}
-              placeholder="在高德开放平台申请的 Key"
+              placeholder={amapKeyGlobal ? '已使用全局配置，输入自定义 Key 可覆盖' : '在高德开放平台申请的 Key'}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-slate-400 focus:border-transparent"
             />
+            {amapKeyGlobal && !amapKey && (
+              <p className="text-xs text-emerald-600 mt-1">已使用全局配置</p>
+            )}
+            {amapKey && (
+              <button
+                onClick={() => setAmapKey('')}
+                className="text-xs text-slate-400 mt-1 hover:text-slate-600 underline"
+              >
+                清除个人配置（回退到全局）
+              </button>
+            )}
           </div>
 
           <div>
@@ -408,20 +430,49 @@ export default function MapSettingsTab(): React.ReactElement {
               type="text"
               value={amapSecurityCode}
               onChange={(e) => setAmapSecurityCode(e.target.value)}
-              placeholder="安全密钥 (JS API 2.0 必填)"
+              placeholder={amapSecurityCodeGlobal ? '已使用全局配置，输入自定义密钥可覆盖' : '安全密钥 (JS API 2.0 必填)'}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-slate-400 focus:border-transparent"
             />
+            {amapSecurityCodeGlobal && !amapSecurityCode && (
+              <p className="text-xs text-emerald-600 mt-1">已使用全局配置</p>
+            )}
+            {amapSecurityCode && (
+              <button
+                onClick={() => setAmapSecurityCode('')}
+                className="text-xs text-slate-400 mt-1 hover:text-slate-600 underline"
+              >
+                清除个人配置（回退到全局）
+              </button>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Web服务 Key</label>
+            <input
+              type="text"
+              value={amapWebServiceKey}
+              onChange={(e) => setAmapWebServiceKey(e.target.value)}
+              placeholder={amapWebServiceKeyGlobal ? '已使用全局配置，输入自定义 Key 可覆盖' : '后端搜索/地理编码专用 Key（服务平台选「Web服务」）'}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+            />
+            {amapWebServiceKeyGlobal && !amapWebServiceKey && (
+              <p className="text-xs text-emerald-600 mt-1">已使用全局配置</p>
+            )}
+            {amapWebServiceKey && (
+              <button
+                onClick={() => setAmapWebServiceKey('')}
+                className="text-xs text-slate-400 mt-1 hover:text-slate-600 underline"
+              >
+                清除个人配置（回退到全局）
+              </button>
+            )}
             <p className="text-xs text-slate-400 mt-1">
-              在{' '}
-              <a href="https://lbs.amap.com/" target="_blank" rel="noreferrer" className="underline">
-                高德开放平台
-              </a>
-              {' '}申请 Key 和安全密钥（服务平台选「Web端(JS API)」）
+              用于后端 POI 搜索、逆地理编码、输入提示等 HTTP API。需在控制台单独创建一个「Web服务」类型的 Key。
             </p>
           </div>
 
           <div className="text-xs text-slate-400 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-            <strong className="text-slate-600 dark:text-slate-300">提示：</strong> Web服务 Key（后端搜索/地理编码专用）请在管理页「设置」中统一配置，无需每个用户单独设置。高德地图使用 GCJ-02 坐标系，系统会自动将 WGS-84 坐标转换为 GCJ-02，无需手动处理。
+            <strong className="text-slate-600 dark:text-slate-300">提示：</strong> 管理员已在管理页配置全局高德地图 Key，所有用户可直接使用。如需使用自己的 Key，在上方输入后保存即可覆盖全局配置。高德地图使用 GCJ-02 坐标系，系统会自动将 WGS-84 坐标转换为 GCJ-02，无需手动处理。
           </div>
         </div>
       )}

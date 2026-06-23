@@ -41,6 +41,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     amap_key: '',
     amap_security_code: '',
     amap_web_service_key: '',
+    amap_key_global: false,
+    amap_security_code_global: false,
+    amap_web_service_key_global: false,
   },
   isLoaded: false,
 
