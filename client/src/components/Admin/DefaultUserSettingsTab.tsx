@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Settings2, Map, Layers, Box } from 'lucide-react'
 import { adminApi } from '../../api/client'
 import { useTranslation } from '../../i18n'
+import { SUPPORTED_LANGUAGES } from '../../i18n/supportedLanguages'
 import { useToast } from '../shared/Toast'
 import Section from '../Settings/Section'
 import CustomSelect from '../shared/CustomSelect'
@@ -24,6 +25,7 @@ type Defaults = {
   blur_booking_codes?: boolean
   map_tile_url?: string
   map_provider?: string
+  language?: string
 }
 
 function OptionRow({
@@ -159,6 +161,19 @@ export default function DefaultUserSettingsTab(): React.ReactElement {
       <p className="text-sm" style={{ color: 'var(--text-faint)', marginTop: -8 }}>
         {t('admin.defaultSettings.description')}
       </p>
+
+      {/* Language */}
+      <OptionRow label={<>{t('settings.language')} <ResetButton field="language" /></>}>
+        {SUPPORTED_LANGUAGES.map(lang => (
+          <OptionButton
+            key={lang.value}
+            active={defaults.language === lang.value}
+            onClick={() => save({ language: lang.value })}
+          >
+            {lang.label}
+          </OptionButton>
+        ))}
+      </OptionRow>
 
       {/* Color Mode */}
       <OptionRow label={<>{t('settings.colorMode')} <ResetButton field="dark_mode" /></>}>

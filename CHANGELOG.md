@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## 2026-06-23 管理页默认语言+高德平台链接 v3.0.22-cn.88
+
+### 优化
+
+#### 优化1：管理页"用户默认设置"添加语言选择器
+- **问题**：管理员无法控制新注册用户的默认语言
+- **修复**：
+  1. 后端 `DEFAULTABLE_USER_SETTING_KEYS` 添加 `'language'`，`VALID_VALUES` 添加所有支持的语言代码
+  2. 前端 DefaultUserSettingsTab 添加语言选择器，显示所有支持的语言（与登录页一致）
+
+#### 优化2：用户设置页 AMap 提示添加高德开放平台跳转链接
+- **问题**：用户不知道去哪里申请高德地图 Key
+- **修复**：在 AMap 设置区域底部提示中添加 `https://lbs.amap.com/` 跳转链接
+
+### 涉及文件
+- `client/src/components/Admin/DefaultUserSettingsTab.tsx`（添加语言选择器）
+- `client/src/components/Settings/MapSettingsTab.tsx`（添加高德开放平台链接）
+- `server/src/services/settingsService.ts`（DEFAULTABLE_USER_SETTING_KEYS 添加 language）
+
+---
+
 ## 2026-06-23 高德地图Key安全保护+用户Key优先 v3.0.22-cn.87
 
 ### 优化

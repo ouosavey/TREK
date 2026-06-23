@@ -14,6 +14,7 @@ export const DEFAULTABLE_USER_SETTING_KEYS = [
   'blur_booking_codes',
   'map_tile_url',
   'map_provider',
+  'language',
 ] as const;
 
 type DefaultableKey = typeof DEFAULTABLE_USER_SETTING_KEYS[number];
@@ -23,6 +24,7 @@ const VALID_VALUES: Partial<Record<DefaultableKey, unknown[]>> = {
   time_format: ['12h', '24h'],
   dark_mode: [true, false, 'light', 'dark', 'auto'],
   map_provider: ['leaflet', 'mapbox-gl', 'amap'],
+  language: ['de', 'en', 'es', 'fr', 'hu', 'nl', 'br', 'cs', 'pl', 'ru', 'zh', 'zh-TW', 'it', 'ar', 'id'],
 };
 
 const BOOLEAN_KEYS = new Set<DefaultableKey>(['route_calculation', 'blur_booking_codes']);

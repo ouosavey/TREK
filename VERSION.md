@@ -1,5 +1,29 @@
 # VERSION
 
+## v3.0.22-cn.88 - 2026-06-23
+
+### 变更
+管理页默认语言选择器+高德开放平台跳转链接
+
+#### 优化1：管理页"用户默认设置"添加语言选择器
+- **修复**：后端添加 language 到 DEFAULTABLE_USER_SETTING_KEYS，前端添加语言选择器
+
+#### 优化2：用户设置页 AMap 提示添加高德开放平台跳转链接
+- **修复**：在提示中添加 https://lbs.amap.com/ 跳转链接
+
+### 涉及文件
+- `client/src/components/Admin/DefaultUserSettingsTab.tsx`
+- `client/src/components/Settings/MapSettingsTab.tsx`
+- `server/src/services/settingsService.ts`
+
+### Docker 镜像
+- GHCR: `ghcr.io/your-github-username/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## v3.0.22-cn.87 - 2026-06-23
 
 ### 变更

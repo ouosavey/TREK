@@ -472,7 +472,11 @@ export default function MapSettingsTab(): React.ReactElement {
           </div>
 
           <div className="text-xs text-slate-400 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-            <strong className="text-slate-600 dark:text-slate-300">提示：</strong> 管理员已在管理页配置全局高德地图 Key，所有用户可直接使用。如需使用自己的 Key，在上方输入后保存即可覆盖全局配置。高德地图使用 GCJ-02 坐标系，系统会自动将 WGS-84 坐标转换为 GCJ-02，无需手动处理。
+            <strong className="text-slate-600 dark:text-slate-300">提示：</strong> 管理员已在管理页配置全局高德地图 Key，所有用户可直接使用。如需使用自己的 Key，在上方输入后保存即可覆盖全局配置。如需申请 Key 和密钥，请前往{' '}
+            <a href="https://lbs.amap.com/" target="_blank" rel="noreferrer" className="underline text-blue-500 hover:text-blue-600">
+              高德开放平台
+            </a>
+            {' '}注册。高德地图使用 GCJ-02 坐标系，系统会自动将 WGS-84 坐标转换为 GCJ-02，无需手动处理。
           </div>
         </div>
       )}
