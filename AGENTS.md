@@ -39,7 +39,29 @@
 4.每次都要将根目录下的VERSION.md、CHANGELOG.md、AGENTS.md文件一起推送
 ```
 
-### 5. AMap API 参考信息
+### 5. 隐私保护（强制）
+
+**禁止在代码、文档、配置文件中写入任何个人隐私信息**，包括但不限于：
+- 个人域名（如 NAS 域名、自建服务域名）
+- GitHub 用户名 / Docker Hub 用户名
+- IP 地址（公网 IP）
+- 个人邮箱、手机号
+- API Key / 密码 / Token 等凭据
+
+**替代方案**：
+- 域名 → 使用 `your-domain.example.com` 或 `example.com`
+- GitHub 用户名 → 使用 `your-github-username`
+- IP 地址 → 使用 `192.168.x.x` 或 `10.0.x.x` 等内网示例
+- 邮箱 → 使用 `user@example.com`
+
+**每次提交前必须检查**：
+1. `git diff --staged` 中是否包含个人域名、用户名等隐私信息
+2. CHANGELOG.md / VERSION.md / AGENTS.md 中是否意外写入了真实域名
+3. 新增的配置文件、环境变量示例中是否包含真实凭据
+
+**Git 历史清理**：如果隐私信息已进入 git 历史，需要使用 `git filter-branch` 或 `git filter-repo` 清理，并 force push。仅修改当前文件无法清除历史记录中的隐私信息。
+
+### 6. AMap API 参考信息
 
 #### 地图 JS API 2.0
 - 开发指南: https://lbs.amap.com/api/javascript-api-v2
