@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>TREK</title>
+
+    <!-- PWA / Mobile -->
+    <meta name="theme-color" content="#09090b" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="TREK" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180x180.png" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/icons/icon-dark.svg" />
+
+    <!-- Fonts (使用国内 CDN 替代 Google Fonts) -->
+    <link rel="preconnect" href="https://fonts.loli.net" />
+    <link rel="preconnect" href="https://gstatic.loli.net" crossorigin />
+    <link href="https://fonts.loli.net/css2?family=MuseoModerno:wght@400;700;800&display=swap" rel="stylesheet" crossorigin />
+
+    <!-- Leaflet CSS is imported via npm package in src/components/Map/MapView.tsx -->
+  </head>
+  <body>
+    <div id="root">
+      <!-- Inline splash screen: shows instantly before React hydrates, then
+           gets replaced when React renders into #root. No external assets
+           so it works offline / in Capacitor WebView. -->
+      <style>
+        #trek-splash {
+          position: fixed;
+          inset: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          background: #09090b;
+          z-index: 9999;
+          transition: opacity 0.4s ease;
+        }
+        #trek-splash.hide { opacity: 0; pointer-events: none; }
+        .trek-splash-logo {
+          font-family: 'MuseoModerno', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+          font-size: 42px;
+          font-weight: 800;
+          letter-spacing: 0.12em;
+          color: #f4f4f5;
+          text-transform: uppercase;
+          animation: trek-pulse 1.8s ease-in-out infinite;
+        }
+        .trek-splash-tagline {
+          margin-top: 10px;
+          font-size: 12px;
+          font-weight: 400;
+          letter-spacing: 0.3em;
+          color: #71717a;
+          text-transform: uppercase;
+          animation: trek-fade-in 0.6s ease 0.3s both;
+        }
+        .trek-splash-bar {
+          margin-top: 28px;
+          width: 120px;
+          height: 2px;
+          border-radius: 1px;
+          background: rgba(255,255,255,0.08);
+          overflow: hidden;
+        }
+        .trek-splash-bar::after {
+          content: '';
+          display: block;
+          width: 40%;
+          height: 100%;
+          border-radius: 1px;
+          background: linear-gradient(90deg, transparent, #6366f1, transparent);
+          animation: trek-slide 1.4s ease-in-out infinite;
+        }
+        @keyframes trek-pulse {
+          0%, 100% { opacity: 0.85; transform: scale(1); }
+          50%      { opacity: 1;    transform: scale(1.02); }
+        }
+        @keyframes trek-fade-in {
+          from { opacity: 0; transform: translateY(4px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes trek-slide {
+          0%   { transform: translateX(-100%); }
+          100% { transform: translateX(350%); }
+        }
+        @media (prefers-color-scheme: light) {
+          #trek-splash { background: #ffffff; }
+          .trek-splash-logo { color: #09090b; }
+          .trek-splash-tagline { color: #9ca3af; }
+          .trek-splash-bar { background: rgba(0,0,0,0.06); }
+        }
+      </style>
+      <div id="trek-splash">
+        <div class="trek-splash-logo">TREK</div>
+        <div class="trek-splash-tagline">Travel · Record · Explore · Keep</div>
+        <div class="trek-splash-bar"></div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,6 @@
+# Debug logs
+log.txt
+docker-log.txt
+
+# Dependencies
+node_modules/

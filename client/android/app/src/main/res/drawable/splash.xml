@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Splash screen background: solid color matching app theme.
+     The visual TREK logo + animation is handled by the HTML splash
+     in index.html (shows immediately after WebView loads, before React).
+     This native splash only bridges the cold-start gap (~800ms). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/window_bg" />
+</layer-list>

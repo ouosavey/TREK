@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#111827</color>
+    <color name="colorPrimaryDark">#09090b</color>
+    <color name="colorAccent">#111827</color>
+
+    <!-- System navigation bar color (follows DayNight via values-night override) -->
+    <color name="nav_bar_color">#ffffff</color>
+    <color name="window_bg">#ffffff</color>
+</resources>

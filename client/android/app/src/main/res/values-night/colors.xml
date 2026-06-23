@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark mode: navigation bar + window background -->
+    <color name="nav_bar_color">#09090b</color>
+    <color name="window_bg">#09090b</color>
+</resources>
