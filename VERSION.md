@@ -1,5 +1,25 @@
 # VERSION
 
+## v3.0.22-cn.89 - 2026-06-24
+
+### 变更
+隐私保护-移除个人域名和GitHub用户名
+
+#### 隐私保护：移除文件中暴露的个人域名和GitHub用户名
+- **修复**：CHANGELOG.md 和 VERSION.md 中个人域名替换为 `your-domain.example.com`，GitHub 用户名替换为 `your-github-username`
+
+### 涉及文件
+- `CHANGELOG.md`
+- `VERSION.md`
+
+### Docker 镜像
+- GHCR: `ghcr.io/your-github-username/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## v3.0.22-cn.88 - 2026-06-23
 
 ### 变更

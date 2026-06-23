@@ -73,7 +73,6 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **核心修复: 地点图标认证+状态栏深色模式 v3.0.22-cn.79**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 服务器: 移除 /api/maps/place-photo/:id/bytes 的 authenticate（移动端img跨域不发送cookie）" >> $GITHUB_STEP_SUMMARY
-          echo "  - 状态栏: 根据系统深色模式动态设置样式和背景色" >> $GITHUB_STEP_SUMMARY
-          echo "  - 状态栏: 监听 prefers-color-scheme 变化实时更新" >> $GITHUB_STEP_SUMMARY
+          echo "- **隐私保护: 移除个人域名和GitHub用户名 v3.0.22-cn.89**" >> $GITHUB_STEP_SUMMARY
+          echo "  - CHANGELOG.md/VERSION.md 中个人域名替换为 your-domain.example.com" >> $GITHUB_STEP_SUMMARY
+          echo "  - VERSION.md 中 GitHub 用户名替换为 your-github-username" >> $GITHUB_STEP_SUMMARY

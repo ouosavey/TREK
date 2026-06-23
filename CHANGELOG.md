@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-06-24 隐私保护-移除个人域名和用户名 v3.0.22-cn.89
+
+### 优化
+
+#### 隐私保护：移除文件中暴露的个人域名和GitHub用户名
+- **问题**：CHANGELOG.md 和 VERSION.md 中包含个人域名 `your-domain.example.com` 和 GitHub 用户名 `your-github-username`，存在隐私泄露风险
+- **修复**：
+  1. CHANGELOG.md 中 4 处 `your-domain.example.com` 替换为 `your-domain.example.com`
+  2. VERSION.md 中 1 处 `your-domain.example.com` 替换为 `your-domain.example.com`
+  3. VERSION.md 中所有 `ghcr.io/your-github-username/trek` 替换为 `ghcr.io/your-github-username/trek`
+- **检查结果**：项目中其他文件（workflow、docker-compose、源代码等）均不包含个人域名或用户名
+
+### 涉及文件
+- `CHANGELOG.md`（域名替换）
+- `VERSION.md`（域名+用户名替换）
+
+---
+
 ## 2026-06-23 管理页默认语言+高德平台链接 v3.0.22-cn.88
 
 ### 优化
