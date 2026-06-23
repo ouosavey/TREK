@@ -1,5 +1,41 @@
 # VERSION
 
+## v3.0.22-cn.84 - 2026-06-23
+
+### 变更
+修复浅色模式导航栏黑色、启动页面太快、旅程封面不显示、编辑条目底部空白。
+
+#### 修复1：浅色模式底部导航栏黑色 + 启动页面太快
+- **根因**：`Theme.SplashScreen` 父主题可能覆盖 `android:navigationBarColor`，XML 配置不生效
+- **修复**：`MainActivity.java` 添加运行时导航栏颜色设置（根据系统深色模式动态选择白色/黑色 + `windowLightNavigationBar`）
+- **启动页面**：splash 时长 800ms→2000ms，避免一闪而过
+
+#### 修复2：旅程封面在所有平台都不显示
+- **根因**：后端 Journey `cover_image` 存储为 `journey/xxx.jpg` 或 `covers/xxx.jpg`（无 `/uploads/` 前缀），前端 `getAssetUrl()` 直接使用导致路径错误
+  - Web：`journey/xxx.jpg` → 浏览器解析为 `https://server/journey/xxx.jpg` → 404
+  - 移动端：`https://server/journey/xxx.jpg` → 404
+- **修复**：`getAssetUrl()` 自动为不以 `/` 开头的相对路径补全 `/uploads/` 前缀
+
+#### 修复3：编辑条目页面底部空白
+- **根因**：`EntryEditor` 容器 `paddingBottom: 'var(--bottom-nav-h)'`（84px+），但模态框 z-9999 已覆盖 BottomNav z-50，留白冗余
+- **修复**：改为 `paddingBottom: 'env(safe-area-inset-bottom, 0px)'`
+- **额外**：`MobileEntryView` 内容区 `pb-32`（128px）→ `pb-8`（32px）
+
+### 涉及文件
+- `client/android/app/src/main/java/com/trek/app/MainActivity.java`
+- `client/capacitor.config.ts`
+- `client/src/utils/serverConfig.ts`
+- `client/src/pages/JourneyDetailPage.tsx`
+- `client/src/components/Journey/MobileEntryView.tsx`
+
+### Docker 镜像
+- GHCR: `ghcr.io/your-github-username/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## v3.0.22-cn.83 - 2026-06-23
 
 ### 变更

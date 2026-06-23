@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## 2026-06-23 浅色导航栏+封面路径+编辑底部空白 v3.0.22-cn.84
+
+### Bug修复
+
+#### 修复1：浅色模式底部导航栏黑色 + 启动页面太快
+- **根因**：`Theme.SplashScreen` 父主题覆盖 `android:navigationBarColor`，XML 配置不生效
+- **修复**：`MainActivity.java` 运行时设置导航栏颜色 + `windowLightNavigationBar`；splash 时长 800→2000ms
+
+#### 修复2：旅程封面在所有平台都不显示
+- **根因**：后端 Journey `cover_image` 存储为 `journey/xxx.jpg`（无 `/uploads/` 前缀），前端直接使用导致 404
+- **修复**：`getAssetUrl()` 自动补全 `/uploads/` 前缀
+
+#### 修复3：编辑条目页面底部空白
+- **根因**：`EntryEditor` 容器 `paddingBottom: var(--bottom-nav-h)`（84px+），但模态框已覆盖 BottomNav
+- **修复**：改为 `env(safe-area-inset-bottom)`；`MobileEntryView` pb-32→pb-8
+
+---
+
 ## 2026-06-23 深色模式导航栏+启动页面+手机端高德地图 v3.0.22-cn.83
 
 ### Bug修复

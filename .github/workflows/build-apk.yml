@@ -81,10 +81,11 @@ jobs:
           echo "| **架构** | universal (all ABIs) |" >> $GITHUB_STEP_SUMMARY
           echo "| **构建类型** | debug |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 修复内容 (v3.0.22-cn.83)" >> $GITHUB_STEP_SUMMARY
-          echo "- 修复深色模式底部导航栏区域白色背景（Android主题改为DayNight + navigationBarColor）" >> $GITHUB_STEP_SUMMARY
-          echo "- 设计好看的APK启动过渡页面（index.html内联CSS splash + 删除旧splash.png）" >> $GITHUB_STEP_SUMMARY
-          echo "- 修复手机端旅程页面地图不显示高德（MobileMapTimeline/JourneyPublicPage改用JourneyMapAuto）" >> $GITHUB_STEP_SUMMARY
+          echo "### 修复内容 (v3.0.22-cn.84)" >> $GITHUB_STEP_SUMMARY
+          echo "- 修复浅色模式底部导航栏黑色（MainActivity运行时设置导航栏颜色）" >> $GITHUB_STEP_SUMMARY
+          echo "- 修复启动页面太快（splash时长800→2000ms）" >> $GITHUB_STEP_SUMMARY
+          echo "- 修复旅程封面在所有平台都不显示（getAssetUrl自动补全/uploads/前缀）" >> $GITHUB_STEP_SUMMARY
+          echo "- 修复编辑条目页面底部空白（EntryEditor去掉冗余bottom-nav-h留白）" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 下载" >> $GITHUB_STEP_SUMMARY
           echo "在 Artifacts 区域下载 \`trek-android-apk\` 压缩包，解压后得到 \`app-debug.apk\`" >> $GITHUB_STEP_SUMMARY

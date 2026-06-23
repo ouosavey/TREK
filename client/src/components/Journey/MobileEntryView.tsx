@@ -117,7 +117,7 @@ export default function MobileEntryView({ entry, readOnly, publicPhotoUrl, onClo
         )}
 
         {/* Content */}
-        <div className="px-5 py-5 pb-32">
+        <div className="px-5 py-5 pb-8">
 
           {/* Date + time + location header */}
           <div className="flex flex-wrap items-center gap-2 mb-3">

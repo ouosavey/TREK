@@ -100,6 +100,12 @@ export function getOrigin(): string {
  *
  * 用于 img src、background-image 等静态资源路径。
  * 已是绝对 URL（http/https/data）的不处理。
+ *
+ * 注意：后端存储格式不统一：
+ * - Trip cover_image: /uploads/covers/xxx.jpg（完整路径）
+ * - Journey cover_image（直接上传）: journey/xxx.jpg（相对路径，无 /uploads/ 前缀）
+ * - Journey cover_image（继承自 Trip）: covers/xxx.jpg（相对路径，无 /uploads/ 前缀）
+ * 此函数会自动补全 /uploads/ 前缀。
  */
 export function getAssetUrl(path: string | null | undefined): string {
   if (!path) return ''
@@ -107,12 +113,17 @@ export function getAssetUrl(path: string | null | undefined): string {
   if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:') || path.startsWith('blob:')) {
     return path
   }
+  // 归一化路径：如果路径不以 / 开头，且不是 /api/ 开头，补全 /uploads/ 前缀
+  // 后端 Journey cover_image 存储为 "journey/xxx.jpg" 或 "covers/xxx.jpg"，需要补全为 "/uploads/journey/xxx.jpg"
+  let normalized = path
+  if (!normalized.startsWith('/')) {
+    // 不以 / 开头的相对路径，补全 /uploads/ 前缀
+    normalized = `/uploads/${normalized}`
+  }
   // Capacitor 移动端：拼接服务器地址
   if (Capacitor.isNativePlatform() && cachedServerUrl) {
-    // 确保路径以 / 开头
-    const normalized = path.startsWith('/') ? path : `/${path}`
     return `${cachedServerUrl}${normalized}`
   }
-  // Web：原样返回
-  return path
+  // Web：原样返回归一化后的路径
+  return normalized
 }

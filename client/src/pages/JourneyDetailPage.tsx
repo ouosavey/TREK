@@ -2311,7 +2311,7 @@ function EntryEditor({ entry, journeyId, tripDates, galleryPhotos, onClose, onSa
         className="absolute top-0 bottom-0 left-0 flex items-end sm:items-center sm:justify-center sm:p-5"
         style={{ right: isMobile ? 0 : 'clamp(420px, 44vw, 760px)' }}
       >
-        <div className="bg-white dark:bg-zinc-900 sm:rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.2)] sm:max-w-[640px] w-full flex flex-col overflow-hidden h-full sm:h-auto sm:max-h-[90vh]" style={{ paddingBottom: 'var(--bottom-nav-h)' }}>
+        <div className="bg-white dark:bg-zinc-900 sm:rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.2)] sm:max-w-[640px] w-full flex flex-col overflow-hidden h-full sm:h-auto sm:max-h-[90vh]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
 
 
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-700">
