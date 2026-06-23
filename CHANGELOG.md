@@ -1,5 +1,19 @@
 # CHANGELOG
 
+## 2026-06-24 Tab栏Collab中文化 v3.0.22-cn.91
+
+### 优化
+
+#### Tab栏 Collab 中文名称
+- **问题**：中文界面下 Tab 栏仍显示英文 "Collab"
+- **修复**：简体中文 Collab → 协作，繁体中文 Collab → 協作
+
+### 涉及文件
+- `client/src/i18n/translations/zh.ts`
+- `client/src/i18n/translations/zhTw.ts`
+
+---
+
 ## 2026-06-24 Tab栏中文化-假期和寰球 v3.0.22-cn.90
 
 ### 优化

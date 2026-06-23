@@ -726,7 +726,7 @@ const zhTw: Record<string, string> = {
   'admin.addons.catalog.vacay.description': '帶日曆檢視的個人假期規劃器',
   'admin.addons.catalog.atlas.name': '寰球',
   'admin.addons.catalog.atlas.description': '標記已訪問國家和旅行統計的世界地圖',
-  'admin.addons.catalog.collab.name': 'Collab',
+  'admin.addons.catalog.collab.name': '協作',
   'admin.addons.catalog.collab.description': '旅行規劃的即時筆記、投票和聊天',
   'admin.addons.subtitleBefore': '啟用或停用功能以自定義你的 ',
   'admin.addons.subtitleAfter': ' 體驗。',

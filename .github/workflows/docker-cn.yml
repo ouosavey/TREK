@@ -73,5 +73,5 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tab栏中文化 v3.0.22-cn.90**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 简体/繁体中文: Vacay → 假期, Atlas → 寰球" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tab栏Collab中文化 v3.0.22-cn.91**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 简体中文: Collab → 协作, 繁体中文: Collab → 協作" >> $GITHUB_STEP_SUMMARY

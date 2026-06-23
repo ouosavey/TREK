@@ -1,5 +1,25 @@
 # VERSION
 
+## v3.0.22-cn.91 - 2026-06-24
+
+### 变更
+Tab栏Collab中文化
+
+#### Tab栏 Collab 中文名称
+- **修复**：简体中文 Collab → 协作，繁体中文 Collab → 協作
+
+### 涉及文件
+- `client/src/i18n/translations/zh.ts`
+- `client/src/i18n/translations/zhTw.ts`
+
+### Docker 镜像
+- GHCR: `ghcr.io/your-github-username/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## v3.0.22-cn.90 - 2026-06-24
 
 ### 变更
