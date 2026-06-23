@@ -1,5 +1,33 @@
 # VERSION
 
+## v3.0.22-cn.85 - 2026-06-23
+
+### 变更
+移除用户设置页重复的"Web服务 Key"输入框，新注册用户默认使用高德地图。
+
+#### 优化1：移除用户设置页重复的"Web服务 Key"输入框
+- **问题**：`/settings` 和 `/admin` 都有"高德地图 Web 服务 Key"，两处重复且用户修改不生效（被全局配置覆盖）
+- **修复**：从 `/settings` 移除"Web服务 Key"输入框，只保留 `/admin` 全局配置，添加提示文字引导用户到管理页配置
+
+#### 优化2：新注册用户默认使用高德地图
+- **修复**：
+  1. `map_provider` 默认值从 `'leaflet'` 改为 `'amap'`
+  2. 后端 `DEFAULTABLE_USER_SETTING_KEYS` 添加 `'map_provider'`，管理员可控制新用户默认地图提供商
+  3. `VALID_VALUES` 添加 `map_provider` 合法值验证
+
+### 涉及文件
+- `client/src/components/Settings/MapSettingsTab.tsx`
+- `client/src/store/settingsStore.ts`
+- `server/src/services/settingsService.ts`
+
+### Docker 镜像
+- GHCR: `ghcr.io/your-github-username/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## v3.0.22-cn.84 - 2026-06-23
 
 ### 变更

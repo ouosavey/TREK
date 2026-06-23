@@ -138,7 +138,7 @@ export default function MapSettingsTab(): React.ReactElement {
   const { t } = useTranslation()
   const toast = useToast()
   const [saving, setSaving] = useState(false)
-  const [provider, setProvider] = useState<Provider>((settings.map_provider as Provider) || 'leaflet')
+  const [provider, setProvider] = useState<Provider>((settings.map_provider as Provider) || 'amap')
   const [mapTileUrl, setMapTileUrl] = useState<string>(settings.map_tile_url || '')
   const [mapboxToken, setMapboxToken] = useState<string>(settings.mapbox_access_token || '')
   const [mapboxStyle, setMapboxStyle] = useState<string>(settings.mapbox_style || 'mapbox://styles/mapbox/standard')
@@ -149,11 +149,11 @@ export default function MapSettingsTab(): React.ReactElement {
   const [defaultZoom, setDefaultZoom] = useState<number | string>(settings.default_zoom || 10)
   const [amapKey, setAmapKey] = useState<string>(settings.amap_key || '')
   const [amapSecurityCode, setAmapSecurityCode] = useState<string>(settings.amap_security_code || '')
-  const [amapWebServiceKey, setAmapWebServiceKey] = useState<string>(settings.amap_web_service_key || '')
+
   const [searchProvider, setSearchProvider] = useState<'auto' | 'amap' | 'google'>((settings.search_provider as 'auto' | 'amap' | 'google') || 'auto')
 
   useEffect(() => {
-    setProvider((settings.map_provider as Provider) || 'leaflet')
+    setProvider((settings.map_provider as Provider) || 'amap')
     setMapTileUrl(settings.map_tile_url || '')
     setMapboxToken(settings.mapbox_access_token || '')
     setMapboxStyle(settings.mapbox_style || 'mapbox://styles/mapbox/standard')
@@ -164,7 +164,7 @@ export default function MapSettingsTab(): React.ReactElement {
     setDefaultZoom(settings.default_zoom || 10)
     setAmapKey(settings.amap_key || '')
     setAmapSecurityCode(settings.amap_security_code || '')
-    setAmapWebServiceKey(settings.amap_web_service_key || '')
+
     setSearchProvider((settings.search_provider as 'auto' | 'amap' | 'google') || 'auto')
   }, [settings])
 
@@ -206,7 +206,6 @@ export default function MapSettingsTab(): React.ReactElement {
         mapbox_quality_mode: mapboxQuality,
         amap_key: amapKey,
         amap_security_code: amapSecurityCode,
-        amap_web_service_key: amapWebServiceKey,
         default_lat: parseFloat(String(defaultLat)),
         default_lng: parseFloat(String(defaultLng)),
         default_zoom: parseInt(String(defaultZoom)),
@@ -421,22 +420,8 @@ export default function MapSettingsTab(): React.ReactElement {
             </p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">Web服务 Key</label>
-            <input
-              type="text"
-              value={amapWebServiceKey}
-              onChange={(e) => setAmapWebServiceKey(e.target.value)}
-              placeholder="后端搜索/地理编码专用 Key（服务平台选「Web服务」）"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-slate-400 focus:border-transparent"
-            />
-            <p className="text-xs text-slate-400 mt-1">
-              用于后端 POI 搜索、逆地理编码、输入提示等 HTTP API。需在控制台单独创建一个「Web服务」类型的 Key。
-            </p>
-          </div>
-
           <div className="text-xs text-slate-400 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-            <strong className="text-slate-600 dark:text-slate-300">提示：</strong> 高德地图使用 GCJ-02 坐标系，系统会自动将 WGS-84 坐标转换为 GCJ-02，无需手动处理。
+            <strong className="text-slate-600 dark:text-slate-300">提示：</strong> Web服务 Key（后端搜索/地理编码专用）请在管理页「设置」中统一配置，无需每个用户单独设置。高德地图使用 GCJ-02 坐标系，系统会自动将 WGS-84 坐标转换为 GCJ-02，无需手动处理。
           </div>
         </div>
       )}

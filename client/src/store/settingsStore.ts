@@ -32,7 +32,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     temperature_unit: 'fahrenheit',
     time_format: '12h',
     show_place_description: false,
-    map_provider: 'leaflet',
+    map_provider: 'amap',
     search_provider: 'auto',
     mapbox_access_token: '',
     mapbox_style: 'mapbox://styles/mapbox/standard',

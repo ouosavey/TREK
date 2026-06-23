@@ -1,5 +1,29 @@
 # CHANGELOG
 
+## 2026-06-23 移除重复Web服务Key+新用户默认高德地图 v3.0.22-cn.85
+
+### 优化
+
+#### 优化1：移除用户设置页重复的"Web服务 Key"输入框
+- **问题**：`/settings` 地图设置和 `/admin` 管理页设置都有"高德地图 Web 服务 Key"，两处配置重复且容易混淆
+- **根因**：后端调用高德 API 时优先读 `app_settings` 表（管理员全局配置），用户在 `/settings` 修改的 Key 存到 `settings` 表（per-user），但被全局配置覆盖，用户改了也不生效
+- **修复**：从 `/settings` 用户页移除"Web服务 Key"输入框，只保留在 `/admin` 管理页中配置。提示用户"Web服务 Key 请在管理页统一配置"
+
+#### 优化2：新注册用户默认使用高德地图
+- **问题**：新用户默认地图提供商为 Leaflet（国外地图），国内用户需要手动切换到高德地图
+- **修复**：
+  1. `settingsStore.ts` 中 `map_provider` 默认值从 `'leaflet'` 改为 `'amap'`
+  2. `MapSettingsTab.tsx` 中 provider fallback 从 `'leaflet'` 改为 `'amap'`
+  3. 后端 `DEFAULTABLE_USER_SETTING_KEYS` 添加 `'map_provider'`，管理员可在 `/admin` 中设置新用户的默认地图提供商
+  4. `VALID_VALUES` 添加 `map_provider: ['leaflet', 'mapbox-gl', 'amap']` 合法值验证
+
+### 涉及文件
+- `client/src/components/Settings/MapSettingsTab.tsx`（移除 Web服务 Key 输入框 + 提示文字 + provider fallback 改为 amap）
+- `client/src/store/settingsStore.ts`（map_provider 默认值改为 'amap'）
+- `server/src/services/settingsService.ts`（DEFAULTABLE_USER_SETTING_KEYS 添加 map_provider + VALID_VALUES 添加验证）
+
+---
+
 ## 2026-06-23 浅色导航栏+封面路径+编辑底部空白 v3.0.22-cn.84
 
 ### Bug修复
