@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-06-24 Tab栏中文化-假期和寰球 v3.0.22-cn.90
+
+### 优化
+
+#### Tab栏 Vacay/Atlas 中文名称
+- **问题**：中文界面下 Tab 栏仍显示英文 "Vacay" 和 "Atlas"
+- **修复**：
+  1. 简体中文：Vacay → 假期，Atlas → 寰球
+  2. 繁体中文：Vacay → 假期，Atlas → 寰球
+
+### 涉及文件
+- `client/src/i18n/translations/zh.ts`（简体中文翻译）
+- `client/src/i18n/translations/zhTw.ts`（繁体中文翻译）
+
+---
+
 ## 2026-06-24 隐私保护-移除个人域名和用户名 v3.0.22-cn.89
 
 ### 优化

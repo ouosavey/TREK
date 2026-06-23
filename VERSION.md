@@ -1,5 +1,25 @@
 # VERSION
 
+## v3.0.22-cn.90 - 2026-06-24
+
+### 变更
+Tab栏中文化-假期和寰球
+
+#### Tab栏 Vacay/Atlas 中文名称
+- **修复**：简体/繁体中文翻译中 Vacay → 假期，Atlas → 寰球
+
+### 涉及文件
+- `client/src/i18n/translations/zh.ts`
+- `client/src/i18n/translations/zhTw.ts`
+
+### Docker 镜像
+- GHCR: `ghcr.io/your-github-username/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## v3.0.22-cn.89 - 2026-06-24
 
 ### 变更

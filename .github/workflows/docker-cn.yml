@@ -73,6 +73,5 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **隐私保护: 移除个人域名和GitHub用户名 v3.0.22-cn.89**" >> $GITHUB_STEP_SUMMARY
-          echo "  - CHANGELOG.md/VERSION.md 中个人域名替换为 your-domain.example.com" >> $GITHUB_STEP_SUMMARY
-          echo "  - VERSION.md 中 GitHub 用户名替换为 your-github-username" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tab栏中文化 v3.0.22-cn.90**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 简体/繁体中文: Vacay → 假期, Atlas → 寰球" >> $GITHUB_STEP_SUMMARY
