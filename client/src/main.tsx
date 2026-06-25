@@ -30,6 +30,18 @@ function applyStatusBarStyle(isDark: boolean) {
  */
 async function bootstrap() {
   if (Capacitor.isNativePlatform()) {
+    // 注销所有 service worker（防止旧 APK 的 SW 缓存导致白屏）
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations()
+        await Promise.all(regs.map(r => r.unregister()))
+      }
+      if ('caches' in window) {
+        const names = await caches.keys()
+        await Promise.all(names.map(n => caches.delete(n)))
+      }
+    } catch {}
+
     try {
       await initServerUrl()
       refreshApiBaseUrl()

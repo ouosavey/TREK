@@ -43,6 +43,14 @@ jobs:
       - name: Build web assets
         run: npm run build
 
+      - name: Remove PWA service worker for Capacitor
+        run: |
+          # 移除 index.html 中的 SW 注册脚本（防止旧 SW 缓存导致 APK 白屏）
+          sed -i 's|<script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script>||g' dist/index.html
+          # 删除 SW 相关文件
+          rm -f dist/sw.js dist/registerSW.js dist/workbox-*.js
+          echo "✅ 已移除 PWA service worker"
+
       - name: Sync Capacitor
         run: npx cap sync android
 

@@ -1,5 +1,28 @@
 # VERSION
 
+## v3.0.22-cn.94 - 2026-06-25
+
+### 变更
+修复APK白屏-PWA Service Worker冲突
+
+#### 手机APK打开直接白屏
+- **根因**：VitePWA 注入的 SW 在 APK 覆盖安装时缓存旧资源，旧 JS 文件 404 导致白屏
+- **修复**：
+  1. APK 构建时移除 PWA SW（build-apk.yml 添加清理步骤）
+  2. main.tsx 启动时注销旧 SW 并清除 caches
+
+### 涉及文件
+- `.github/workflows/build-apk.yml`
+- `client/src/main.tsx`
+
+### Docker 镜像
+- GHCR: `ghcr.io/your-github-username/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## v3.0.22-cn.93 - 2026-06-25
 
 ### 变更

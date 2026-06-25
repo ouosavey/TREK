@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 2026-06-25 修复APK白屏-PWA Service Worker冲突 v3.0.22-cn.94
+
+### 修复
+
+#### 手机APK打开直接白屏
+- **根因**：VitePWA 插件在构建时自动注入 service worker 注册脚本到 index.html。APK 覆盖安装时，旧 APK 的 service worker 仍控制页面，返回缓存的旧 index.html，其中引用的旧 JS 文件（hash 变化后）在新 APK 中不存在，导致 404 白屏
+- **修复方案**：
+  1. APK 构建时移除 PWA service worker：在 `build-apk.yml` 中构建 web assets 后，从 index.html 移除 SW 注册脚本，删除 sw.js/registerSW.js/workbox 文件
+  2. main.tsx 启动时注销旧 service worker：在 Capacitor 原生平台中，bootstrap 阶段先注销所有 service worker 并清除 caches，确保旧 APK 的 SW 缓存不影响新 APK
+- **涉及文件**：
+  - `.github/workflows/build-apk.yml`（APK 构建时移除 PWA SW）
+  - `client/src/main.tsx`（启动时注销旧 SW）
+
+---
+
 ## 2026-06-25 修复公交路线导出图片截断（离屏克隆方案） v3.0.22-cn.93
 
 ### 修复
