@@ -1,5 +1,25 @@
 # VERSION
 
+## v3.0.22-cn.96 - 2026-06-25
+
+### 变更
+修复导出图片到文件后切换页面不显示
+
+#### 导出图片到旅行文件后，切换到文件页面不显示新图片
+- **根因**：handleSaveToTrip 绕过 tripStore，服务端广播排除上传者 socket
+- **修复**：上传成功后调用 useTripStore.getState().loadFiles(tripId) 刷新 store
+
+### 涉及文件
+- `client/src/components/Planner/TransitRoutePanel.tsx`
+
+### Docker 镜像
+- GHCR: `ghcr.io/your-github-username/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## v3.0.22-cn.95 - 2026-06-25
 
 ### 变更

@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## 2026-06-25 修复导出图片到文件后切换页面不显示 v3.0.22-cn.96
+
+### 修复
+
+#### 导出图片到旅行文件后，切换到文件页面不显示新图片
+- **根因**：`TransitRoutePanel.handleSaveToTrip` 直接调用 `filesApi.upload()` 上传文件，绕过了 `tripStore`。同时服务端 `broadcast('file:created')` 会排除上传者自己的 socket（`excludeSid`），导致上传者收不到自己触发的文件创建事件。结果 `tripStore.files` 不会更新，切换到文件页面时虽然 `FilesPage` 会重新 `loadFiles`，但如果 store 中已有缓存数据且 IndexedDB 离线缓存未更新，可能显示旧数据
+- **修复方案**：上传成功后立即调用 `useTripStore.getState().loadFiles(tripId)` 刷新 store 中的文件列表，确保切换到文件页面时立即显示新导出的图片
+- **涉及文件**：`client/src/components/Planner/TransitRoutePanel.tsx`
+
+---
+
 ## 2026-06-25 修复APK端文件图片损坏-相对路径未拼接服务器地址 v3.0.22-cn.95
 
 ### 修复

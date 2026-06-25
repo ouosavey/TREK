@@ -73,5 +73,5 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复APK端文件图片损坏 v3.0.22-cn.95**" >> $GITHUB_STEP_SUMMARY
-          echo "  - getAuthUrl/fetchImageAsBlob/downloadFile/openFile 移动端拼接服务器地址" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复导出图片到文件后切换页面不显示 v3.0.22-cn.96**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 上传成功后调用 loadFiles 刷新 store，确保切换页面立即显示新图片" >> $GITHUB_STEP_SUMMARY

@@ -9,6 +9,7 @@ import {
 import type { TransitRouteResult, TransitRouteOption, TransitSegment, TransitLeg } from '../../types'
 import { useTranslation } from '../../i18n'
 import { filesApi, mapsApi } from '../../api/client'
+import { useTripStore } from '../../store/tripStore'
 import { wgs84ToGcj02 } from '../../utils/coordTransform'
 
 // ── 公交线路详情类型 ──────────────────────────────────────────────────────
@@ -889,6 +890,9 @@ export default function TransitRoutePanel({
       formData.append('file', blob, filename)
       formData.append('description', '公交/地铁路线规划详情')
       await filesApi.upload(tripId, formData)
+      // 上传成功后刷新文件列表 store，确保切换到文件页面时立即看到新图片
+      // 服务端广播 file:created 会排除上传者自己的 socket，所以必须手动刷新
+      useTripStore.getState().loadFiles(tripId)
     } catch (e) {
       console.error('添加到旅行文件失败', e)
     }
