@@ -73,6 +73,5 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复公交路线导出图片截断和APK端损坏 v3.0.22-cn.92**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复导出图片下部截断：临时展开flex布局，等待布局后截图" >> $GITHUB_STEP_SUMMARY
-          echo "  - 修复APK端图片损坏：toBlob → toDataURL + 手动转Blob" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复公交路线导出图片截断（离屏克隆方案） v3.0.22-cn.93**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 深克隆面板到离屏容器，脱离fixed定位和视口约束，自由布局后截图" >> $GITHUB_STEP_SUMMARY

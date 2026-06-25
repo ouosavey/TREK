@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## 2026-06-25 修复公交路线导出图片截断（离屏克隆方案） v3.0.22-cn.93
+
+### 修复
+
+#### 导出图片下部仍然被截断（cn.92 修复无效）
+- **根因**：cn.92 的修复方案仅临时修改原 DOM 样式，但 `position: fixed` + `height: 90vh; bottom: 0` 的元素即使设置 `height: auto` 仍受视口约束。且 `toCanvas` 的 `style` 选项只覆盖克隆根节点，子元素（可滚动区）的计算样式仍从原 DOM 获取，`flex: 1; overflowY: auto` 导致内容区在克隆中仍然塌缩
+- **修复方案**：改用离屏克隆方案 — 深克隆面板节点到独立的离屏容器（`position: fixed; left: -99999px`），在克隆上移除所有定位/高度/overflow/flex 约束，等待两帧让浏览器自由布局后对克隆节点截图，截图后移除离屏容器。完全不修改原 DOM，彻底脱离视口约束
+- **涉及文件**：`client/src/components/Planner/TransitRoutePanel.tsx`
+
+---
+
 ## 2026-06-24 修复公交路线导出图片截断和APK端损坏 v3.0.22-cn.92
 
 ### 修复

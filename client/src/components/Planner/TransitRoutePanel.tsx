@@ -765,86 +765,75 @@ export default function TransitRoutePanel({
   const contentRef = React.useRef<HTMLDivElement>(null)
 
   // 生成截图 canvas（使用 html-to-image，基于 SVG foreignObject，浏览器原生渲染）
-  // 策略：临时展开面板和可滚动区（移除 flex 限制和 overflow 裁剪），等待布局后截图，再恢复
+  // 策略：克隆面板到离屏容器，完全脱离 fixed 定位和视口约束，自由布局后截图
   const captureCanvas = React.useCallback(async () => {
     if (!contentRef.current) return null
 
     const rootBg = getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary').trim() || '#ffffff'
     const el = contentRef.current
-    const scrollArea = el.querySelector('[data-transit-scroll]') as HTMLElement | null
 
-    // 1. 保存原始样式
-    const savedRoot = {
-      maxHeight: el.style.maxHeight,
-      height: el.style.height,
-      overflow: el.style.overflow,
+    // 1. 创建离屏容器（完全脱离视口）
+    const offscreen = document.createElement('div')
+    offscreen.style.position = 'fixed'
+    offscreen.style.left = '-99999px'
+    offscreen.style.top = '0'
+    offscreen.style.width = el.offsetWidth + 'px'
+    offscreen.style.zIndex = '-1'
+    offscreen.style.pointerEvents = 'none'
+    offscreen.style.opacity = '1'
+
+    // 2. 深克隆面板节点
+    const clone = el.cloneNode(true) as HTMLElement
+
+    // 3. 在克隆上移除所有定位/高度/overflow 约束
+    clone.style.position = 'relative'
+    clone.style.top = 'auto'
+    clone.style.left = 'auto'
+    clone.style.right = 'auto'
+    clone.style.bottom = 'auto'
+    clone.style.transform = 'none'
+    clone.style.maxHeight = 'none'
+    clone.style.height = 'auto'
+    clone.style.overflow = 'visible'
+
+    // 4. 解除克隆中可滚动区的 flex 塌缩
+    const cloneScroll = clone.querySelector('[data-transit-scroll]') as HTMLElement | null
+    if (cloneScroll) {
+      cloneScroll.style.overflowY = 'visible'
+      cloneScroll.style.overflow = 'visible'
+      cloneScroll.style.flex = 'none'
+      cloneScroll.style.minHeight = 'auto'
+      cloneScroll.style.height = 'auto'
+      cloneScroll.style.maxHeight = 'none'
     }
-    const savedScroll = scrollArea ? {
-      overflowY: scrollArea.style.overflowY,
-      flex: scrollArea.style.flex,
-      minHeight: scrollArea.style.minHeight,
-      height: scrollArea.style.height,
-    } : null
 
-    // 2. 临时展开：移除高度限制和 overflow 裁剪，解除 flex 塌缩
-    el.style.maxHeight = 'none'
-    el.style.height = 'auto'
-    el.style.overflow = 'visible'
-    if (scrollArea) {
-      scrollArea.style.overflowY = 'visible'
-      scrollArea.style.flex = 'none'
-      scrollArea.style.minHeight = 'auto'
-      scrollArea.style.height = 'auto'
-    }
+    // 5. 移除克隆中的遮罩层（不需要截到）
+    clone.querySelectorAll('[data-transit-overlay]').forEach(n => n.remove())
 
-    // 3. 等待两帧让浏览器完成重新布局
+    // 6. 插入 DOM 让浏览器布局
+    offscreen.appendChild(clone)
+    document.body.appendChild(offscreen)
+
+    // 7. 等待两帧让浏览器完成布局和样式计算
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
 
-    // 4. 获取完整尺寸（此时面板已完全展开）
-    const fullHeight = el.offsetHeight + 20  // 加一点 padding 防止边缘截断
-    const fullWidth = el.offsetWidth
+    // 8. 获取完整尺寸
+    const fullHeight = clone.offsetHeight + 20  // 加 padding 防止边缘截断
+    const fullWidth = clone.offsetWidth
 
-    // 5. 截图
-    const canvas = await toCanvas(el, {
-      pixelRatio: 2,
-      backgroundColor: rootBg,
-      cacheBust: true,
-      width: fullWidth,
-      height: fullHeight,
-      style: {
-        // 克隆节点上的样式（不影响真实 DOM）
-        position: 'relative',
-        top: 'auto',
-        left: 'auto',
-        right: 'auto',
-        bottom: 'auto',
-        transform: 'none',
-        zIndex: '0',
-        maxHeight: 'none',
-        height: 'auto',
-        overflow: 'visible',
-      },
-      filter: (node) => {
-        // 排除遮罩层
-        if (node instanceof HTMLElement) {
-          if ((node as HTMLElement).hasAttribute('data-transit-overlay')) return false
-          const pos = getComputedStyle(node).position
-          const bg = node.style.background || ''
-          if (pos === 'fixed' && bg.includes('0,0,0')) return false
-        }
-        return true
-      },
-    })
-
-    // 6. 恢复原始样式
-    el.style.maxHeight = savedRoot.maxHeight
-    el.style.height = savedRoot.height
-    el.style.overflow = savedRoot.overflow
-    if (scrollArea && savedScroll) {
-      scrollArea.style.overflowY = savedScroll.overflowY
-      scrollArea.style.flex = savedScroll.flex
-      scrollArea.style.minHeight = savedScroll.minHeight
-      scrollArea.style.height = savedScroll.height
+    // 9. 截图（对离屏克隆节点截图，不修改原 DOM）
+    let canvas: HTMLCanvasElement
+    try {
+      canvas = await toCanvas(clone, {
+        pixelRatio: 2,
+        backgroundColor: rootBg,
+        cacheBust: true,
+        width: fullWidth,
+        height: fullHeight,
+      })
+    } finally {
+      // 10. 清理离屏容器
+      document.body.removeChild(offscreen)
     }
 
     return canvas

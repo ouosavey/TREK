@@ -1,5 +1,25 @@
 # VERSION
 
+## v3.0.22-cn.93 - 2026-06-25
+
+### 变更
+修复公交路线导出图片截断（离屏克隆方案）
+
+#### 导出图片下部仍然被截断
+- **根因**：position:fixed + height:90vh 受视口约束，toCanvas 的 style 选项无法覆盖子元素计算样式
+- **修复**：深克隆面板到离屏容器，移除所有约束后自由布局截图，不修改原 DOM
+
+### 涉及文件
+- `client/src/components/Planner/TransitRoutePanel.tsx`
+
+### Docker 镜像
+- GHCR: `ghcr.io/your-github-username/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## v3.0.22-cn.92 - 2026-06-24
 
 ### 变更
