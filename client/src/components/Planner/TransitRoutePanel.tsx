@@ -765,25 +765,46 @@ export default function TransitRoutePanel({
   const contentRef = React.useRef<HTMLDivElement>(null)
 
   // 生成截图 canvas（使用 html-to-image，基于 SVG foreignObject，浏览器原生渲染）
-  // 策略：临时移除maxHeight获取完整高度，用height参数覆盖canvas尺寸，style选项覆盖克隆节点渲染
+  // 策略：临时展开面板和可滚动区（移除 flex 限制和 overflow 裁剪），等待布局后截图，再恢复
   const captureCanvas = React.useCallback(async () => {
     if (!contentRef.current) return null
 
     const rootBg = getComputedStyle(document.documentElement).getPropertyValue('--bg-secondary').trim() || '#ffffff'
     const el = contentRef.current
+    const scrollArea = el.querySelector('[data-transit-scroll]') as HTMLElement | null
 
-    // 1. 保存并临时移除maxHeight，获取完整内容高度
-    const savedMaxHeight = el.style.maxHeight
+    // 1. 保存原始样式
+    const savedRoot = {
+      maxHeight: el.style.maxHeight,
+      height: el.style.height,
+      overflow: el.style.overflow,
+    }
+    const savedScroll = scrollArea ? {
+      overflowY: scrollArea.style.overflowY,
+      flex: scrollArea.style.flex,
+      minHeight: scrollArea.style.minHeight,
+      height: scrollArea.style.height,
+    } : null
+
+    // 2. 临时展开：移除高度限制和 overflow 裁剪，解除 flex 塌缩
     el.style.maxHeight = 'none'
-    
-    // 获取完整内容高度（scrollHeight包含溢出内容）
-    const fullHeight = el.scrollHeight + 20  // 加一点padding防止边缘截断
-    const fullWidth = el.scrollWidth || el.clientWidth
-    
-    // 2. 立即恢复maxHeight（面板跳动时间极短）
-    el.style.maxHeight = savedMaxHeight || ''
+    el.style.height = 'auto'
+    el.style.overflow = 'visible'
+    if (scrollArea) {
+      scrollArea.style.overflowY = 'visible'
+      scrollArea.style.flex = 'none'
+      scrollArea.style.minHeight = 'auto'
+      scrollArea.style.height = 'auto'
+    }
 
-    // 3. 截图（用获取的完整尺寸作为canvas尺寸）
+    // 3. 等待两帧让浏览器完成重新布局
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
+
+    // 4. 获取完整尺寸（此时面板已完全展开）
+    const fullHeight = el.offsetHeight + 20  // 加一点 padding 防止边缘截断
+    const fullWidth = el.offsetWidth
+
+    // 5. 截图
     const canvas = await toCanvas(el, {
       pixelRatio: 2,
       backgroundColor: rootBg,
@@ -791,7 +812,7 @@ export default function TransitRoutePanel({
       width: fullWidth,
       height: fullHeight,
       style: {
-        // 克隆节点上的样式（不影响真实DOM）
+        // 克隆节点上的样式（不影响真实 DOM）
         position: 'relative',
         top: 'auto',
         left: 'auto',
@@ -814,6 +835,18 @@ export default function TransitRoutePanel({
         return true
       },
     })
+
+    // 6. 恢复原始样式
+    el.style.maxHeight = savedRoot.maxHeight
+    el.style.height = savedRoot.height
+    el.style.overflow = savedRoot.overflow
+    if (scrollArea && savedScroll) {
+      scrollArea.style.overflowY = savedScroll.overflowY
+      scrollArea.style.flex = savedScroll.flex
+      scrollArea.style.minHeight = savedScroll.minHeight
+      scrollArea.style.height = savedScroll.height
+    }
+
     return canvas
   }, [])
 
@@ -851,8 +884,14 @@ export default function TransitRoutePanel({
     try {
       const canvas = await captureCanvas()
       if (!canvas) { setExporting(false); return }
-      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'))
-      if (!blob) { setExporting(false); return }
+      // 使用 toDataURL + 手动转 Blob，避免 Capacitor WebView 中 toBlob 回调不触发
+      const dataURL = canvas.toDataURL('image/png')
+      const arr = dataURL.split(',')
+      const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png'
+      const bstr = atob(arr[1])
+      const u8arr = new Uint8Array(bstr.length)
+      for (let i = 0; i < bstr.length; i++) u8arr[i] = bstr.charCodeAt(i)
+      const blob = new Blob([u8arr], { type: mime })
       const now = new Date()
       const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`
       const timeStr = `${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`
@@ -1052,7 +1091,7 @@ export default function TransitRoutePanel({
         </div>
 
         {/* 可滚动内容区 */}
-        <div style={{
+        <div data-transit-scroll style={{
           flex: 1,
           overflowY: 'auto',
           overscrollBehavior: 'contain',

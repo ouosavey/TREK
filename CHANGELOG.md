@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## 2026-06-24 修复公交路线导出图片截断和APK端损坏 v3.0.22-cn.92
+
+### 修复
+
+#### 1. 导出图片下部被完全截断
+- **根因**：`captureCanvas` 截图时仅临时移除了面板的 `maxHeight`，但未处理内部"可滚动内容区"的 `flex: 1; overflowY: auto; minHeight: 0`。在 `height: auto` 的 flex column 父容器中，`flex: 1`（`flex-basis: 0%`）导致内容区塌缩为 0 高度，`toCanvas` 渲染时内容被 `overflowY: auto` 裁剪
+- **修复方案**：截图前临时展开面板和可滚动区（移除 `maxHeight`/`height`/`overflow`/`flex`/`minHeight` 限制），等待两帧让浏览器完成重新布局后截图，截图完成后恢复所有原始样式
+- **涉及文件**：`client/src/components/Planner/TransitRoutePanel.tsx`
+
+#### 2. 手机APK端查看导出图片损坏
+- **根因**：`canvas.toBlob()` 在 Capacitor Android WebView 中回调可能不触发或生成损坏的 Blob，导致上传的 PNG 文件为空或损坏
+- **修复方案**：改用 `canvas.toDataURL('image/png')` 生成 data URL，再手动通过 `atob` + `Uint8Array` 转换为 Blob，确保在所有 WebView 中都能正确生成 PNG Blob
+- **涉及文件**：`client/src/components/Planner/TransitRoutePanel.tsx`
+
+---
+
 ## 2026-06-24 Tab栏Collab中文化 v3.0.22-cn.91
 
 ### 优化

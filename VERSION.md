@@ -1,5 +1,29 @@
 # VERSION
 
+## v3.0.22-cn.92 - 2026-06-24
+
+### 变更
+修复公交路线导出图片截断和APK端损坏
+
+#### 1. 导出图片下部截断
+- **根因**：flex 布局塌缩导致内容区高度为 0，toCanvas 渲染时内容被裁剪
+- **修复**：截图前临时展开面板和可滚动区，等待布局后截图再恢复
+
+#### 2. APK端图片损坏
+- **根因**：canvas.toBlob() 在 Capacitor WebView 中回调不触发
+- **修复**：改用 toDataURL + 手动转 Blob
+
+### 涉及文件
+- `client/src/components/Planner/TransitRoutePanel.tsx`
+
+### Docker 镜像
+- GHCR: `ghcr.io/your-github-username/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## v3.0.22-cn.91 - 2026-06-24
 
 ### 变更
