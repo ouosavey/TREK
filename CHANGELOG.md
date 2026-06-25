@@ -1,5 +1,54 @@
 # CHANGELOG
 
+## 2026-06-25 修复 APK 端多边形搜索结果导航无法调用高德地图 v3.0.22-cn.97
+
+### Bug修复（核心）
+
+#### 问题
+手机 APK 端在"我的旅行"中通过多边形区域搜索到的结果，无论是点击结果列表右侧的"导航"按钮，还是点击搜索结果地点后地图气泡中的"导航前往"，都无法调用手机里的高德地图 App，而是误打开了天翼云盘。而计划栏底部地点详情弹窗（PlaceInspector）中的导航按钮在 APK 中可以正常调用高德地图。手机为鸿蒙 6.1 系统。
+
+#### 根因分析
+两边导航 URL 方案不同：
+- **PlaceInspector（可用）**：使用自定义 scheme `androidamap://route/plan/?...` deep link，鸿蒙/Android 系统通过 Intent 直接匹配 `androidamap` scheme，只能由高德 App 接收，被准确唤起
+- **MapViewAMap 多边形搜索（不可用）**：使用普通 HTTPS web URL `https://uri.amap.com/navigation?...&callnative=1`，依赖高德服务器返回页面再尝试唤起 App。在 Capacitor WebView 中：
+  1. WebView origin 是 `https://localhost`，`window.open('https://uri.amap.com/...')` 尝试跨域导航
+  2. WebView 不在内部打开外部网页，而是把 URL 抛给系统 Intent 处理
+  3. 鸿蒙 6.1 / Android 在分发 HTTPS URL 时查询 App Links / Intent filter，**天翼云盘注册了对某些 HTTPS 域名的关联**，被错误抢占
+  4. 高德的 `callnative=1` 在 WebView 环境下无法执行（依赖浏览器 JS 跳转逻辑），无法"自救"
+
+同理，`DayPlanSidebar` / `PlacesSidebar` 右键菜单"高德地图"选项使用 `https://uri.amap.com/marker?...`（仅显示标记不导航）也存在同样问题。
+
+#### 修复方案
+新建统一的导航工具函数 `client/src/utils/amapNavigate.ts`，原生/移动端优先使用 `androidamap://` deep link（与 PlaceInspector 已验证可用的逻辑一致），1.5 秒后未跳转则回退到 web URL；Web 端使用 web URL。所有导航入口统一调用此函数：
+
+1. **`MapViewAMap.tsx`**：
+   - `handleNavigate()` 改为调用 `openAmapNavigation(place.lat, place.lng, place.name)`（多边形搜索结果坐标已是 GCJ-02，无需转换）
+   - InfoWindow 中的 `<a href="${navUrl}">` 改为 `<a href="javascript:void(0)" onclick="window.__trekAmapNav(...)">`，通过模块加载时挂载到 `window.__trekAmapNav` 的全局函数调用，避免 `<a href>` 被 Intent 错误分发
+   - 模块顶部添加 `;(window as any).__trekAmapNav = openAmapNavigation`
+
+2. **`PlaceInspector.tsx`**：重构现有内联导航逻辑为调用统一函数 `openAmapNavigation(gcjLat, gcjLng, place.name)`（WGS-84 → GCJ-02 转换后传入），保持行为一致
+
+3. **`DayPlanSidebar.tsx`** 和 **`PlacesSidebar.tsx`**：右键菜单"高德地图"选项改为调用 `openAmapNavigation(gcjLat, gcjLng, place.name)`（先 WGS-84 → GCJ-02 转换）
+
+4. **`DayPlanSidebar.tsx` 的 `handleAmapNav`（按天整条路线导航）**：新增 `openAmapMultiRouteNavigation()` 多点导航函数，原生平台使用 `androidamap://route/plan/?slat=&slon=&dlat=&dlon=&via=` 多点 deep link
+
+5. **多边形搜索结果点击地点自动聚焦居中**：`handleResultItemClick` 中的 `map.setZoomAndCenter(16, [gcjLng, gcjLat])` 已存在且正常工作，本次添加注释明确其用途
+
+### 涉及文件
+- `client/src/utils/amapNavigate.ts`（新建，统一导航入口 + 多点导航）
+- `client/src/components/Map/MapViewAMap.tsx`（handleNavigate + InfoWindow 用 deep link）
+- `client/src/components/Planner/PlaceInspector.tsx`（重构为调用统一函数）
+- `client/src/components/Planner/DayPlanSidebar.tsx`（右键菜单 + handleAmapNav 用统一函数）
+- `client/src/components/Planner/PlacesSidebar.tsx`（右键菜单用统一函数）
+
+### Docker 镜像
+- GHCR: `ghcr.io/ouosavey/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## 2026-06-25 修复导出图片到文件后切换页面不显示 v3.0.22-cn.96
 
 ### 修复

@@ -73,5 +73,9 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复导出图片到文件后切换页面不显示 v3.0.22-cn.96**" >> $GITHUB_STEP_SUMMARY
-          echo "  - 上传成功后调用 loadFiles 刷新 store，确保切换页面立即显示新图片" >> $GITHUB_STEP_SUMMARY
+          echo "- **核心修复: APK 端多边形搜索结果导航无法调用高德地图 v3.0.22-cn.97**" >> $GITHUB_STEP_SUMMARY
+          echo "  - 根因: 多边形搜索结果使用 https://uri.amap.com/ web URL，在 Capacitor WebView 中被系统 Intent 错误分发给天翼云盘等 App" >> $GITHUB_STEP_SUMMARY
+          echo "  - 修复: 新建统一导航函数 amapNavigate.ts，原生/移动端优先使用 androidamap:// deep link 唤起高德 App" >> $GITHUB_STEP_SUMMARY
+          echo "  - MapViewAMap: handleNavigate + InfoWindow 导航改用 deep link" >> $GITHUB_STEP_SUMMARY
+          echo "  - PlaceInspector/DayPlanSidebar/PlacesSidebar: 统一调用 openAmapNavigation() 函数" >> $GITHUB_STEP_SUMMARY
+          echo "  - DayPlanSidebar handleAmapNav: 新增多点导航 openAmapMultiRouteNavigation()" >> $GITHUB_STEP_SUMMARY

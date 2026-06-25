@@ -9,7 +9,7 @@ import { ChevronDown, ChevronRight, ChevronUp, ChevronsDownUp, ChevronsUpDown, N
 const RES_ICONS = { flight: Plane, hotel: Hotel, restaurant: Utensils, train: Train, car: Car, cruise: Ship, event: Ticket, tour: Users, other: FileText }
 import { assignmentsApi, reservationsApi, mapsApi } from '../../api/client'
 import { downloadTripPDF } from '../PDF/TripPDF'
-import { calculateRoute, generateGoogleMapsUrl, generateAmapUrl, optimizeRoute } from '../Map/RouteCalculator'
+import { calculateRoute, generateGoogleMapsUrl, optimizeRoute } from '../Map/RouteCalculator'
 import PlaceAvatar from '../shared/PlaceAvatar'
 import { useContextMenu, ContextMenu } from '../shared/ContextMenu'
 import Markdown from 'react-markdown'
@@ -34,6 +34,7 @@ import { useDayNotes } from '../../hooks/useDayNotes'
 import Tooltip from '../shared/Tooltip'
 import TransitRoutePanel, { TransitErrorBoundary } from './TransitRoutePanel'
 import { wgs84ToGcj02 } from '../../utils/coordTransform'
+import { openAmapNavigation, openAmapMultiRouteNavigation } from '../../utils/amapNavigate'
 import type { Trip, Day, Place, Category, Assignment, Reservation, AssignmentsMap, RouteResult, TransitRouteResult, TransitLeg, TransitRouteOption } from '../../types'
 
 const NOTE_ICONS = [
@@ -1097,9 +1098,18 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
   const handleAmapNav = () => {
     if (!selectedDayId) return
     const da = getDayAssignments(selectedDayId)
-    const url = generateAmapUrl(da.map(a => a.place).filter(p => p?.lat && p?.lng))
-    if (url) window.open(url, '_blank')
-    else toast.error(t('dayplan.toast.noGeoPlaces'))
+    const validPlaces = da.map(a => a.place).filter(p => p?.lat && p?.lng)
+    if (validPlaces.length === 0) {
+      toast.error(t('dayplan.toast.noGeoPlaces'))
+      return
+    }
+    // WGS-84 → GCJ-02 转换后调用统一导航函数
+    // 原生平台使用 androidamap:// deep link 唤起高德 App，避免 web URL 在 WebView 中被天翼云盘等抢占
+    const waypoints = validPlaces.map((p: any) => {
+      const [gcjLng, gcjLat] = wgs84ToGcj02(p.lng, p.lat)
+      return { lng: gcjLng, lat: gcjLat, name: p.name }
+    })
+    openAmapMultiRouteNavigation(waypoints)
   }
   const handleGoogleMaps = () => {
     if (!selectedDayId) return
@@ -1692,7 +1702,10 @@ const DayPlanSidebar = React.memo(function DayPlanSidebar({
                               canEditDays && onEditPlace && { label: t('common.edit'), icon: Pencil, onClick: () => onEditPlace(place, assignment.id) },
                               canEditDays && onRemoveAssignment && { label: t('planner.removeFromDay'), icon: Trash2, onClick: () => onRemoveAssignment(day.id, assignment.id) },
                               place.website && { label: t('inspector.website'), icon: ExternalLink, onClick: () => window.open(place.website, '_blank') },
-                              (place.lat && place.lng) && { label: '高德地图', icon: Navigation, onClick: () => window.open(`https://uri.amap.com/marker?position=${place.lng},${place.lat}&name=${encodeURIComponent(place.name || '')}&src=TREK`, '_blank') },
+                              (place.lat && place.lng) && { label: '高德地图', icon: Navigation, onClick: () => {
+                                const [gcjLng, gcjLat] = wgs84ToGcj02(place.lng, place.lat)
+                                openAmapNavigation(gcjLat, gcjLng, place.name)
+                              } },
                               { divider: true },
                               canEditDays && onDeletePlace && { label: t('common.delete'), icon: Trash2, danger: true, onClick: () => onDeletePlace(place.id) },
                             ])}

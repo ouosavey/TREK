@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { openFile } from '../../utils/fileDownload'
 import { wgs84ToGcj02 } from '../../utils/coordTransform'
+import { openAmapNavigation } from '../../utils/amapNavigate'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
@@ -633,28 +634,9 @@ export default function PlaceInspector({
               label={<span className="hidden sm:inline">{t('inspector.google')}</span>} />
           )}
           {place.lat && place.lng && (() => {
-            const [gcjLng, gcjLat] = wgs84ToGcj02(place.lat, place.lng)
-            const name = encodeURIComponent(place.name || '')
-            const deepLink = `androidamap://route/plan/?dlat=${gcjLat}&dlon=${gcjLng}&dname=${name}&dev=0&t=0&source=TREK`
-            const webUrl = `https://uri.amap.com/navigation?to=${gcjLng},${gcjLat},${name}&mode=car&src=TREK&callnative=1`
-            const isMobile = typeof window !== 'undefined' && /Mobi|Android|HarmonyOS/i.test(navigator.userAgent)
-            const handleNavigate = () => {
-              if (isMobile) {
-                // Try deep link first, fall back to web URL
-                const start = Date.now()
-                window.open(deepLink, '_blank')
-                setTimeout(() => {
-                  // If deep link didn't navigate away (app not installed), open web URL
-                  if (!document.hidden && Date.now() - start < 2000) {
-                    window.open(webUrl, '_blank')
-                  }
-                }, 1500)
-              } else {
-                window.open(webUrl, '_blank')
-              }
-            }
+            const [gcjLng, gcjLat] = wgs84ToGcj02(place.lng, place.lat)
             return (
-              <ActionButton onClick={handleNavigate} variant="ghost" icon={<Navigation size={13} />}
+              <ActionButton onClick={() => openAmapNavigation(gcjLat, gcjLng, place.name)} variant="ghost" icon={<Navigation size={13} />}
                 label={<span className="hidden sm:inline">导航</span>} />
             )
           })()}

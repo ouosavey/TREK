@@ -10,6 +10,8 @@ import { useContextMenu, ContextMenu } from '../shared/ContextMenu'
 import { placesApi } from '../../api/client'
 import { useTripStore } from '../../store/tripStore'
 import { useCanDo } from '../../store/permissionsStore'
+import { wgs84ToGcj02 } from '../../utils/coordTransform'
+import { openAmapNavigation } from '../../utils/amapNavigate'
 import type { Place, Category, Day, AssignmentsMap } from '../../types'
 import FileImportModal from './FileImportModal'
 import ConfirmDialog from '../shared/ConfirmDialog'
@@ -316,7 +318,10 @@ const PlacesSidebar = React.memo(function PlacesSidebar({
       canEditPlaces && { label: t('common.edit'), icon: Pencil, onClick: () => onEditPlace(place) },
       selDayId && { label: t('planner.addToDay'), icon: CalendarDays, onClick: () => onAssignToDay(place.id, selDayId) },
       place.website && { label: t('inspector.website'), icon: ExternalLink, onClick: () => window.open(place.website, '_blank') },
-      (place.lat && place.lng) && { label: '高德地图', icon: Navigation, onClick: () => window.open(`https://uri.amap.com/marker?position=${place.lng},${place.lat}&name=${encodeURIComponent(place.name || '')}&src=TREK`, '_blank') },
+      (place.lat && place.lng) && { label: '高德地图', icon: Navigation, onClick: () => {
+        const [gcjLng, gcjLat] = wgs84ToGcj02(place.lng, place.lat)
+        openAmapNavigation(gcjLat, gcjLng, place.name)
+      } },
       { divider: true },
       canEditPlaces && { label: t('common.delete'), icon: Trash2, danger: true, onClick: () => onDeletePlace(place.id) },
     ])

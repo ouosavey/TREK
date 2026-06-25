@@ -1,5 +1,37 @@
 # VERSION
 
+## v3.0.22-cn.97 - 2026-06-25
+
+### 变更
+修复 APK 端多边形搜索结果导航无法调用高德地图的问题。多边形搜索结果列表的"导航"按钮、地图气泡"导航前往"链接、以及 DayPlanSidebar/PlacesSidebar 右键菜单"高德地图"选项，原先使用 `https://uri.amap.com/...` web URL，在 Capacitor WebView 中被系统 Intent 错误分发给天翼云盘等 App。改用统一的 `openAmapNavigation()` 函数，原生/移动端优先使用 `androidamap://` deep link（与 PlaceInspector 已验证可用的逻辑一致）唤起高德 App。
+
+#### 根因
+- `androidamap://` 是高德注册的自定义 URL scheme，鸿蒙/Android 系统通过 Intent 直接匹配，只能由高德 App 接收
+- `https://uri.amap.com/...` 是普通 HTTPS 链接，在 WebView 中被抛给系统 Intent 分发，被注册了 App Links 关联的第三方 App（天翼云盘）错误抢占
+- 高德的 `callnative=1` 参数依赖浏览器 JS 跳转逻辑，在 WebView 中无法执行
+
+#### 修复
+1. 新建 `client/src/utils/amapNavigate.ts`：`openAmapNavigation()` 单点导航 + `openAmapMultiRouteNavigation()` 多点导航，原生平台用 deep link，Web 端用 web URL
+2. `MapViewAMap.tsx`：handleNavigate + InfoWindow `<a onclick>` 调用统一函数（通过 `window.__trekAmapNav` 全局函数）
+3. `PlaceInspector.tsx`：重构为调用统一函数
+4. `DayPlanSidebar.tsx` + `PlacesSidebar.tsx`：右键菜单"高德地图"选项调用统一函数（WGS-84 → GCJ-02 转换后传入）
+5. `DayPlanSidebar.tsx` 的 `handleAmapNav`（按天整条路线导航）改用 `openAmapMultiRouteNavigation()`
+
+### 涉及文件
+- `client/src/utils/amapNavigate.ts`（新建）
+- `client/src/components/Map/MapViewAMap.tsx`
+- `client/src/components/Planner/PlaceInspector.tsx`
+- `client/src/components/Planner/DayPlanSidebar.tsx`
+- `client/src/components/Planner/PlacesSidebar.tsx`
+
+### Docker 镜像
+- GHCR: `ghcr.io/ouosavey/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## v3.0.22-cn.96 - 2026-06-25
 
 ### 变更
