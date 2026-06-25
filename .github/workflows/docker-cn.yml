@@ -73,6 +73,5 @@ jobs:
           echo "| **Pushed** | ✅ Yes → GHCR |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 本次修复内容" >> $GITHUB_STEP_SUMMARY
-          echo "- **修复APK白屏-PWA Service Worker冲突 v3.0.22-cn.94**" >> $GITHUB_STEP_SUMMARY
-          echo "  - APK构建时移除PWA service worker" >> $GITHUB_STEP_SUMMARY
-          echo "  - main.tsx启动时注销旧SW并清除caches" >> $GITHUB_STEP_SUMMARY
+          echo "- **修复APK端文件图片损坏 v3.0.22-cn.95**" >> $GITHUB_STEP_SUMMARY
+          echo "  - getAuthUrl/fetchImageAsBlob/downloadFile/openFile 移动端拼接服务器地址" >> $GITHUB_STEP_SUMMARY

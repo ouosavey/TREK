@@ -1,4 +1,22 @@
-import { getApiBaseUrl } from '../utils/serverConfig'
+import { getApiBaseUrl, getBaseUrl } from '../utils/serverConfig'
+
+/**
+ * 将相对路径 URL 转换为完整 URL（移动端需要拼接服务器地址）
+ * Capacitor WebView origin 是 https://localhost，相对路径会解析到错误地址
+ */
+function toFullUrl(url: string): string {
+  if (!url) return url
+  // 已是绝对 URL，不需要处理
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
+    return url
+  }
+  // 移动端：拼接服务器地址
+  const base = getBaseUrl()
+  if (base) {
+    return `${base}${url}`
+  }
+  return url
+}
 
 export async function getAuthUrl(url: string, purpose: 'download'): Promise<string> {
   if (!url) return url
@@ -9,11 +27,11 @@ export async function getAuthUrl(url: string, purpose: 'download'): Promise<stri
       credentials: 'include',
       body: JSON.stringify({ purpose }),
     })
-    if (!resp.ok) return url
+    if (!resp.ok) return toFullUrl(url)
     const { token } = await resp.json()
-    return `${url}${url.includes('?') ? '&' : '?'}token=${token}`
+    return toFullUrl(`${url}${url.includes('?') ? '&' : '?'}token=${token}`)
   } catch {
-    return url
+    return toFullUrl(url)
   }
 }
 
@@ -36,10 +54,11 @@ export function clearImageQueue() {
 
 export async function fetchImageAsBlob(url: string): Promise<string> {
   if (!url) return ''
+  const fullUrl = toFullUrl(url)
   return new Promise<string>((resolve) => {
     const run = async () => {
       try {
-        const resp = await fetch(url, { credentials: 'include' })
+        const resp = await fetch(fullUrl, { credentials: 'include' })
         if (!resp.ok) { resolve(''); return }
         const blob = await resp.blob()
         resolve(URL.createObjectURL(blob))

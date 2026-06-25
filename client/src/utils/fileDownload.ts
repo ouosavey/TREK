@@ -1,3 +1,5 @@
+import { getBaseUrl } from '../utils/serverConfig'
+
 // MIME types safe to open inline (will not execute script in any browser).
 // Everything else (text/html, image/svg+xml, text/javascript, …) is forced to
 // download so a maliciously-named upload cannot run code in the TREK origin.
@@ -21,6 +23,16 @@ function assertRelativeUrl(url: string): void {
   if (!url.startsWith('/') || url.startsWith('//') || url.startsWith('/\\')) {
     throw new Error(`Refusing to fetch non-relative URL: ${url}`)
   }
+}
+
+/**
+ * 将相对路径 URL 转换为完整 URL（移动端需要拼接服务器地址）
+ * Capacitor WebView origin 是 https://localhost，相对路径会解析到错误地址
+ */
+function toFullUrl(url: string): string {
+  const base = getBaseUrl()
+  if (base) return `${base}${url}`
+  return url
 }
 
 function triggerAnchorDownload(blobUrl: string, filename?: string): void {
@@ -47,7 +59,7 @@ function isIosStandalone(): boolean {
  */
 export async function downloadFile(url: string, filename?: string): Promise<void> {
   assertRelativeUrl(url)
-  const resp = await fetch(url, { credentials: 'include' })
+  const resp = await fetch(toFullUrl(url), { credentials: 'include' })
   if (!resp.ok) throw new Error(resp.status === 401 ? 'Unauthorized' : `HTTP ${resp.status}`)
   const blob = await resp.blob()
   const blobUrl = URL.createObjectURL(blob)
@@ -73,7 +85,7 @@ export async function downloadFile(url: string, filename?: string): Promise<void
  */
 export async function openFile(url: string, filename?: string): Promise<void> {
   assertRelativeUrl(url)
-  const resp = await fetch(url, { credentials: 'include' })
+  const resp = await fetch(toFullUrl(url), { credentials: 'include' })
   if (!resp.ok) throw new Error(resp.status === 401 ? 'Unauthorized' : `HTTP ${resp.status}`)
   const blob = await resp.blob()
   const blobUrl = URL.createObjectURL(blob)

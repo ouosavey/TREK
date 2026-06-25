@@ -1,5 +1,26 @@
 # VERSION
 
+## v3.0.22-cn.95 - 2026-06-25
+
+### 变更
+修复APK端文件图片损坏-相对路径未拼接服务器地址
+
+#### 手机APK端查看旅行文件页面下的图片都是损坏状态
+- **根因**：file.url 是相对路径，移动端 WebView 解析到 https://localhost 而非服务器地址
+- **修复**：getAuthUrl/fetchImageAsBlob/downloadFile/openFile 移动端拼接 getBaseUrl()
+
+### 涉及文件
+- `client/src/api/authUrl.ts`
+- `client/src/utils/fileDownload.ts`
+
+### Docker 镜像
+- GHCR: `ghcr.io/your-github-username/trek:cn-localized` (linux/amd64)
+
+### APK 文件路径
+- GitHub Actions Artifact: `client/android/app/build/outputs/apk/debug/app-debug.apk`
+
+---
+
 ## v3.0.22-cn.94 - 2026-06-25
 
 ### 变更

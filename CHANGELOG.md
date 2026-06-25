@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## 2026-06-25 修复APK端文件图片损坏-相对路径未拼接服务器地址 v3.0.22-cn.95
+
+### 修复
+
+#### 手机APK端查看旅行文件页面下的图片都是损坏状态
+- **根因**：后端返回的 `file.url` 是相对路径 `/api/trips/:id/files/:id/download`，前端 `getAuthUrl()` 和 `fetchImageAsBlob()` 获取临时 token 后直接返回相对路径 URL。在 Capacitor 移动端 WebView 中，`<img src="/api/trips/...">` 会解析为 `https://localhost/api/trips/...`（WebView origin），而不是用户配置的服务器地址，导致图片请求 404，显示损坏
+- **修复方案**：
+  1. `authUrl.ts`：新增 `toFullUrl()` 函数，在 `getAuthUrl()` 和 `fetchImageAsBlob()` 返回 URL 前调用，移动端拼接 `getBaseUrl()` 获取的服务器地址
+  2. `fileDownload.ts`：`downloadFile()` 和 `openFile()` 中的 `fetch()` 调用前也通过 `toFullUrl()` 拼接完整 URL
+- **涉及文件**：
+  - `client/src/api/authUrl.ts`（getAuthUrl/fetchImageAsBlob 移动端 URL 拼接）
+  - `client/src/utils/fileDownload.ts`（downloadFile/openFile 移动端 URL 拼接）
+
+---
+
 ## 2026-06-25 修复APK白屏-PWA Service Worker冲突 v3.0.22-cn.94
 
 ### 修复
