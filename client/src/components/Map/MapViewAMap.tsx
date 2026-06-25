@@ -8,11 +8,17 @@ import { useAuthStore } from '../../store/authStore'
 import { getCached, isLoading, fetchPhoto, onThumbReady, getAllThumbs } from '../../services/photoService'
 import { CATEGORY_ICON_MAP, getCategoryIcon } from '../shared/categoryIcons'
 import { wgs84ToGcj02, wgs84ToGcj02Batch, gcj02ToWgs84 } from '../../utils/coordTransform'
+import { openAmapNavigation } from '../../utils/amapNavigate'
 import LocationButton from './LocationButton'
 import { mapsApi } from '../../api/client'
 import { useGeolocation } from '../../hooks/useGeolocation'
 import type { Place, Reservation, ReservationEndpoint, RouteSegment } from '../../types'
 import type { GeoPosition, TrackingMode } from '../../hooks/useGeolocation'
+
+// ── 全局导航函数：供 InfoWindow 内联 onclick 调用 ──────────────────────────
+// InfoWindow 内容是 HTML 字符串，无法直接引用模块作用域函数，
+// 因此将统一的导航入口挂到 window 上，由 <a onclick> 触发。
+;(window as any).__trekAmapNav = openAmapNavigation
 
 // ═══════════════════════════════════════════════════════════════════
 // MODULE-LEVEL: Suppress AMap LngLat/Pixel NaN errors
@@ -1712,12 +1718,9 @@ export const MapViewAMap = memo(function MapViewAMap({
   // 导航到指定地点（调用高德导航）
   function handleNavigate(place: any) {
     if (!place.lat || !place.lng) return
-    const gcjLng = place.lng
-    const gcjLat = place.lat
-    // 使用高德 URI API 唤起导航，callnative=1 会尝试唤起高德地图 App
-    // 坐标已是 GCJ-02，使用 coordinate=gaode
-    const navUrl = `https://uri.amap.com/navigation?to=${gcjLng},${gcjLat},${encodeURIComponent(place.name || '目的地')}&mode=car&src=trek&coordinate=gaode&callnative=1`
-    window.open(navUrl, '_blank')
+    // 后端返回的坐标已经是 GCJ-02（来自高德 API），可直接用于高德导航
+    // 原生平台（APK）使用 androidamap:// deep link 唤起高德 App，避免 web URL 在 WebView 中被错误拦截
+    openAmapNavigation(place.lat, place.lng, place.name)
   }
 
   // ── No AMap key placeholder ──────────────────────────────────────────
